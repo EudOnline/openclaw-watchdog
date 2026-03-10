@@ -11,10 +11,13 @@ This roadmap focuses on practical operator value: better recovery behavior, clea
 
 ## v0.3.0 — validation and packaging
 
+- Add host auto-detection and preflight onboarding for safer first deployment
 - Expand rehearsal coverage for common recovery paths
 - Add a more explicit test/validation matrix
 - Improve packaging ergonomics for source-based installation
 - Consider lightweight release artifacts if maintenance cost stays reasonable
+
+A likely shape for this work is: detect host -> suggest config -> preflight -> observe-only rollout -> promote to active repair.
 
 ## Future directions
 
