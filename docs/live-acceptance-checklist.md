@@ -4,6 +4,9 @@ This checklist is the operator-facing closure for the P0 survivability read-only
 
 ## One-command acceptance
 
+Before running the full acceptance script on a new host, the operator quick path should already look sane: `status --summary`, `report --message`, and `incidents current --json` should all be readable and internally consistent.
+
+
 ```bash
 ./scripts/openclaw-watchdog-live-acceptance.sh
 ```

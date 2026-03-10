@@ -40,3 +40,6 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["watchdog_v2*", "rehearsal*"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

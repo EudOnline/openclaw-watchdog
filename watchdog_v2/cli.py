@@ -11,7 +11,14 @@ from watchdog_v2.engine import WatchdogEngine
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="openclaw-watchdog")
+    parser = argparse.ArgumentParser(
+        prog="openclaw-watchdog",
+        description="External watchdog and recovery toolkit for OpenClaw.",
+        epilog=(
+            "Operator quick path: detect -> check -> status --summary -> "
+            "report --message -> incidents queue -> maintenance on|off"
+        ),
+    )
     parser.add_argument("--env", type=Path, default=default_env_file())
     subparsers = parser.add_subparsers(dest="command", required=True)
 

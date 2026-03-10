@@ -1,6 +1,6 @@
 ## Summary
 
-Describe the change briefly.
+Describe the change briefly. Include the verification commands you ran and note any checks you could not run locally.
 
 ## Why
 

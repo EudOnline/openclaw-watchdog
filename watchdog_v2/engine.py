@@ -8,7 +8,6 @@ import re
 import shlex
 import shutil
 import signal
-import subprocess
 import tempfile
 import textwrap
 import time
@@ -23,21 +22,8 @@ from watchdog_v2 import repair as repair_ops
 from watchdog_v2 import reporting as reporting_ops
 from watchdog_v2 import survival as survival_ops
 from watchdog_v2.config import Config, parse_env_file
-
-
-@dataclass
-class CommandResult:
-    args: list[str]
-    returncode: int
-    stdout: str
-    stderr: str
-    timed_out: bool = False
-
-    @property
-    def output(self) -> str:
-        if self.stdout and self.stderr:
-            return f"{self.stdout.rstrip()}\n{self.stderr.rstrip()}\n"
-        return self.stdout or self.stderr
+from watchdog_v2.runtime import CommandResult, run_capture_to_file, run_command
+from watchdog_v2 import state_store
 
 
 @dataclass
@@ -177,35 +163,10 @@ class WatchdogEngine:
         merge_stderr: bool = False,
         input_text: str | None = None,
     ) -> CommandResult:
-        try:
-            completed = subprocess.run(
-                args,
-                input=input_text,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
-                cwd=str(cwd) if cwd is not None else None,
-                timeout=timeout,
-                check=False,
-            )
-            if merge_stderr:
-                return CommandResult(args=args, returncode=completed.returncode, stdout=completed.stdout or "", stderr="")
-            return CommandResult(
-                args=args,
-                returncode=completed.returncode,
-                stdout=completed.stdout or "",
-                stderr=completed.stderr or "",
-            )
-        except FileNotFoundError as exc:
-            return CommandResult(args=args, returncode=127, stdout="", stderr=str(exc))
-        except subprocess.TimeoutExpired as exc:
-            stdout = exc.stdout or ""
-            stderr = exc.stderr or f"timed out after {timeout}s"
-            return CommandResult(args=args, returncode=124, stdout=stdout, stderr=stderr, timed_out=True)
+        return run_command(args, timeout=timeout, cwd=cwd, merge_stderr=merge_stderr, input_text=input_text)
 
     def run_capture_to_file(self, args: list[str], destination: Path, *, timeout: int | None = None) -> None:
-        result = self.run_command(args, timeout=timeout, merge_stderr=True)
-        destination.write_text(result.output, encoding="utf-8")
+        run_capture_to_file(args, destination, timeout=timeout)
 
     def notify(self, message: str) -> None:
         if not self.config.watchdog_notify_channel or not self.config.watchdog_notify_target:
@@ -469,32 +430,14 @@ class WatchdogEngine:
         return summary
 
     def append_event_history(self, event_payload: dict[str, object]) -> None:
-        history_file = self.config.watchdog_event_history_file
-        lines: list[str] = []
-        if history_file.exists():
-            lines = [line for line in history_file.read_text(encoding="utf-8").splitlines() if line.strip()]
-        lines.append(json.dumps(event_payload, ensure_ascii=False, sort_keys=True))
-        keep = max(1, self.config.watchdog_event_history_limit)
-        history_file.write_text("\n".join(lines[-keep:]) + "\n", encoding="utf-8")
+        state_store.append_event_history(
+            self.config.watchdog_event_history_file,
+            event_payload,
+            keep=self.config.watchdog_event_history_limit,
+        )
 
     def read_event_history(self, limit: int | None = None) -> list[dict[str, object]]:
-        history_file = self.config.watchdog_event_history_file
-        if not history_file.exists():
-            return []
-        items: list[dict[str, object]] = []
-        for line in history_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict):
-                items.append(payload)
-        if limit is not None and limit > 0:
-            return items[-limit:]
-        return items
+        return state_store.read_event_history(self.config.watchdog_event_history_file, limit=limit)
 
     def event_time(self, event: dict[str, object]) -> datetime | None:
         raw = event.get("time")

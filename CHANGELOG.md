@@ -2,6 +2,19 @@
 
 All notable changes to this public repository will be documented here.
 
+## Unreleased
+
+### Changed
+- add explicit Python 3.11+ wrapper checks so unsupported hosts see a clear requirement message instead of a traceback
+- align built-in config defaults with the sample env file for home-directory paths and conservative first-rollout toggles
+- rewrite rehearsal docs around the repo-local entrypoints that actually ship in this repository
+- publish a clearer first-deployment checklist and a reporting contract document for operator/integration consumers
+- extract subprocess and state-persistence helpers from `watchdog_v2/engine.py` into focused modules
+
+### Added
+- a minimal GitHub Actions workflow plus focused local regression tests for runtime wrapper, config defaults, reporting, CLI smoke, runtime helpers, and state-store helpers
+
+
 ## 0.1.0 - 2026-03-10
 
 ### Added

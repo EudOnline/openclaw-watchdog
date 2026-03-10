@@ -8,6 +8,8 @@ This document is for migration clarity. New users should follow the canonical en
 
 Use these for all new documentation, examples, and deployments:
 
+The sample env file remains the canonical operator-facing source of default path and rollout guidance. The Python config defaults are aligned with that file for home-directory paths and conservative first-rollout toggles.
+
 - CLI wrapper: `scripts/openclaw-watchdog`
 - Example config: `config/openclaw-watchdog.env.example`
 - Sample systemd service: `systemd/openclaw-watchdog.service`

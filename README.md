@@ -3,6 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/EudOnline/openclaw-watchdog?display_name=tag)](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](pyproject.toml)
+[![CI](https://github.com/EudOnline/openclaw-watchdog/actions/workflows/ci.yml/badge.svg)](https://github.com/EudOnline/openclaw-watchdog/actions/workflows/ci.yml)
 
 A production-oriented external watchdog and recovery toolkit for OpenClaw.
 
@@ -25,6 +26,7 @@ It combines:
 - [Release notes](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
 - [Documentation index](docs/README.md)
 - [Compatibility and deprecations](docs/compatibility-and-deprecations.md)
+- [Reporting contract](docs/reporting-contract.md)
 - [First deployment guide](docs/first-deployment.md)
 - [Roadmap](docs/roadmap.md)
 - [FAQ](docs/faq.md)
@@ -60,6 +62,7 @@ rehearsal/     fixtures, shims, scenarios, and test flows
 ## Requirements
 
 - Python 3.11+
+- `scripts/openclaw-watchdog` checks for a compatible interpreter before importing the package and prints a clear error if only older Python versions are installed
 - OpenClaw installed on the target machine
 - Linux with `systemd --user` if you want the provided timer units
 - Standard host tools used by the watchdog or rehearsal flows, depending on features enabled:
@@ -87,12 +90,14 @@ scripts/openclaw-watchdog detect
 scripts/openclaw-watchdog check --env config/openclaw-watchdog.env
 ```
 
+If the wrapper reports that no compatible interpreter was found, install Python 3.11+ first and rerun the same command. For the first live rollout, follow `docs/first-deployment.md` before enabling the timer.
+
 ### Option 2: Python module entrypoint
 
 If you are working from a source checkout, you can also invoke the package directly:
 
 ```bash
-python3 -m watchdog_v2 --help
+python3.11 -m watchdog_v2 --help
 ```
 
 ## Configuration
@@ -111,9 +116,11 @@ Important knobs include:
 - backup / rollback behavior
 - Codex / OpenCode fallback settings
 
-The example config is intentionally sanitized. You must set values appropriate for your own host.
+The example config is intentionally sanitized. Its paths and conservative rollout toggles are now aligned with the built-in defaults so a missing env file does not silently fall back to `/root/...`-style paths or enable aggressive automation. You must still set values appropriate for your own host.
 
 ## Common commands
+
+Operator quick path for the first live rollout: `detect` -> `check` -> `status --summary` -> `report --message` -> `incidents queue` -> `maintenance on|off`.
 
 ```bash
 # one remediation pass
@@ -159,7 +166,7 @@ systemctl --user status openclaw-watchdog.service
 
 ## Rehearsal and validation
 
-This repo includes a rehearsal harness for validating flows without using a live production gateway.
+This repo includes a repo-local rehearsal harness for validating flows without using a live production gateway.
 
 Start with:
 

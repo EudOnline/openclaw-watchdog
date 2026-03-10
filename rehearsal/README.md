@@ -1,10 +1,10 @@
-# OpenClaw Watchdog Docker rehearsal harness
+# OpenClaw Watchdog rehearsal harness
 
-This harness exercises the OpenClaw Watchdog source tree in a deterministic, container-safe rehearsal environment.
+This harness exercises the OpenClaw Watchdog source tree in a deterministic, repo-local rehearsal environment.
 
 ## What it gives you
 
-- A Docker image that runs entirely inside this repo copy.
+- A rehearsal flow that runs directly from this repo checkout.
 - Fake `openclaw`, `systemctl`, `journalctl`, `ss`, `ps`, `node`, `opencode`, and optional `codex` shims.
 - Scenario setup scripts for bootstrap and watchdog paths.
 - No dependency on a real OpenClaw service or on the host machine's OpenClaw state.
@@ -12,8 +12,6 @@ This harness exercises the OpenClaw Watchdog source tree in a deterministic, con
 
 ## Layout
 
-- `Dockerfile`: container image for the rehearsal environment.
-- `compose.yaml`: optional compose wrapper.
 - `rehearsal/env/openclaw-watchdog.rehearsal.env`: safe in-repo env file for bootstrap/watchdog runs.
 - `rehearsal/bin/`: host-command shims used by the watchdog engine.
 - `rehearsal/shims/`: fake `openclaw`, `opencode`, and `codex` binaries installed into `rehearsal/runtime/bin`.
@@ -30,107 +28,90 @@ Implementation map:
 - `watchdog_v2/health.py` contains service-level probing, conversation-aware probe aggregation, and status shaping delegated from the engine.
 - `watchdog_v2/handoff.py` contains incident evidence bundle plus Codex/OpenCode handoff helpers delegated from the engine.
 
-## Build with Docker
+## Run locally
+
+Reset rehearsal state:
 
 ```bash
-docker build -t openclaw-watchdog-rehearsal .
-```
-
-## Run with Docker
-
-Interactive shell in the rehearsal image:
-
-```bash
-docker run --rm -it openclaw-watchdog-rehearsal
+bash rehearsal/scripts/reset-runtime.sh
 ```
 
 Run a single scripted scenario:
 
 ```bash
-docker run --rm -it openclaw-watchdog-rehearsal scenario bootstrap-missing-openclaw
-docker run --rm -it openclaw-watchdog-rehearsal scenario bootstrap-openclaw-missing-plugin
-docker run --rm -it openclaw-watchdog-rehearsal scenario bootstrap-install-openclaw
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-recovery
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-failed-fallback
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-active-no-listener-grace
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-service-layer-degraded
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-service-layer-threshold-recovery
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-conversation-probe-ready
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-conversation-probe-minimal
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-conversation-probe-down
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-restart-priority-recovery
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-rollback-priority-before-doctor
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-doctor-deferred-until-survival-fails
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-recovery-notify-normal
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-last-good-generation-selection
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-config-invalid-rollback
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incidents-open
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incidents-resolved
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-metrics-healthy
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-metrics-open-incident
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-metrics-resolved
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incident-operator-open
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incident-operator-resolved
-docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incident-operator-reset
+bash rehearsal/scripts/run-scenario.sh bootstrap-missing-openclaw
+bash rehearsal/scripts/run-scenario.sh bootstrap-openclaw-missing-plugin
+bash rehearsal/scripts/run-scenario.sh bootstrap-install-openclaw
+bash rehearsal/scripts/run-scenario.sh watchdog-recovery
+bash rehearsal/scripts/run-scenario.sh watchdog-failed-fallback
+bash rehearsal/scripts/run-scenario.sh watchdog-active-no-listener-grace
+bash rehearsal/scripts/run-scenario.sh watchdog-service-layer-degraded
+bash rehearsal/scripts/run-scenario.sh watchdog-service-layer-threshold-recovery
+bash rehearsal/scripts/run-scenario.sh watchdog-conversation-probe-ready
+bash rehearsal/scripts/run-scenario.sh watchdog-conversation-probe-minimal
+bash rehearsal/scripts/run-scenario.sh watchdog-conversation-probe-down
+bash rehearsal/scripts/run-scenario.sh watchdog-restart-priority-recovery
+bash rehearsal/scripts/run-scenario.sh watchdog-rollback-priority-before-doctor
+bash rehearsal/scripts/run-scenario.sh watchdog-doctor-deferred-until-survival-fails
+bash rehearsal/scripts/run-scenario.sh watchdog-recovery-notify-normal
+bash rehearsal/scripts/run-scenario.sh watchdog-last-good-generation-selection
+bash rehearsal/scripts/run-scenario.sh watchdog-config-invalid-rollback
+bash rehearsal/scripts/run-scenario.sh watchdog-incidents-open
+bash rehearsal/scripts/run-scenario.sh watchdog-incidents-resolved
+bash rehearsal/scripts/run-scenario.sh watchdog-metrics-healthy
+bash rehearsal/scripts/run-scenario.sh watchdog-metrics-open-incident
+bash rehearsal/scripts/run-scenario.sh watchdog-metrics-resolved
+bash rehearsal/scripts/run-scenario.sh watchdog-incident-operator-open
+bash rehearsal/scripts/run-scenario.sh watchdog-incident-operator-resolved
+bash rehearsal/scripts/run-scenario.sh watchdog-incident-operator-reset
 ```
 
 Run all scripted scenarios:
 
 ```bash
-docker run --rm -it openclaw-watchdog-rehearsal scenario all
+bash rehearsal/scripts/run-scenario.sh all
 ```
 
-Run the watchdog/bootstrap CLI directly in the container:
+Run the rehearsal entrypoint directly:
 
 ```bash
-docker run --rm -it openclaw-watchdog-rehearsal bootstrap
-docker run --rm -it openclaw-watchdog-rehearsal bootstrap --install-openclaw
-docker run --rm -it openclaw-watchdog-rehearsal check
-docker run --rm -it openclaw-watchdog-rehearsal run-once
-docker run --rm -it openclaw-watchdog-rehearsal status
-docker run --rm -it openclaw-watchdog-rehearsal report --message
-docker run --rm -it openclaw-watchdog-rehearsal metrics --json
-docker run --rm -it openclaw-watchdog-rehearsal metrics --prometheus
-docker run --rm -it openclaw-watchdog-rehearsal incidents list --state resolved
-docker run --rm -it openclaw-watchdog-rehearsal incidents current
-docker run --rm -it openclaw-watchdog-rehearsal incidents assign 20260309-001613 --owner alice
-docker run --rm -it openclaw-watchdog-rehearsal incidents unassign 20260309-001613
-docker run --rm -it openclaw-watchdog-rehearsal incidents ack 20260309-001613 --by alice --note "investigating"
-docker run --rm -it openclaw-watchdog-rehearsal incidents unack 20260309-001613
-docker run --rm -it openclaw-watchdog-rehearsal incidents note 20260309-001613 --by bob --message "waiting for fallback"
-docker run --rm -it openclaw-watchdog-rehearsal incidents list --owner alice --ack yes
-docker run --rm -it openclaw-watchdog-rehearsal maintenance on --reason "rehearsal"
+bash rehearsal/entrypoint.sh bootstrap
+bash rehearsal/entrypoint.sh bootstrap --install-openclaw
+bash rehearsal/entrypoint.sh check
+bash rehearsal/entrypoint.sh run-once
+bash rehearsal/entrypoint.sh status
+bash rehearsal/entrypoint.sh report --message
+bash rehearsal/entrypoint.sh metrics --json
+bash rehearsal/entrypoint.sh metrics --prometheus
+bash rehearsal/entrypoint.sh incidents list --state resolved
+bash rehearsal/entrypoint.sh incidents current
+bash rehearsal/entrypoint.sh incidents assign 20260309-001613 --owner alice
+bash rehearsal/entrypoint.sh incidents unassign 20260309-001613
+bash rehearsal/entrypoint.sh incidents ack 20260309-001613 --by alice --note "investigating"
+bash rehearsal/entrypoint.sh incidents unack 20260309-001613
+bash rehearsal/entrypoint.sh incidents note 20260309-001613 --by bob --message "waiting for fallback"
+bash rehearsal/entrypoint.sh incidents list --owner alice --ack yes
 ```
 
-If you want container writes to appear in your local checkout, bind-mount the repo:
+## Scenario coverage
 
-```bash
-docker run --rm -it -v "$PWD:/workspace" openclaw-watchdog-rehearsal scenario all
-```
+The rehearsal scenarios cover:
 
-## Run later with Compose
-
-```bash
-docker compose run --rm rehearsal scenario all
-docker compose run --rm rehearsal bootstrap
-```
-
-## Supported rehearsal paths
-
-- `bootstrap-missing-openclaw`: `opencode` auto-installs, OpenClaw stays confirmation-required.
-- `bootstrap-openclaw-missing-plugin`: OpenClaw exists, QQ plugin gets installed, QQ/Feishu config is scaffolded.
-- `bootstrap-install-openclaw`: same as above, but exercises the explicit `--install-openclaw` path.
-- `watchdog-recovery`: watchdog repairs and restarts the simulated gateway.
-- `watchdog-failed-fallback`: deterministic remediation fails, Codex is detect-only/missing, OpenCode fallback launches.
-- `watchdog-active-no-listener-grace`: a short active-without-listener window is tolerated and settles healthy without remediation.
-- `watchdog-service-layer-degraded`: process layer stays healthy, service layer degrades, threshold is not met, and watchdog reports degraded without remediation.
-- `watchdog-service-layer-threshold-recovery`: service layer degrades across the configured threshold, watchdog remediates, and the service recovers.
-- `watchdog-conversation-probe-ready`: the gateway is reachable and the conversation path is fully ready.
-- `watchdog-conversation-probe-minimal`: optional conversation targets fail, but the minimal usable path is still available.
-- `watchdog-conversation-probe-down`: the service looks partially alive, but the conversation path is not usable and `check --json` exits non-zero.
-- `watchdog-restart-priority-recovery`: the survivability flow restores conversation through restart before considering rollback or doctor repair.
-- `watchdog-rollback-priority-before-doctor`: restart is insufficient, so the survivability flow rolls back to `last-good` before attempting doctor repair.
-- `watchdog-doctor-deferred-until-survival-fails`: doctor repair is deferred until restart, rollback, and survival-mode placeholders all fail.
+- `bootstrap-missing-openclaw`: bootstrap reports the missing `openclaw` dependency and exits with installation guidance.
+- `bootstrap-openclaw-missing-plugin`: OpenClaw exists but the required plugin/config wiring is missing, so bootstrap reports the missing setup without trying to mutate the host.
+- `bootstrap-install-openclaw`: bootstrap exercises the explicit `--install-openclaw` path and verifies the repo-local shim installer.
+- `watchdog-recovery`: a straightforward unhealthy service becomes healthy after the normal restart path.
+- `watchdog-failed-fallback`: the service stays unhealthy through restart/repair attempts, so the watchdog records a failure and fallback context.
+- `watchdog-active-no-listener-grace`: the service is active while the listener is still warming up, so the watchdog stays patient instead of immediately restarting.
+- `watchdog-service-layer-degraded`: process health looks fine but the service-level probe is still degraded, so status/report output shows the degraded layer clearly.
+- `watchdog-service-layer-threshold-recovery`: a transient service-layer failure only triggers recovery after the configured threshold is crossed.
+- `watchdog-service-layer-transient-retry`: a temporary service-layer miss recovers before remediation and remains a check-only warning.
+- `watchdog-conversation-probe-ready`: both gateway and required channels are conversation-ready, so the conversation probe reports fully healthy.
+- `watchdog-conversation-probe-minimal`: the gateway is degraded but the configured minimal usable path still works, so status/report output marks minimal readiness separately from full readiness.
+- `watchdog-conversation-probe-down`: neither the gateway nor the minimal path is usable, so the conversation probe fails hard and surfaces the blocking reasons.
+- `watchdog-restart-priority-recovery`: the survivability flow prefers a restart first and only escalates if the restart does not restore conversation readiness.
+- `watchdog-rollback-priority-before-doctor`: the survivability flow prefers rolling back to `last-good` before invoking doctor repair when drift or bad config is detected.
+- `watchdog-doctor-deferred-until-survival-fails`: doctor repair is intentionally deferred until restart, rollback, and survival-mode placeholders all fail.
 - `watchdog-survival-mode-recovery`: restart/rollback do not restore the service, so watchdog applies survival mode and recovers a degraded-but-usable conversation path.
 - `watchdog-config-drift-guard`: a drifted config differs from the last-good protected-path fingerprints, so watchdog records drift context and rolls back before doctor repair.
 - `watchdog-recovery-notify-normal`: after recovery, report/metrics/message outputs surface the recovery path and restored conversation state.

@@ -37,15 +37,15 @@ Please do not submit changes that:
 
 ## Testing
 
-At minimum, contributors should run targeted checks relevant to their change, for example:
+At minimum, contributors should run targeted checks relevant to their change. The current baseline is:
 
 ```bash
-python3 -m py_compile watchdog_v2/*.py
-python3 -m watchdog_v2 --help
-scripts/openclaw-watchdog check --env config/openclaw-watchdog.env.example
+./scripts/openclaw-watchdog --help
+python3 -m unittest discover -s tests -v
+python3 -m py_compile watchdog_v2/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py
 ```
 
-If your change touches incident logic, rehearsal flows, or reporting, also run the corresponding rehearsal scripts.
+If your change touches incident logic, rehearsal flows, or reporting, also run the corresponding rehearsal scripts. If you change report or metrics output, review `docs/reporting-contract.md` and update `docs/live-acceptance-checklist.md` when the operator-facing contract changes.
 
 ## Pull request guidance
 

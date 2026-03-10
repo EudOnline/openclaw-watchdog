@@ -14,6 +14,12 @@ No for new usage. New installs and new docs should use:
 
 The `-v2` scripts remain only as migration shims.
 
+## Why does `scripts/openclaw-watchdog --help` ask for Python 3.11+?
+
+The project requires Python 3.11 or newer. The wrapper script now checks the interpreter before importing `watchdog_v2`, so on hosts that only have older Python versions you should see a short requirement message instead of a traceback.
+
+You can either install Python 3.11+ or run the module explicitly with a compatible interpreter, for example `python3.11 -m watchdog_v2 --help`.
+
 ## Is this meant to be installed from PyPI?
 
 Not today. The current release shape is source-first: clone the repo, copy the example env file, and run the scripts or Python module entrypoint from the checkout.
@@ -33,8 +39,11 @@ A good reading order is:
 1. `README.md`
 2. `docs/README.md`
 3. `docs/compatibility-and-deprecations.md`
-4. `docs/live-acceptance-checklist.md`
-5. `rehearsal/README.md`
+4. `docs/first-deployment.md`
+5. `docs/live-acceptance-checklist.md`
+6. `rehearsal/README.md`
+
+If you just want the operator quick path, use `detect`, `check`, `status --summary`, `report --message`, and `incidents queue` before enabling unattended runs.
 
 ## Are the incident and reporting features the main point of the project?
 
