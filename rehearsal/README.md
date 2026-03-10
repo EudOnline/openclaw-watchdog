@@ -1,6 +1,6 @@
 # OpenClaw Watchdog Docker rehearsal harness
 
-This harness wraps the existing `watchdog_v2` bootstrap/watchdog code with a deterministic container-safe rehearsal environment.
+This harness exercises the OpenClaw Watchdog source tree in a deterministic, container-safe rehearsal environment.
 
 ## What it gives you
 
@@ -22,7 +22,7 @@ This harness wraps the existing `watchdog_v2` bootstrap/watchdog code with a det
 - `rehearsal/scripts/run-scenario.sh`: run a named scenario and verify the expected output.
 - `rehearsal/scenarios/`: scenario expectations.
 
-Current P0/P6-C structure note:
+Implementation map:
 - `watchdog_v2/engine.py` remains the orchestration entrypoint and now supports a survivability-first recovery flow behind a feature flag.
 - `watchdog_v2/incidents.py` contains incident snapshot/workflow logic delegated from the engine.
 - `watchdog_v2/reporting.py` contains report/message/metrics rendering delegated from the engine.
@@ -30,13 +30,13 @@ Current P0/P6-C structure note:
 - `watchdog_v2/health.py` contains service-level probing, conversation-aware probe aggregation, and status shaping delegated from the engine.
 - `watchdog_v2/handoff.py` contains incident evidence bundle plus Codex/OpenCode handoff helpers delegated from the engine.
 
-## Build later on a Docker-capable machine
+## Build with Docker
 
 ```bash
 docker build -t openclaw-watchdog-rehearsal .
 ```
 
-## Run later with plain Docker
+## Run with Docker
 
 Interactive shell in the rehearsal image:
 

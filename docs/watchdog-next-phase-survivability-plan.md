@@ -1,6 +1,6 @@
 # OpenClaw Watchdog Next-Phase Survivability Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> Historical planning document retained for implementation context. References to `watchdog_v2` and old roadmap phase labels are intentional.
 
 **Goal:** Reframe the next phase of `watchdog_v2` around one primary outcome: when OpenClaw is alone on a VPS and breaks because of config/plugin/extension/upgrade drift, watchdog should restore a usable conversation path as fast as possible.
 

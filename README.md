@@ -16,7 +16,9 @@ A production-oriented external watchdog for OpenClaw, focused on service recover
 
 ## Status
 
-This repo packages the newer Python watchdog engine. Internally the module name remains `watchdog_v2` for compatibility with the original workspace history, but the project and repo name are now simply **OpenClaw Watchdog**.
+This repository is the standalone public home of **OpenClaw Watchdog**.
+
+The public-facing interface now uses the non-`v2` names throughout the repo. The internal Python package name remains `watchdog_v2` to preserve implementation stability and avoid unnecessary churn in imports, rehearsal tooling, and historical notes.
 
 ## Repository layout
 
@@ -58,9 +60,9 @@ scripts/openclaw-watchdog --help
 scripts/openclaw-watchdog check --env config/openclaw-watchdog.env
 ```
 
-### Option 2: Python entrypoint
+### Option 2: Python module entrypoint
 
-A lightweight `pyproject.toml` is included so the package can be installed or invoked as a Python project:
+If you are working from a source checkout, you can also invoke the package directly:
 
 ```bash
 python3 -m watchdog_v2 --help
@@ -137,7 +139,8 @@ Start with:
 - `rehearsal/README.md`
 - `docs/live-acceptance-checklist.md`
 - `docs/live-samples.md`
-- `MIGRATION-v2.md`
+- `docs/compatibility-and-deprecations.md`
+- `MIGRATION-v2.md` (historical migration notes)
 
 ## Design notes
 
@@ -155,7 +158,7 @@ The watchdog is designed around a few principles:
 - Canonical env example: `config/openclaw-watchdog.env.example`
 - Canonical systemd units: `systemd/openclaw-watchdog.service` and `systemd/openclaw-watchdog.timer`
 - Internal Python package name remains `watchdog_v2` for implementation stability
-- Deprecated compatibility shims are still shipped for migration:
+- Deprecated compatibility shims are retained only for migration:
   - `scripts/openclaw-watchdog-v2`
   - `scripts/install-openclaw-watchdog-v2-units.sh`
   - `scripts/openclaw-watchdog-v2-live-acceptance.sh`

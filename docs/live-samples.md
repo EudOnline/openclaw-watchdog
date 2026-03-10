@@ -45,6 +45,8 @@ Current host was in a clean healthy window during acceptance:
 
 ## Sample: `status --summary`
 
+> Note: these captured samples reflect the wording on the host at capture time.
+
 ```text
 status=healthy | health=healthy | mode=normal | service=true | probe=gateway.reachable=true | recent=healthy:20,degraded:0,recovered:0,failed:0 | incident_tail=none | last=watchdog 健康检查正常：service active and listener matches main pid
 ```

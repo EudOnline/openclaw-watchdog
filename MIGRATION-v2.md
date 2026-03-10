@@ -1,4 +1,4 @@
-# OpenClaw watchdog v2 migration
+# OpenClaw Watchdog historical migration notes
 
 ## What changed
 
@@ -31,9 +31,9 @@
 - `docs/p9-summary.md`: P9 metrics/exporter integration summary for operator/timeline context.
 - `watchdog_v2/cli.py`: operator-facing CLI.
 - `watchdog_v2/bootstrap.py`: OpenClaw/bootstrap provisioning helpers.
-- `config/openclaw-watchdog.env`: v2 environment file.
-- `systemd/openclaw-watchdog.service`: sample v2 oneshot service kept in the workspace.
-- `systemd/openclaw-watchdog.timer`: sample v2 timer kept in the workspace.
+- `config/openclaw-watchdog.env.example`: canonical example environment file for the public repo.
+- `systemd/openclaw-watchdog.service`: sample oneshot service kept in the repo.
+- `systemd/openclaw-watchdog.timer`: sample timer kept in the repo.
 - `scripts/install-openclaw-watchdog-units.sh`: helper to copy the sample units into `~/.config/systemd/user/` and reload systemd.
 
 ## Bootstrap flow
@@ -85,7 +85,7 @@
    - `scripts/openclaw-watchdog status`
    - `scripts/openclaw-watchdog bootstrap --dry-run --json`
 3. If you want to suppress Codex autorun during rollout, enable maintenance first:
-   - `scripts/openclaw-watchdog maintenance on --reason "v2 rollout"`
+   - `scripts/openclaw-watchdog maintenance on --reason "migration rollout"`
 4. Install the sample units by copying the files from `systemd/` into the real user unit directory, or use:
    - `scripts/install-openclaw-watchdog-units.sh`
 5. Reload and switch timers carefully:
@@ -95,7 +95,7 @@
 6. Run one manual service start and inspect logs:
    - `systemctl --user start openclaw-watchdog.service`
    - `journalctl --user -u openclaw-watchdog.service -n 100 --no-pager`
-7. After the first healthy v2 runs, turn maintenance back off if you enabled it:
+7. After the first healthy runs, turn maintenance back off if you enabled it:
    - `scripts/openclaw-watchdog maintenance off`
 
 ## Compatibility notes
@@ -106,12 +106,12 @@
 - Bootstrap now prepares OpenCode earlier so a free model is configured before the watchdog ever needs the fallback path.
 - Cooldowns and failure thresholds stay env-configurable with the same variable names.
 - Event metadata is now written as both the legacy text format (`last-event.txt`, `incident-meta.txt`) and JSON companions (`last-event.json`, `incident-meta.json`) for easier automation.
-- v2 also keeps a rolling JSONL event history so `status` can surface recent incidents/recoveries without reading the full log.
+- The current implementation also keeps a rolling JSONL event history so `status` can surface recent incidents/recoveries without reading the full log.
 - `status` now computes a 24h recent-event summary (`recent_event_stats`) including degraded/recovered/failed counts, healthy streak info, longest healthy gap, and last recovery duration.
 - Survival mode is now a first-class degraded recovery path: when restart/rollback still cannot restore a minimal usable conversation path, watchdog can apply a conservative channel-minimized config and surface the mode/reason/actions in `status`, `report`, `report --message`, and `metrics`.
 - Drift guard now records before/after protected-path snapshots in `WATCHDOG_GUARD_MANIFEST_FILE`, carries protected-path fingerprints in last-good generations, and exposes drift scope/baseline metadata in `status` / `report` / `metrics`.
 - Incident bundles now include `operator-summary.txt` so an operator can read the high-level failure context without digging through every artifact.
-- v2 also maintains a rolling `incident-index.json`, and `status` can surface recent incidents directly.
+- The current implementation also maintains a rolling `incident-index.json`, and `status` can surface recent incidents directly.
 - `incidents list|show|current` are now available for direct incident-bundle inspection, including open vs resolved lifecycle state plus artifact listings for operator workflows.
 - `status --summary` provides a compact single-line snapshot suitable for cron, notifications, or dashboards.
 - `report` is a new compact operator/machine-friendly subcommand that focuses on current health plus recent incident summaries.
@@ -136,4 +136,4 @@
 - `check` is new and does not mutate state.
 - `status` is new and combines live checks with persisted watchdog state.
 - `bootstrap` now auto-installs/configures OpenCode, reports Codex availability, and only asks for explicit confirmation when OpenClaw itself is missing.
-- v2 always prepares incident directories on failed deterministic remediation so the bundle exists even when operator workflows change later.
+- The current implementation always prepares incident directories on failed deterministic remediation so the bundle exists even when operator workflows change later.
