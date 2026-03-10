@@ -10,6 +10,7 @@ Why is this change needed?
 
 - [ ] relevant commands or checks were run
 - [ ] docs were updated when needed
+- [ ] supported-environment claims still match `docs/supported-environments.md`
 - [ ] no secrets / host-specific data were added
 
 ## Operational impact

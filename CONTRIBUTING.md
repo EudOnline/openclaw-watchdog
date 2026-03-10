@@ -18,6 +18,7 @@ Good contributions include:
 2. Check whether the behavior is already covered by a rehearsal scenario
 3. Keep changes small and focused where possible
 4. Avoid committing host-specific paths, live incident bundles, or real credentials
+5. Check `docs/supported-environments.md` before broadening compatibility or deployment claims
 
 ## Development tips
 
@@ -45,7 +46,7 @@ python3 -m unittest discover -s tests -v
 python3 -m py_compile watchdog_v2/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py
 ```
 
-If your change touches incident logic, rehearsal flows, or reporting, also run the corresponding rehearsal scripts. If you change report or metrics output, review `docs/reporting-contract.md` and update `docs/live-acceptance-checklist.md` when the operator-facing contract changes.
+If your change touches incident logic, rehearsal flows, or reporting, also run the corresponding rehearsal scripts. If you change report or metrics output, review `docs/reporting-contract.md` and update `docs/live-acceptance-checklist.md` when the operator-facing contract changes. If you change compatibility assumptions, update `docs/supported-environments.md`, `README.md`, and `CHANGELOG.md` in the same PR.
 
 ## Pull request guidance
 

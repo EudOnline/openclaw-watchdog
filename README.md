@@ -26,6 +26,7 @@ It combines:
 - [Release notes](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
 - [Documentation index](docs/README.md)
 - [Compatibility and deprecations](docs/compatibility-and-deprecations.md)
+- [Supported environments](docs/supported-environments.md)
 - [Reporting contract](docs/reporting-contract.md)
 - [First deployment guide](docs/first-deployment.md)
 - [Roadmap](docs/roadmap.md)
@@ -60,6 +61,8 @@ rehearsal/     fixtures, shims, scenarios, and test flows
 ```
 
 ## Requirements
+
+For the supported environment matrix and release expectations, see `docs/supported-environments.md`.
 
 - Python 3.11+
 - `scripts/openclaw-watchdog` checks for a compatible interpreter before importing the package and prints a clear error if only older Python versions are installed
@@ -175,6 +178,7 @@ Start with:
 - `docs/live-acceptance-checklist.md`
 - `docs/live-samples.md`
 - `docs/compatibility-and-deprecations.md`
+- `docs/supported-environments.md`
 - `docs/roadmap.md`
 - `docs/faq.md`
 - `docs/history/MIGRATION-v2.md` (historical migration notes)

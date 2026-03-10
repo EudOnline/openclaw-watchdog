@@ -5,6 +5,9 @@ All notable changes to this public repository will be documented here.
 ## Unreleased
 
 ### Changed
+- expand CI quality gates to run Python 3.11 CLI smoke coverage plus higher-signal rehearsal scenarios
+- formalize the supported environment baseline around Python 3.11+, Linux + `systemd --user`, and release-gated repo-local rehearsal expectations
+- continue thinning `watchdog_v2/engine.py` by extracting event shaping and incident/report context helpers
 - add explicit Python 3.11+ wrapper checks so unsupported hosts see a clear requirement message instead of a traceback
 - align built-in config defaults with the sample env file for home-directory paths and conservative first-rollout toggles
 - rewrite rehearsal docs around the repo-local entrypoints that actually ship in this repository
@@ -12,6 +15,8 @@ All notable changes to this public repository will be documented here.
 - extract subprocess and state-persistence helpers from `watchdog_v2/engine.py` into focused modules
 
 ### Added
+- `docs/supported-environments.md` to define the current support matrix and release discipline
+- focused regression tests for extracted event and incident-context helpers
 - a minimal GitHub Actions workflow plus focused local regression tests for runtime wrapper, config defaults, reporting, CLI smoke, runtime helpers, and state-store helpers
 
 

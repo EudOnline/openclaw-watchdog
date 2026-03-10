@@ -7,6 +7,7 @@ This directory is split into two layers:
 These are the documents new users and operators should start with:
 
 - [compatibility-and-deprecations.md](compatibility-and-deprecations.md)
+- [supported-environments.md](supported-environments.md)
 - [first-deployment.md](first-deployment.md)
 - [live-acceptance-checklist.md](live-acceptance-checklist.md)
 - [reporting-contract.md](reporting-contract.md)
@@ -25,8 +26,9 @@ These documents are retained for migration and implementation context:
 
 1. Start with the project [README](../README.md)
 2. Review [compatibility-and-deprecations.md](compatibility-and-deprecations.md)
-3. Read [first-deployment.md](first-deployment.md) for the safest initial rollout path
-4. Read [faq.md](faq.md) if you want the quick orientation version
-5. Use [live-acceptance-checklist.md](live-acceptance-checklist.md) and [live-samples.md](live-samples.md) for validation work
-6. Read [rehearsal/README.md](../rehearsal/README.md) if you want the repo-local rehearsal flow
-7. Only consult `history/` if you need migration or roadmap background
+3. Confirm the supported baseline in [supported-environments.md](supported-environments.md)
+4. Read [first-deployment.md](first-deployment.md) for the safest initial rollout path
+5. Read [faq.md](faq.md) if you want the quick orientation version
+6. Use [live-acceptance-checklist.md](live-acceptance-checklist.md) and [live-samples.md](live-samples.md) for validation work
+7. Read [rehearsal/README.md](../rehearsal/README.md) if you want the repo-local rehearsal flow
+8. Only consult `history/` if you need migration or roadmap background

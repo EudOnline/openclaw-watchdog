@@ -2,7 +2,7 @@
 
 This repository now presents a single public-facing product name: **OpenClaw Watchdog**.
 
-This document is for migration clarity. New users should follow the canonical entrypoints below and can ignore the deprecated shim names.
+This document is for migration clarity. New users should follow the canonical entrypoints below and can ignore the deprecated shim names. For the currently supported runtime and validation baseline, see `docs/supported-environments.md`.
 
 ## Canonical entrypoints
 
