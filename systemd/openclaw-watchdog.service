@@ -1,0 +1,9 @@
+[Unit]
+Description=OpenClaw external watchdog
+After=default.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/openclaw-watchdog/config/openclaw-watchdog.env
+WorkingDirectory=%h/openclaw-watchdog
+ExecStart=%h/openclaw-watchdog/scripts/openclaw-watchdog run-once

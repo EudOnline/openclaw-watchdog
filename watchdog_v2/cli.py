@@ -10,7 +10,7 @@ from watchdog_v2.engine import RunOutcome, WatchdogEngine
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="openclaw-watchdog-v2")
+    parser = argparse.ArgumentParser(prog="openclaw-watchdog")
     parser.add_argument("--env", type=Path, default=default_env_file())
     subparsers = parser.add_subparsers(dest="command", required=True)
 

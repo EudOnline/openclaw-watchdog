@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openclaw-watchdog"
+version = "0.1.0"
+description = "External watchdog, incident workflow, and rehearsal tooling for OpenClaw"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "EudOnline" }
+]
+keywords = ["openclaw", "watchdog", "operations", "systemd", "incident-response"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: System :: Monitoring",
+  "Topic :: System :: Systems Administration"
+]
+
+[project.urls]
+Homepage = "https://github.com/EudOnline/openclaw-watchdog"
+Repository = "https://github.com/EudOnline/openclaw-watchdog"
+Issues = "https://github.com/EudOnline/openclaw-watchdog/issues"
+
+[project.scripts]
+openclaw-watchdog = "watchdog_v2.cli:main"
+openclaw-watchdog-v2 = "watchdog_v2.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["watchdog_v2*", "rehearsal*"]

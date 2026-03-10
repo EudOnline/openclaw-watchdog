@@ -1,0 +1,20 @@
+# Changelog
+
+All notable changes to this public repository will be documented here.
+
+## 0.1.0 - 2026-03-10
+
+### Added
+- Initial public export of the OpenClaw watchdog project
+- Python watchdog engine under `watchdog_v2/`
+- CLI wrappers and sample systemd units
+- Rehearsal harness, fixtures, and scenarios
+- Public project metadata and contribution docs
+
+### Changed
+- Public-facing project name standardized to **OpenClaw Watchdog**
+- README rewritten for standalone repository usage
+- Added generic install path examples using `~/openclaw-watchdog`
+
+### Notes
+- Internal module naming remains `watchdog_v2` for compatibility with the original workspace history

@@ -10,7 +10,12 @@ def repo_root() -> Path:
 
 
 def default_env_file() -> Path:
-    return repo_root() / "config" / "openclaw-watchdog-v2.env"
+    root = repo_root() / "config"
+    primary = root / "openclaw-watchdog.env"
+    legacy = root / "openclaw-watchdog-v2.env"
+    if primary.exists() or not legacy.exists():
+        return primary
+    return legacy
 
 
 def _strip_quotes(value: str) -> str:
