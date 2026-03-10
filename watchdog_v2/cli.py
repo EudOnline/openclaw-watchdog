@@ -6,7 +6,8 @@ from pathlib import Path
 
 from watchdog_v2.bootstrap import BootstrapOutcome, Bootstrapper
 from watchdog_v2.config import Config, default_env_file
-from watchdog_v2.engine import RunOutcome, WatchdogEngine
+from watchdog_v2.detect import detect_payload, print_detect, write_suggested_env
+from watchdog_v2.engine import WatchdogEngine
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -19,6 +20,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     check = subparsers.add_parser("check", help="Check health without remediating")
     check.add_argument("--json", action="store_true")
+
+    detect = subparsers.add_parser("detect", help="Inspect the current host and suggest a safer first-deployment config")
+    detect.add_argument("--json", action="store_true")
+    detect.add_argument("--write-suggested-config", type=Path, default=None, help="Write a suggested env file without enabling any live repair behavior")
 
     status = subparsers.add_parser("status", help="Show current watchdog state")
     status.add_argument("--json", action="store_true")
@@ -618,6 +623,19 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 _print_check(payload)
             return 0 if payload["healthy"] else 1
+
+        if args.command == "detect":
+            payload = detect_payload(engine)
+            if getattr(args, "write_suggested_config", None):
+                written = write_suggested_env(payload, args.write_suggested_config)
+                payload["suggested_config_written"] = str(written)
+            if args.json:
+                _print_json(payload)
+            else:
+                print_detect(payload)
+                if payload.get("suggested_config_written"):
+                    print(f"suggested_config_written={payload['suggested_config_written']}")
+            return 0
 
         if args.command == "status":
             payload = engine.status_payload()

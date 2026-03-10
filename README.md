@@ -25,6 +25,7 @@ It combines:
 - [Release notes](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
 - [Documentation index](docs/README.md)
 - [Compatibility and deprecations](docs/compatibility-and-deprecations.md)
+- [First deployment guide](docs/first-deployment.md)
 - [Roadmap](docs/roadmap.md)
 - [FAQ](docs/faq.md)
 - [Rehearsal guide](rehearsal/README.md)
@@ -82,6 +83,7 @@ Quick sanity check:
 
 ```bash
 scripts/openclaw-watchdog --help
+scripts/openclaw-watchdog detect
 scripts/openclaw-watchdog check --env config/openclaw-watchdog.env
 ```
 
