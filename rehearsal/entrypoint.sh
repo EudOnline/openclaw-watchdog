@@ -9,9 +9,9 @@ export HOME="$REPO_ROOT/rehearsal/runtime/home"
 bash rehearsal/scripts/prepare-system-bin.sh >/dev/null
 export PATH="$REPO_ROOT/rehearsal/bin:$REPO_ROOT/rehearsal/runtime/bin:$REPO_ROOT/rehearsal/system-bin"
 
-if [[ -f rehearsal/env/openclaw-watchdog-v2.rehearsal.env ]]; then
+if [[ -f rehearsal/env/openclaw-watchdog.rehearsal.env ]]; then
   set -a
-  source rehearsal/env/openclaw-watchdog-v2.rehearsal.env
+  source rehearsal/env/openclaw-watchdog.rehearsal.env
   set +a
 fi
 
@@ -39,7 +39,7 @@ case "$1" in
     exec rehearsal/scripts/apply-scenario.sh "$@"
     ;;
   bootstrap|provision|run-once|check|status|maintenance)
-    exec scripts/openclaw-watchdog-v2 --env rehearsal/env/openclaw-watchdog-v2.rehearsal.env "$@"
+    exec scripts/openclaw-watchdog --env rehearsal/env/openclaw-watchdog.rehearsal.env "$@"
     ;;
   *)
     exec "$@"

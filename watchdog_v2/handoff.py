@@ -86,11 +86,10 @@ def render_codex_prompt(engine, summary: str) -> None:
 
         ## Allowed edits
         - {engine.config.openclaw_config}
-        - /root/.config/systemd/user/{engine.config.openclaw_gateway_service}
-        - /root/.openclaw/workspace/scripts/openclaw-watchdog.sh
-        - /root/.openclaw/workspace/scripts/openclaw-watchdog-v2
-        - /root/.openclaw/workspace/watchdog_v2/*
-        - /root/.openclaw/workspace/config/*.env
+        - ~/.config/systemd/user/{engine.config.openclaw_gateway_service}
+        - {engine.config.repo_root}/scripts/openclaw-watchdog
+        - {engine.config.repo_root}/watchdog_v2/*
+        - {engine.config.repo_root}/config/*.env
 
         ## Forbidden actions
         - Do not reboot the machine

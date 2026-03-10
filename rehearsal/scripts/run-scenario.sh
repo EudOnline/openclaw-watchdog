@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCENARIO="${1:-bootstrap-missing-openclaw}"
-ENV_FILE="rehearsal/env/openclaw-watchdog-v2.rehearsal.env"
+ENV_FILE="rehearsal/env/openclaw-watchdog.rehearsal.env"
 
 cd "$REPO_ROOT"
 export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
@@ -66,40 +66,40 @@ run_json() {
 
 case "$SCENARIO" in
   bootstrap-missing-openclaw)
-    run_exact "$SCENARIO" 10 scripts/openclaw-watchdog-v2 --env "$ENV_FILE" bootstrap
+    run_exact "$SCENARIO" 10 scripts/openclaw-watchdog --env "$ENV_FILE" bootstrap
     ;;
   bootstrap-openclaw-missing-plugin)
-    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog-v2 --env "$ENV_FILE" bootstrap
+    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" bootstrap
     ;;
   bootstrap-install-openclaw)
-    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog-v2 --env "$ENV_FILE" bootstrap --install-openclaw
+    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" bootstrap --install-openclaw
     ;;
   watchdog-recovery)
-    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once
+    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" run-once
     ;;
   watchdog-failed-fallback)
-    run_json "$SCENARIO" 1 rehearsal/scenarios/watchdog-failed-fallback.assertions.json scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json
+    run_json "$SCENARIO" 1 rehearsal/scenarios/watchdog-failed-fallback.assertions.json scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json
     ;;
   watchdog-active-no-listener-grace)
-    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once
+    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" run-once
     ;;
   watchdog-service-layer-degraded)
-    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once
+    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" run-once
     ;;
   watchdog-service-layer-threshold-recovery)
-    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once
+    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" run-once
     ;;
   watchdog-service-layer-transient-retry)
-    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once
+    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" run-once
     ;;
   watchdog-conversation-probe-ready)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-conversation-probe-ready.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true scripts/openclaw-watchdog-v2 --env "$ENV_FILE" check --json
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-conversation-probe-ready.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true scripts/openclaw-watchdog --env "$ENV_FILE" check --json
     ;;
   watchdog-conversation-probe-minimal)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-conversation-probe-minimal.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true scripts/openclaw-watchdog-v2 --env "$ENV_FILE" check --json
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-conversation-probe-minimal.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true scripts/openclaw-watchdog --env "$ENV_FILE" check --json
     ;;
   watchdog-conversation-probe-down)
-    run_json "$SCENARIO" 1 rehearsal/scenarios/watchdog-conversation-probe-down.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true scripts/openclaw-watchdog-v2 --env "$ENV_FILE" check --json
+    run_json "$SCENARIO" 1 rehearsal/scenarios/watchdog-conversation-probe-down.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true scripts/openclaw-watchdog --env "$ENV_FILE" check --json
     ;;
   watchdog-restart-priority-recovery)
     run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-restart-priority-recovery.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
@@ -135,7 +135,7 @@ case "$SCENARIO" in
     run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-last-good-generation-selection.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-config-invalid-rollback)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-config-invalid-rollback.assertions.json scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-config-invalid-rollback.assertions.json scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json
     ;;
   watchdog-incidents-open)
     run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-incidents-open.assertions.json bash rehearsal/scripts/run-incident-flow.sh open "$ENV_FILE"

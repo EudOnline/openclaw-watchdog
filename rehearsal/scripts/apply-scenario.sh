@@ -11,7 +11,7 @@ bash rehearsal/scripts/prepare-system-bin.sh >/dev/null
 export PATH="$REPO_ROOT/rehearsal/bin:$REPO_ROOT/rehearsal/runtime/bin:$REPO_ROOT/rehearsal/system-bin"
 
 set -a
-source rehearsal/env/openclaw-watchdog-v2.rehearsal.env
+source rehearsal/env/openclaw-watchdog.rehearsal.env
 source rehearsal/env/openclaw-backup.rehearsal.env
 set +a
 
@@ -522,7 +522,7 @@ EOF
     mkdir -p "$(dirname "$WATCHDOG_LAST_GOOD_CONFIG")"
     cp rehearsal/fixtures/healthy-openclaw-config.json "$WATCHDOG_LAST_GOOD_CONFIG"
     HEALTHY_FINGERPRINT="$(fingerprint_file "$WATCHDOG_LAST_GOOD_CONFIG")"
-    ENV_FINGERPRINT="$(fingerprint_file rehearsal/env/openclaw-watchdog-v2.rehearsal.env)"
+    ENV_FINGERPRINT="$(fingerprint_file rehearsal/env/openclaw-watchdog.rehearsal.env)"
     write_last_good_manifest <<EOF
 {
   "current_file": "$WATCHDOG_LAST_GOOD_CONFIG",
@@ -548,7 +548,7 @@ EOF
           "fingerprint": "$ENV_FINGERPRINT",
           "kind": "file",
           "label": "env_file",
-          "path": "rehearsal/env/openclaw-watchdog-v2.rehearsal.env"
+          "path": "rehearsal/env/openclaw-watchdog.rehearsal.env"
         }
       ],
       "summary": "validated healthy fixture",

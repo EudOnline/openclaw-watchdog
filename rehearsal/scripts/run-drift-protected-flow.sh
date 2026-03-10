@@ -2,7 +2,7 @@
 set -euo pipefail
 
 MODE="${1:?mode required}"
-ENV_SOURCE="${2:-rehearsal/env/openclaw-watchdog-v2.rehearsal.env}"
+ENV_SOURCE="${2:-rehearsal/env/openclaw-watchdog.rehearsal.env}"
 ENV_FILE="rehearsal/runtime/watchdog-drift-${MODE}.env"
 
 mkdir -p "$(dirname "$ENV_FILE")"
@@ -19,7 +19,7 @@ cat > "$EXT_FILE" <<'EOF'
 console.log('baseline plugin fixture');
 EOF
 
-BASELINE_OUTCOME=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json)
+BASELINE_OUTCOME=$(scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json)
 
 case "$MODE" in
   env)
@@ -77,10 +77,10 @@ state.update(
 path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
 PY
 
-RECOVERY_OUTCOME=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json)
-STATUS_JSON=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" status --json)
-REPORT_JSON=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" report --json)
-METRICS_JSON=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" metrics --json)
+RECOVERY_OUTCOME=$(scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json)
+STATUS_JSON=$(scripts/openclaw-watchdog --env "$ENV_FILE" status --json)
+REPORT_JSON=$(scripts/openclaw-watchdog --env "$ENV_FILE" report --json)
+METRICS_JSON=$(scripts/openclaw-watchdog --env "$ENV_FILE" metrics --json)
 
 python3 - <<'PY' "$MODE" "$BASELINE_OUTCOME" "$RECOVERY_OUTCOME" "$STATUS_JSON" "$REPORT_JSON" "$METRICS_JSON" "$ENV_FILE" "$EXT_FILE"
 from __future__ import annotations

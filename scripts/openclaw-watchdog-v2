@@ -2,6 +2,5 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
-
-exec /usr/bin/env python3 -m watchdog_v2 "$@"
+echo "[deprecated] scripts/openclaw-watchdog-v2 is deprecated; use scripts/openclaw-watchdog instead." >&2
+exec "$REPO_ROOT/scripts/openclaw-watchdog" "$@"

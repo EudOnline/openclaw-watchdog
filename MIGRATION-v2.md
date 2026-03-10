@@ -3,7 +3,7 @@
 ## What changed
 
 - The original snapshot remains at `scripts/openclaw-watchdog.sh`.
-- The new implementation lives in `watchdog_v2/` and is invoked by `scripts/openclaw-watchdog-v2`.
+- The new implementation lives in `watchdog_v2/` and is invoked by `scripts/openclaw-watchdog`.
 - The timer/service entrypoint is now a Python CLI with subcommands:
   - `run-once`
   - `check`
@@ -24,21 +24,21 @@
 - `watchdog_v2/survival.py`: survival-mode state/config generation and sticky degraded-mode coordination.
 - `watchdog_v2/health.py`: service-level probing, live probe aggregation, maintenance/status payload assembly, and last-event loading delegated from the engine.
 - `watchdog_v2/handoff.py`: incident evidence bundle creation plus Codex/OpenCode handoff prompt/launcher helpers delegated from the engine.
-- `docs/watchdog-v2-live-samples.md`: P7-A real-host read-only acceptance samples for `status` / `report` / `metrics` / `incidents`.
-- `docs/watchdog-v2-live-acceptance-checklist.md`: operator checklist for P7-A live read-only acceptance.
-- `scripts/openclaw-watchdog-v2-live-acceptance.sh`: one-command live read-only acceptance runner that captures outputs and writes an acceptance summary.
+- `docs/live-samples.md`: P7-A real-host read-only acceptance samples for `status` / `report` / `metrics` / `incidents`.
+- `docs/live-acceptance-checklist.md`: operator checklist for P7-A live read-only acceptance.
+- `scripts/openclaw-watchdog-live-acceptance.sh`: one-command live read-only acceptance runner that captures outputs and writes an acceptance summary.
 - `docs/p8-summary.md`: P8 incident timeline/query delivery summary.
 - `docs/p9-summary.md`: P9 metrics/exporter integration summary for operator/timeline context.
 - `watchdog_v2/cli.py`: operator-facing CLI.
 - `watchdog_v2/bootstrap.py`: OpenClaw/bootstrap provisioning helpers.
-- `config/openclaw-watchdog-v2.env`: v2 environment file.
-- `systemd/openclaw-watchdog-v2.service`: sample v2 oneshot service kept in the workspace.
-- `systemd/openclaw-watchdog-v2.timer`: sample v2 timer kept in the workspace.
-- `scripts/install-openclaw-watchdog-v2-units.sh`: helper to copy the sample units into `~/.config/systemd/user/` and reload systemd.
+- `config/openclaw-watchdog.env`: v2 environment file.
+- `systemd/openclaw-watchdog.service`: sample v2 oneshot service kept in the workspace.
+- `systemd/openclaw-watchdog.timer`: sample v2 timer kept in the workspace.
+- `scripts/install-openclaw-watchdog-units.sh`: helper to copy the sample units into `~/.config/systemd/user/` and reload systemd.
 
 ## Bootstrap flow
 
-- `scripts/openclaw-watchdog-v2 bootstrap --json` now starts by ensuring `opencode` exists.
+- `scripts/openclaw-watchdog bootstrap --json` now starts by ensuring `opencode` exists.
 - If `opencode` is missing, bootstrap automatically runs `OPENCODE_INSTALL_COMMAND` with no extra confirmation. The sample env defaults this to `npm install -g opencode-ai@latest`, but you can replace it with any host-specific installer.
 - After `opencode` is available, bootstrap safely ensures a global OpenCode config at `OPENCODE_BOOTSTRAP_CONFIG_PATH` (or `OPENCODE_CONFIG`, or the default `~/.config/opencode/opencode.json`). Existing configs are backed up before edits, JSON and JSONC inputs are accepted, and the default model is forced to `OPENCODE_BOOTSTRAP_MODEL` so there is always a free fallback model configured.
 - Bootstrap then reports Codex availability only. It does not install Codex or mutate Codex-specific files.
@@ -72,31 +72,31 @@
 
 ## Smoke-testable paths
 
-- Probe-only bootstrap: `scripts/openclaw-watchdog-v2 bootstrap --json`
-- Planned bootstrap with OpenCode/OpenClaw changes but no edits: `scripts/openclaw-watchdog-v2 bootstrap --dry-run --install-openclaw --json`
-- Planned bootstrap that still preserves OpenClaw confirmation: `scripts/openclaw-watchdog-v2 bootstrap --dry-run --json`
-- Real bootstrap after you set an OpenClaw install command if needed: `scripts/openclaw-watchdog-v2 bootstrap --install-openclaw`
+- Probe-only bootstrap: `scripts/openclaw-watchdog bootstrap --json`
+- Planned bootstrap with OpenCode/OpenClaw changes but no edits: `scripts/openclaw-watchdog bootstrap --dry-run --install-openclaw --json`
+- Planned bootstrap that still preserves OpenClaw confirmation: `scripts/openclaw-watchdog bootstrap --dry-run --json`
+- Real bootstrap after you set an OpenClaw install command if needed: `scripts/openclaw-watchdog bootstrap --install-openclaw`
 
 ## Safe switch plan
 
-1. Review `config/openclaw-watchdog-v2.env` and confirm the paths still match the live host.
+1. Review `config/openclaw-watchdog.env` and confirm the paths still match the live host.
 2. Dry-run manual checks before changing timers:
-   - `scripts/openclaw-watchdog-v2 check`
-   - `scripts/openclaw-watchdog-v2 status`
-   - `scripts/openclaw-watchdog-v2 bootstrap --dry-run --json`
+   - `scripts/openclaw-watchdog check`
+   - `scripts/openclaw-watchdog status`
+   - `scripts/openclaw-watchdog bootstrap --dry-run --json`
 3. If you want to suppress Codex autorun during rollout, enable maintenance first:
-   - `scripts/openclaw-watchdog-v2 maintenance on --reason "v2 rollout"`
+   - `scripts/openclaw-watchdog maintenance on --reason "v2 rollout"`
 4. Install the sample units by copying the files from `systemd/` into the real user unit directory, or use:
-   - `scripts/install-openclaw-watchdog-v2-units.sh`
+   - `scripts/install-openclaw-watchdog-units.sh`
 5. Reload and switch timers carefully:
    - `systemctl --user daemon-reload`
    - `systemctl --user disable --now openclaw-watchdog.timer`
-   - `systemctl --user enable --now openclaw-watchdog-v2.timer`
+   - `systemctl --user enable --now openclaw-watchdog.timer`
 6. Run one manual service start and inspect logs:
-   - `systemctl --user start openclaw-watchdog-v2.service`
-   - `journalctl --user -u openclaw-watchdog-v2.service -n 100 --no-pager`
+   - `systemctl --user start openclaw-watchdog.service`
+   - `journalctl --user -u openclaw-watchdog.service -n 100 --no-pager`
 7. After the first healthy v2 runs, turn maintenance back off if you enabled it:
-   - `scripts/openclaw-watchdog-v2 maintenance off`
+   - `scripts/openclaw-watchdog maintenance off`
 
 ## Compatibility notes
 

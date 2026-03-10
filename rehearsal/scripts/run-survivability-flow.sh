@@ -17,10 +17,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json > "$OUTCOME_FILE"
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" status --json > "$STATUS_FILE"
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" report --json > "$REPORT_FILE"
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" metrics --json > "$METRICS_FILE"
+scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json > "$OUTCOME_FILE"
+scripts/openclaw-watchdog --env "$ENV_FILE" status --json > "$STATUS_FILE"
+scripts/openclaw-watchdog --env "$ENV_FILE" report --json > "$REPORT_FILE"
+scripts/openclaw-watchdog --env "$ENV_FILE" metrics --json > "$METRICS_FILE"
 
 python3 - <<'PY' "$SCENARIO_NAME" "$OUTCOME_FILE" "$STATUS_FILE" "$REPORT_FILE" "$METRICS_FILE"
 from __future__ import annotations

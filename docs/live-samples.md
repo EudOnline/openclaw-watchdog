@@ -1,31 +1,31 @@
-# OpenClaw watchdog v2 live samples
+# OpenClaw Watchdog live samples
 
 Generated: 2026-03-09 10:24 CST
-Scope: P7-A real-host read-only acceptance for `watchdog_v2`
+Scope: P7-A real-host read-only acceptance for OpenClaw Watchdog (`watchdog_v2` internals)
 Source files: `docs/p7a-live/*`
 
 ## One-command acceptance
 
 ```bash
-./scripts/openclaw-watchdog-v2-live-acceptance.sh
+./scripts/openclaw-watchdog-live-acceptance.sh
 ```
 
 See also:
-- `docs/watchdog-v2-live-acceptance-checklist.md`
+- `docs/live-acceptance-checklist.md`
 - raw outputs under `docs/p7a-live/`
 - refreshed P9 acceptance outputs under `docs/p9-live/`
 
 ## Underlying acceptance commands
 
 ```bash
-./scripts/openclaw-watchdog-v2 status --summary
-./scripts/openclaw-watchdog-v2 status --json
-./scripts/openclaw-watchdog-v2 report --message
-./scripts/openclaw-watchdog-v2 report --json --limit 3
-./scripts/openclaw-watchdog-v2 metrics --json
-./scripts/openclaw-watchdog-v2 metrics --prometheus
-./scripts/openclaw-watchdog-v2 incidents list --limit 5
-./scripts/openclaw-watchdog-v2 incidents current --json
+./scripts/openclaw-watchdog status --summary
+./scripts/openclaw-watchdog status --json
+./scripts/openclaw-watchdog report --message
+./scripts/openclaw-watchdog report --json --limit 3
+./scripts/openclaw-watchdog metrics --json
+./scripts/openclaw-watchdog metrics --prometheus
+./scripts/openclaw-watchdog incidents list --limit 5
+./scripts/openclaw-watchdog incidents current --json
 openclaw status
 ```
 

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_FILE="${1:-rehearsal/env/openclaw-watchdog-v2.rehearsal.env}"
+ENV_FILE="${1:-rehearsal/env/openclaw-watchdog.rehearsal.env}"
 
 export WATCHDOG_ENABLE_SURVIVABILITY_FLOW="true"
 export WATCHDOG_ENABLE_SURVIVAL_MODE="true"
 export WATCHDOG_SURVIVAL_STABLE_READY_RUNS="1"
 
-FIRST_OUTCOME=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json)
-PENDING_OUTCOME=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json)
-PENDING_STATUS=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" status --json)
-PENDING_REPORT=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" report --json)
+FIRST_OUTCOME=$(scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json)
+PENDING_OUTCOME=$(scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json)
+PENDING_STATUS=$(scripts/openclaw-watchdog --env "$ENV_FILE" status --json)
+PENDING_REPORT=$(scripts/openclaw-watchdog --env "$ENV_FILE" report --json)
 
 cp rehearsal/fixtures/healthy-openclaw-config.json "$OPENCLAW_CONFIG"
 python3 - <<'PY'
@@ -38,10 +38,10 @@ state.update(
 path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
 PY
 
-FINAL_OUTCOME=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json)
-FINAL_STATUS=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" status --json)
-FINAL_REPORT=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" report --json)
-FINAL_METRICS=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" metrics --json)
+FINAL_OUTCOME=$(scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json)
+FINAL_STATUS=$(scripts/openclaw-watchdog --env "$ENV_FILE" status --json)
+FINAL_REPORT=$(scripts/openclaw-watchdog --env "$ENV_FILE" report --json)
+FINAL_METRICS=$(scripts/openclaw-watchdog --env "$ENV_FILE" metrics --json)
 
 python3 - <<'PY' "$FIRST_OUTCOME" "$PENDING_OUTCOME" "$PENDING_STATUS" "$PENDING_REPORT" "$FINAL_OUTCOME" "$FINAL_STATUS" "$FINAL_REPORT" "$FINAL_METRICS"
 from __future__ import annotations

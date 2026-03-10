@@ -2,18 +2,18 @@
 set -euo pipefail
 
 MODE="${1:-open}"
-ENV_FILE="${2:-rehearsal/env/openclaw-watchdog-v2.rehearsal.env}"
+ENV_FILE="${2:-rehearsal/env/openclaw-watchdog.rehearsal.env}"
 
 case "$MODE" in
   open)
     set +e
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json >/dev/null
     set -e
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents current --json
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents current --json
     ;;
   resolved)
     set +e
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json >/dev/null
     set -e
     python3 - <<'PY'
 import json
@@ -29,7 +29,7 @@ data.update({
 })
 p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
 PY
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json >/dev/null
     INCIDENT_ID=$(python3 - <<'PY'
 import json
 from pathlib import Path
@@ -39,7 +39,7 @@ print(items[-1]['incident_id'] if items else '')
 PY
 )
     test -n "$INCIDENT_ID"
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents show "$INCIDENT_ID" --json
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents show "$INCIDENT_ID" --json
     ;;
   *)
     echo "Unknown mode: $MODE" >&2

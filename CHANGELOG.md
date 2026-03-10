@@ -15,6 +15,13 @@ All notable changes to this public repository will be documented here.
 - Public-facing project name standardized to **OpenClaw Watchdog**
 - README rewritten for standalone repository usage
 - Added generic install path examples using `~/openclaw-watchdog`
+- Canonical CLI, env, and systemd entrypoints now use the non-`v2` names
+- Deprecated `v2` wrappers were reduced to migration shims instead of parallel primary entrypoints
+
+### Removed
+- Duplicate `v2` sample systemd units from the primary public surface
+- Duplicate `v2` env example from the primary public surface
 
 ### Notes
 - Internal module naming remains `watchdog_v2` for compatibility with the original workspace history
+- Historical migration notes remain in `MIGRATION-v2.md`

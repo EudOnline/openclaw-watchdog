@@ -12,7 +12,7 @@ def repo_root() -> Path:
 def default_env_file() -> Path:
     root = repo_root() / "config"
     primary = root / "openclaw-watchdog.env"
-    legacy = root / "openclaw-watchdog-v2.env"
+    legacy = root / "openclaw-watchdog.env"
     if primary.exists() or not legacy.exists():
         return primary
     return legacy

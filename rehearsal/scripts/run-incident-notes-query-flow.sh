@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_FILE="${1:-rehearsal/env/openclaw-watchdog-v2.rehearsal.env}"
+ENV_FILE="${1:-rehearsal/env/openclaw-watchdog.rehearsal.env}"
 TMP_DIR="rehearsal/runtime/scenario-output/watchdog-incident-notes-query"
 mkdir -p "$TMP_DIR"
 
@@ -16,24 +16,24 @@ PY
 }
 
 set +e
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json >/dev/null
+scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json >/dev/null
 set -e
 INCIDENT_ID="$(get_last_incident_id)"
 test -n "$INCIDENT_ID"
 
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents assign "$INCIDENT_ID" --owner alice >/dev/null
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents ack "$INCIDENT_ID" --by alice --note "first operator note" >/dev/null
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by bob --message "second operator note" >/dev/null
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by carol --message "third operator note" >/dev/null
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by dave --message "fourth operator note" >/dev/null
+scripts/openclaw-watchdog --env "$ENV_FILE" incidents assign "$INCIDENT_ID" --owner alice >/dev/null
+scripts/openclaw-watchdog --env "$ENV_FILE" incidents ack "$INCIDENT_ID" --by alice --note "first operator note" >/dev/null
+scripts/openclaw-watchdog --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by bob --message "second operator note" >/dev/null
+scripts/openclaw-watchdog --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by carol --message "third operator note" >/dev/null
+scripts/openclaw-watchdog --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by dave --message "fourth operator note" >/dev/null
 
-LIST_NOTES_YES=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents list --json --notes yes --limit 5)
-LIST_NOTES_NO=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents list --json --notes no --limit 5)
-SHOW_JSON=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents show "$INCIDENT_ID" --json)
-TIMELINE_JSON=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents timeline "$INCIDENT_ID" --json --limit 3)
-REPORT_JSON=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" report --json --limit 3)
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents show "$INCIDENT_ID" > "$TMP_DIR/show-default.txt"
-scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents show "$INCIDENT_ID" --notes-all > "$TMP_DIR/show-all.txt"
+LIST_NOTES_YES=$(scripts/openclaw-watchdog --env "$ENV_FILE" incidents list --json --notes yes --limit 5)
+LIST_NOTES_NO=$(scripts/openclaw-watchdog --env "$ENV_FILE" incidents list --json --notes no --limit 5)
+SHOW_JSON=$(scripts/openclaw-watchdog --env "$ENV_FILE" incidents show "$INCIDENT_ID" --json)
+TIMELINE_JSON=$(scripts/openclaw-watchdog --env "$ENV_FILE" incidents timeline "$INCIDENT_ID" --json --limit 3)
+REPORT_JSON=$(scripts/openclaw-watchdog --env "$ENV_FILE" report --json --limit 3)
+scripts/openclaw-watchdog --env "$ENV_FILE" incidents show "$INCIDENT_ID" > "$TMP_DIR/show-default.txt"
+scripts/openclaw-watchdog --env "$ENV_FILE" incidents show "$INCIDENT_ID" --notes-all > "$TMP_DIR/show-all.txt"
 
 python3 - <<'PY' "$INCIDENT_ID" "$LIST_NOTES_YES" "$LIST_NOTES_NO" "$SHOW_JSON" "$TIMELINE_JSON" "$REPORT_JSON" "$TMP_DIR/show-default.txt" "$TMP_DIR/show-all.txt"
 import json

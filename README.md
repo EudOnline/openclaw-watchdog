@@ -135,8 +135,8 @@ This repo includes a rehearsal harness for validating flows without using a live
 Start with:
 
 - `rehearsal/README.md`
-- `docs/watchdog-v2-live-acceptance-checklist.md`
-- `docs/watchdog-v2-live-samples.md`
+- `docs/live-acceptance-checklist.md`
+- `docs/live-samples.md`
 - `MIGRATION-v2.md`
 
 ## Design notes
@@ -151,9 +151,16 @@ The watchdog is designed around a few principles:
 
 ## Compatibility notes
 
-- Internal Python package name: `watchdog_v2`
-- Backward-compatible wrapper retained: `scripts/openclaw-watchdog-v2`
-- The project name, repo name, and primary docs now use **OpenClaw Watchdog**
+- Canonical CLI wrapper: `scripts/openclaw-watchdog`
+- Canonical env example: `config/openclaw-watchdog.env.example`
+- Canonical systemd units: `systemd/openclaw-watchdog.service` and `systemd/openclaw-watchdog.timer`
+- Internal Python package name remains `watchdog_v2` for implementation stability
+- Deprecated compatibility shims are still shipped for migration:
+  - `scripts/openclaw-watchdog-v2`
+  - `scripts/install-openclaw-watchdog-v2-units.sh`
+  - `scripts/openclaw-watchdog-v2-live-acceptance.sh`
+- Historical migration notes remain in `MIGRATION-v2.md`
+- See also: [docs/compatibility-and-deprecations.md](docs/compatibility-and-deprecations.md)
 
 ## Security
 

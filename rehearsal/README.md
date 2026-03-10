@@ -1,4 +1,4 @@
-# Clawwatch v2 Docker rehearsal harness
+# OpenClaw Watchdog Docker rehearsal harness
 
 This harness wraps the existing `watchdog_v2` bootstrap/watchdog code with a deterministic container-safe rehearsal environment.
 
@@ -14,7 +14,7 @@ This harness wraps the existing `watchdog_v2` bootstrap/watchdog code with a det
 
 - `Dockerfile`: container image for the rehearsal environment.
 - `compose.yaml`: optional compose wrapper.
-- `rehearsal/env/openclaw-watchdog-v2.rehearsal.env`: safe in-repo env file for bootstrap/watchdog runs.
+- `rehearsal/env/openclaw-watchdog.rehearsal.env`: safe in-repo env file for bootstrap/watchdog runs.
 - `rehearsal/bin/`: host-command shims used by the watchdog engine.
 - `rehearsal/shims/`: fake `openclaw`, `opencode`, and `codex` binaries installed into `rehearsal/runtime/bin`.
 - `rehearsal/scripts/reset-runtime.sh`: wipe and recreate deterministic runtime state.
@@ -33,7 +33,7 @@ Current P0/P6-C structure note:
 ## Build later on a Docker-capable machine
 
 ```bash
-docker build -t clawwatch-v2-rehearsal .
+docker build -t openclaw-watchdog-rehearsal .
 ```
 
 ## Run later with plain Docker
@@ -41,71 +41,71 @@ docker build -t clawwatch-v2-rehearsal .
 Interactive shell in the rehearsal image:
 
 ```bash
-docker run --rm -it clawwatch-v2-rehearsal
+docker run --rm -it openclaw-watchdog-rehearsal
 ```
 
 Run a single scripted scenario:
 
 ```bash
-docker run --rm -it clawwatch-v2-rehearsal scenario bootstrap-missing-openclaw
-docker run --rm -it clawwatch-v2-rehearsal scenario bootstrap-openclaw-missing-plugin
-docker run --rm -it clawwatch-v2-rehearsal scenario bootstrap-install-openclaw
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-recovery
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-failed-fallback
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-active-no-listener-grace
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-service-layer-degraded
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-service-layer-threshold-recovery
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-conversation-probe-ready
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-conversation-probe-minimal
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-conversation-probe-down
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-restart-priority-recovery
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-rollback-priority-before-doctor
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-doctor-deferred-until-survival-fails
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-recovery-notify-normal
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-last-good-generation-selection
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-config-invalid-rollback
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-incidents-open
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-incidents-resolved
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-metrics-healthy
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-metrics-open-incident
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-metrics-resolved
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-incident-operator-open
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-incident-operator-resolved
-docker run --rm -it clawwatch-v2-rehearsal scenario watchdog-incident-operator-reset
+docker run --rm -it openclaw-watchdog-rehearsal scenario bootstrap-missing-openclaw
+docker run --rm -it openclaw-watchdog-rehearsal scenario bootstrap-openclaw-missing-plugin
+docker run --rm -it openclaw-watchdog-rehearsal scenario bootstrap-install-openclaw
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-recovery
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-failed-fallback
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-active-no-listener-grace
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-service-layer-degraded
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-service-layer-threshold-recovery
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-conversation-probe-ready
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-conversation-probe-minimal
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-conversation-probe-down
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-restart-priority-recovery
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-rollback-priority-before-doctor
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-doctor-deferred-until-survival-fails
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-recovery-notify-normal
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-last-good-generation-selection
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-config-invalid-rollback
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incidents-open
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incidents-resolved
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-metrics-healthy
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-metrics-open-incident
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-metrics-resolved
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incident-operator-open
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incident-operator-resolved
+docker run --rm -it openclaw-watchdog-rehearsal scenario watchdog-incident-operator-reset
 ```
 
 Run all scripted scenarios:
 
 ```bash
-docker run --rm -it clawwatch-v2-rehearsal scenario all
+docker run --rm -it openclaw-watchdog-rehearsal scenario all
 ```
 
 Run the watchdog/bootstrap CLI directly in the container:
 
 ```bash
-docker run --rm -it clawwatch-v2-rehearsal bootstrap
-docker run --rm -it clawwatch-v2-rehearsal bootstrap --install-openclaw
-docker run --rm -it clawwatch-v2-rehearsal check
-docker run --rm -it clawwatch-v2-rehearsal run-once
-docker run --rm -it clawwatch-v2-rehearsal status
-docker run --rm -it clawwatch-v2-rehearsal report --message
-docker run --rm -it clawwatch-v2-rehearsal metrics --json
-docker run --rm -it clawwatch-v2-rehearsal metrics --prometheus
-docker run --rm -it clawwatch-v2-rehearsal incidents list --state resolved
-docker run --rm -it clawwatch-v2-rehearsal incidents current
-docker run --rm -it clawwatch-v2-rehearsal incidents assign 20260309-001613 --owner alice
-docker run --rm -it clawwatch-v2-rehearsal incidents unassign 20260309-001613
-docker run --rm -it clawwatch-v2-rehearsal incidents ack 20260309-001613 --by alice --note "investigating"
-docker run --rm -it clawwatch-v2-rehearsal incidents unack 20260309-001613
-docker run --rm -it clawwatch-v2-rehearsal incidents note 20260309-001613 --by bob --message "waiting for fallback"
-docker run --rm -it clawwatch-v2-rehearsal incidents list --owner alice --ack yes
-docker run --rm -it clawwatch-v2-rehearsal maintenance on --reason "rehearsal"
+docker run --rm -it openclaw-watchdog-rehearsal bootstrap
+docker run --rm -it openclaw-watchdog-rehearsal bootstrap --install-openclaw
+docker run --rm -it openclaw-watchdog-rehearsal check
+docker run --rm -it openclaw-watchdog-rehearsal run-once
+docker run --rm -it openclaw-watchdog-rehearsal status
+docker run --rm -it openclaw-watchdog-rehearsal report --message
+docker run --rm -it openclaw-watchdog-rehearsal metrics --json
+docker run --rm -it openclaw-watchdog-rehearsal metrics --prometheus
+docker run --rm -it openclaw-watchdog-rehearsal incidents list --state resolved
+docker run --rm -it openclaw-watchdog-rehearsal incidents current
+docker run --rm -it openclaw-watchdog-rehearsal incidents assign 20260309-001613 --owner alice
+docker run --rm -it openclaw-watchdog-rehearsal incidents unassign 20260309-001613
+docker run --rm -it openclaw-watchdog-rehearsal incidents ack 20260309-001613 --by alice --note "investigating"
+docker run --rm -it openclaw-watchdog-rehearsal incidents unack 20260309-001613
+docker run --rm -it openclaw-watchdog-rehearsal incidents note 20260309-001613 --by bob --message "waiting for fallback"
+docker run --rm -it openclaw-watchdog-rehearsal incidents list --owner alice --ack yes
+docker run --rm -it openclaw-watchdog-rehearsal maintenance on --reason "rehearsal"
 ```
 
 If you want container writes to appear in your local checkout, bind-mount the repo:
 
 ```bash
-docker run --rm -it -v "$PWD:/workspace" clawwatch-v2-rehearsal scenario all
+docker run --rm -it -v "$PWD:/workspace" openclaw-watchdog-rehearsal scenario all
 ```
 
 ## Run later with Compose

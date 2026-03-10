@@ -117,7 +117,7 @@ class WatchdogEngine:
         self._prepare_state_dirs()
 
     def __enter__(self) -> "WatchdogEngine":
-        self.tmpdir_obj = tempfile.TemporaryDirectory(prefix="openclaw-watchdog-v2-")
+        self.tmpdir_obj = tempfile.TemporaryDirectory(prefix="openclaw-watchdog-")
         self.tmpdir = Path(self.tmpdir_obj.name)
         return self
 

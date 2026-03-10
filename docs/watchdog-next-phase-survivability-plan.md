@@ -173,14 +173,14 @@
 
 **live acceptance**
 
-- 更新 `scripts/openclaw-watchdog-v2-live-acceptance.sh`，在 healthy 主机上断言：
+- 更新 `scripts/openclaw-watchdog-live-acceptance.sh`，在 healthy 主机上断言：
   - `conversation_ready=true`
   - `survival_mode_active=false`
   - `status/report/metrics` 三处 conversation 状态一致
 - 手工只读命令清单：
-  - `./scripts/openclaw-watchdog-v2 status --json`
-  - `./scripts/openclaw-watchdog-v2 report --json`
-  - `./scripts/openclaw-watchdog-v2 metrics --json`
+  - `./scripts/openclaw-watchdog status --json`
+  - `./scripts/openclaw-watchdog report --json`
+  - `./scripts/openclaw-watchdog metrics --json`
   - `openclaw status --json`
 
 **风险**
@@ -366,7 +366,7 @@
   - 在 `set_state()` 中写入恢复动作相关字段，供 message/report 消费。
 - 修改 `watchdog_v2/cli.py`
   - 让 `status --summary` 与文本 `report` 的头部顺序也服从同一逻辑。
-- 更新 `docs/watchdog-v2-live-samples.md`
+- 更新 `docs/live-samples.md`
   - 增加恢复成功样例，明确 normal recovery 与 survival recovery 的输出差异。
 
 **涉及模块**
@@ -374,8 +374,8 @@
 - `watchdog_v2/reporting.py`
 - `watchdog_v2/engine.py`
 - `watchdog_v2/cli.py`
-- `docs/watchdog-v2-live-samples.md`
-- `docs/watchdog-v2-live-acceptance-checklist.md`
+- `docs/live-samples.md`
+- `docs/live-acceptance-checklist.md`
 
 **CLI / 状态 / 报告影响**
 
@@ -526,7 +526,7 @@
 - `watchdog_v2/config.py`
 - `watchdog_v2/reporting.py`
 - `watchdog_v2/cli.py`
-- `scripts/openclaw-watchdog-v2`
+- `scripts/openclaw-watchdog`
 - `MIGRATION-v2.md`
 
 **CLI / 状态 / 报告影响**
@@ -585,9 +585,9 @@
 - 新增或扩展 `rehearsal/scenarios/*.assertions.json`
 - 修改 `rehearsal/README.md`
   - 以 survivability 为主线重写“Supported rehearsal paths”顺序。
-- 修改 `scripts/openclaw-watchdog-v2-live-acceptance.sh`
+- 修改 `scripts/openclaw-watchdog-live-acceptance.sh`
   - 增加 conversation / recovery / survival 断言。
-- 修改 `docs/watchdog-v2-live-acceptance-checklist.md`
+- 修改 `docs/live-acceptance-checklist.md`
   - 增加“能否对话”“是否 survival”“最近恢复路径”检查项。
 
 **涉及模块**
@@ -597,9 +597,9 @@
 - `rehearsal/scripts/*.sh`（新增 flow）
 - `rehearsal/scenarios/*.assertions.json`
 - `rehearsal/README.md`
-- `scripts/openclaw-watchdog-v2-live-acceptance.sh`
-- `docs/watchdog-v2-live-acceptance-checklist.md`
-- `docs/watchdog-v2-live-samples.md`
+- `scripts/openclaw-watchdog-live-acceptance.sh`
+- `docs/live-acceptance-checklist.md`
+- `docs/live-samples.md`
 
 **CLI / 状态 / 报告影响**
 

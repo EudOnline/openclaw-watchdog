@@ -1,11 +1,11 @@
-# OpenClaw watchdog v2 live acceptance checklist
+# OpenClaw Watchdog live acceptance checklist
 
 This checklist is the operator-facing closure for the P0 survivability read-only acceptance.
 
 ## One-command acceptance
 
 ```bash
-./scripts/openclaw-watchdog-v2-live-acceptance.sh
+./scripts/openclaw-watchdog-live-acceptance.sh
 ```
 
 Default output directory:

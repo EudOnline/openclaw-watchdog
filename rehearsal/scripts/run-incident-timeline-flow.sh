@@ -2,7 +2,7 @@
 set -euo pipefail
 
 MODE="${1:-open}"
-ENV_FILE="${2:-rehearsal/env/openclaw-watchdog-v2.rehearsal.env}"
+ENV_FILE="${2:-rehearsal/env/openclaw-watchdog.rehearsal.env}"
 
 get_last_incident_id() {
   python3 - <<'PY'
@@ -17,23 +17,23 @@ PY
 case "$MODE" in
   open)
     set +e
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json >/dev/null
     set -e
     INCIDENT_ID="$(get_last_incident_id)"
     test -n "$INCIDENT_ID"
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents assign "$INCIDENT_ID" --owner alice >/dev/null
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents ack "$INCIDENT_ID" --by alice --note "investigating restart failure" >/dev/null
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by bob --message "waiting for fallback result" >/dev/null
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents timeline "$INCIDENT_ID" --json
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents assign "$INCIDENT_ID" --owner alice >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents ack "$INCIDENT_ID" --by alice --note "investigating restart failure" >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by bob --message "waiting for fallback result" >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents timeline "$INCIDENT_ID" --json
     ;;
   resolved)
     set +e
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json >/dev/null
     set -e
     INCIDENT_ID="$(get_last_incident_id)"
     test -n "$INCIDENT_ID"
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents assign "$INCIDENT_ID" --owner alice >/dev/null
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents ack "$INCIDENT_ID" --by alice --note "triaged after recovery" >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents assign "$INCIDENT_ID" --owner alice >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents ack "$INCIDENT_ID" --by alice --note "triaged after recovery" >/dev/null
     python3 - <<'PY'
 import json
 from pathlib import Path
@@ -48,10 +48,10 @@ data.update({
 })
 p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
 PY
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json >/dev/null
     sleep 1
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by bob --message "closed after healthy verification" >/dev/null
-    scripts/openclaw-watchdog-v2 --env "$ENV_FILE" incidents timeline "$INCIDENT_ID" --json
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents note "$INCIDENT_ID" --by bob --message "closed after healthy verification" >/dev/null
+    scripts/openclaw-watchdog --env "$ENV_FILE" incidents timeline "$INCIDENT_ID" --json
     ;;
   *)
     echo "Unknown mode: $MODE" >&2

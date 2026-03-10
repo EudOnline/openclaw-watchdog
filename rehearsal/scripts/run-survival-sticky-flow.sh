@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_FILE="${1:-rehearsal/env/openclaw-watchdog-v2.rehearsal.env}"
+ENV_FILE="${1:-rehearsal/env/openclaw-watchdog.rehearsal.env}"
 
 export WATCHDOG_ENABLE_SURVIVABILITY_FLOW="true"
 export WATCHDOG_ENABLE_SURVIVAL_MODE="true"
 export WATCHDOG_SURVIVAL_STABLE_READY_RUNS="2"
 
-FIRST_OUTCOME=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json)
+FIRST_OUTCOME=$(scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json)
 
 cp rehearsal/fixtures/healthy-openclaw-config.json "$OPENCLAW_CONFIG"
 python3 - <<'PY'
@@ -35,10 +35,10 @@ state.update(
 path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
 PY
 
-SECOND_OUTCOME=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" run-once --json)
-SECOND_STATUS=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" status --json)
-SECOND_REPORT=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" report --json)
-SECOND_METRICS=$(scripts/openclaw-watchdog-v2 --env "$ENV_FILE" metrics --json)
+SECOND_OUTCOME=$(scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json)
+SECOND_STATUS=$(scripts/openclaw-watchdog --env "$ENV_FILE" status --json)
+SECOND_REPORT=$(scripts/openclaw-watchdog --env "$ENV_FILE" report --json)
+SECOND_METRICS=$(scripts/openclaw-watchdog --env "$ENV_FILE" metrics --json)
 
 python3 - <<'PY' "$FIRST_OUTCOME" "$SECOND_OUTCOME" "$SECOND_STATUS" "$SECOND_REPORT" "$SECOND_METRICS"
 from __future__ import annotations
