@@ -1,8 +1,33 @@
 # OpenClaw Watchdog
 
-A production-oriented external watchdog for OpenClaw, focused on service recovery, incident capture, operator workflow, and rehearsal-driven validation.
+[![Release](https://img.shields.io/github/v/release/EudOnline/openclaw-watchdog?display_name=tag)](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](pyproject.toml)
+
+A production-oriented external watchdog and recovery toolkit for OpenClaw.
 
 > This repository publishes the watchdog project as a standalone, sanitized open-source package. Private workspace state, live incidents, memory files, and real credentials are intentionally excluded.
+
+## TL;DR
+
+OpenClaw Watchdog is designed to help operators recover a usable OpenClaw conversation path safely and quickly.
+
+It combines:
+
+- health checks across process, service, and conversation readiness
+- conservative recovery and rollback-oriented workflows
+- operator-facing incident, report, and metrics outputs
+- source-first deployment with sample `systemd --user` units
+- rehearsal scenarios for validation before relying on changes on a live host
+
+## Quick links
+
+- [Release notes](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
+- [Documentation index](docs/README.md)
+- [Compatibility and deprecations](docs/compatibility-and-deprecations.md)
+- [Roadmap](docs/roadmap.md)
+- [FAQ](docs/faq.md)
+- [Rehearsal guide](rehearsal/README.md)
 
 ## Highlights
 
@@ -26,7 +51,7 @@ The public-facing interface now uses the non-`v2` names throughout the repo. The
 watchdog_v2/   Python implementation
 scripts/       CLI wrappers and install helpers
 systemd/       sample user service + timer units
-docs/          migration notes, samples, acceptance checklists
+docs/          current guides, validation docs, and historical notes
 config/        sanitized example env files
 rehearsal/     fixtures, shims, scenarios, and test flows
 ```
@@ -141,6 +166,8 @@ Start with:
 - `docs/live-acceptance-checklist.md`
 - `docs/live-samples.md`
 - `docs/compatibility-and-deprecations.md`
+- `docs/roadmap.md`
+- `docs/faq.md`
 - `docs/history/MIGRATION-v2.md` (historical migration notes)
 
 ## Design notes
