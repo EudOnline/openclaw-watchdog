@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+repo_root = Path(__file__).resolve().parents[2]
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+from rehearsal.lib.rehearsal_common import gateway_port, load_state, save_state  # noqa: E402
+
+
+def main() -> int:
+    state = load_state()
+    listeners = list(state.get("listener_pids", []))
+    sequence = state.get("listener_pids_sequence")
+    if isinstance(sequence, list) and sequence:
+        next_listeners = sequence[0]
+        listeners = [str(pid) for pid in next_listeners]
+        if len(sequence) > 1:
+            state["listener_pids_sequence"] = sequence[1:]
+        else:
+            state["listener_pids_sequence"] = [next_listeners]
+        state["listener_pids"] = listeners
+        save_state(state)
+    print("State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess")
+    for pid in listeners:
+        print(
+            f"LISTEN 0      128    0.0.0.0:{gateway_port()}    0.0.0.0:*    users:((\"openclaw\",pid={pid},fd=9))"
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

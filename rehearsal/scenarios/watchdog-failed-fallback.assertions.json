@@ -1,0 +1,16 @@
+{
+  "contains": {
+    "summary": "codex_result=codex-missing->launched"
+  },
+  "equals": {
+    "exit_code": 1,
+    "state": "failed"
+  },
+  "glob_file_contains": {
+    "rehearsal/runtime/watchdog/incidents/*/operator-summary.txt": [
+      "codex_trigger_result=codex-missing->launched",
+      "opencode_fallback_trigger_result=launched"
+    ]
+  }
+}
+

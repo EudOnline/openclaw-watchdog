@@ -1,0 +1,21 @@
+{
+  "equals": {
+    "state": "resolved",
+    "health_level": "healthy",
+    "resolution_summary": "service active and listener matches main pid",
+    "pre_repair_backup_result": "success",
+    "codex_trigger_result": "codex-missing->launched",
+    "opencode_fallback_trigger_result": "launched"
+  },
+  "contains": {
+    "summary": "service active and listener matches main pid"
+  },
+  "includes": {
+    "artifacts": [
+      "operator-summary.txt",
+      "incident-state.json",
+      "run-codex.sh",
+      "run-opencode-fallback.sh"
+    ]
+  }
+}

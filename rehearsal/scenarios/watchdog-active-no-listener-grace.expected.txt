@@ -1,0 +1,2 @@
+state=healthy
+summary=service active and listener matches main pid

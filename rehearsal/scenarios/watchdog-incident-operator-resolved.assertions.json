@@ -1,0 +1,31 @@
+{
+  "equals": {
+    "state": "resolved",
+    "health_level": "healthy",
+    "owner": "alice",
+    "acknowledged": true,
+    "acknowledged_by": "alice",
+    "notes_count": 2,
+    "latest_note_by": "bob"
+  },
+  "contains": {
+    "resolution_summary": "service active and listener matches main pid",
+    "latest_note": "closed after healthy verification"
+  },
+  "includes": {
+    "artifacts": [
+      "operator-summary.txt",
+      "operator-workflow.json",
+      "incident-state.json",
+      "run-codex.sh",
+      "run-opencode-fallback.sh"
+    ]
+  },
+  "glob_file_contains": {
+    "rehearsal/runtime/watchdog/incidents/*/operator-workflow.json": [
+      "\"owner\": \"alice\"",
+      "triaged after recovery",
+      "closed after healthy verification"
+    ]
+  }
+}

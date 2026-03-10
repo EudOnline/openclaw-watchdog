@@ -1,0 +1,18 @@
+{
+  "equals": {
+    "outcome.exit_code": 0,
+    "outcome.state": "recovered",
+    "status.run_state.last_recovery_strategy": "restart",
+    "status.run_state.last_recovery_restored_conversation": true,
+    "status.conversation_status": "ready",
+    "metrics.last_recovery_strategy": "restart"
+  },
+  "contains": {
+    "report.message_text": "recovery=restart"
+  },
+  "file_not_contains": {
+    "rehearsal/runtime/watchdog/watchdog.log": [
+      "running openclaw doctor --repair"
+    ]
+  }
+}

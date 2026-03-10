@@ -1,0 +1,2 @@
+state=recovered
+summary=watchdog restarted gateway successfully

@@ -1,0 +1,31 @@
+{
+  "equals": {
+    "state": "open",
+    "health_level": "failed",
+    "owner": "alice",
+    "acknowledged": true,
+    "acknowledged_by": "alice",
+    "notes_count": 2,
+    "latest_note_by": "bob"
+  },
+  "contains": {
+    "latest_note": "waiting for fallback result",
+    "summary": "codex_result=codex-missing->launched"
+  },
+  "includes": {
+    "artifacts": [
+      "operator-summary.txt",
+      "operator-workflow.json",
+      "incident-state.json",
+      "run-codex.sh",
+      "run-opencode-fallback.sh"
+    ]
+  },
+  "glob_file_contains": {
+    "rehearsal/runtime/watchdog/incidents/*/operator-workflow.json": [
+      "\"owner\": \"alice\"",
+      "investigating restart failure",
+      "waiting for fallback result"
+    ]
+  }
+}

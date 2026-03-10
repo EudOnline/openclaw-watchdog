@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+repo_root = Path(__file__).resolve().parents[2]
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+from rehearsal.lib.rehearsal_common import (  # noqa: E402
+    append_journal,
+    append_line,
+    append_runtime_log,
+    gateway_port,
+    gateway_service,
+    load_state,
+    messages_log_path,
+    now_stamp,
+    openclaw_config_path,
+    save_state,
+)
+
+
+def config_invalid() -> tuple[bool, str]:
+    config_path = openclaw_config_path()
+    if not config_path.exists():
+        return False, ""
+    try:
+        text = config_path.read_text(encoding="utf-8")
+        if text.strip():
+            json.loads(text)
+        return False, ""
+    except json.JSONDecodeError as exc:
+        return True, f"Config invalid: {exc}"
+
+
+def plugins_list() -> int:
+    state = load_state()
+    for plugin in state.get("plugins", []):
+        print(plugin)
+    return 0
+
+
+def plugins_install(package: str) -> int:
+    state = load_state()
+    if state.get("plugin_install_fails"):
+        print(f"failed to install plugin {package}", file=sys.stderr)
+        append_journal(f"openclaw plugins install {package} failed")
+        return 1
+    plugins = list(state.get("plugins", []))
+    if package not in plugins:
+        plugins.append(package)
+    state["plugins"] = plugins
+    save_state(state)
+    append_journal(f"openclaw plugins install {package} succeeded")
+    print(f"installed {package}")
+    return 0
+
+
+def doctor(repair: bool) -> int:
+    state = load_state()
+    invalid, message = config_invalid()
+    if invalid:
+        if repair and state.get("repair_fixes_invalid_config"):
+            config_path = openclaw_config_path()
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text("{}\n", encoding="utf-8")
+            append_journal("openclaw doctor --repair fixed invalid config")
+            print("Repair OK: config reset to empty JSON")
+            return 0
+        print(message)
+        return 1
+
+    fail_message = str(state.get("doctor_fail_message", "")).strip()
+    if fail_message and not repair:
+        print(fail_message)
+        return 1
+
+    if repair:
+        repair_message = str(state.get("repair_message", "Applied simulated repair steps")).strip() or "Applied simulated repair steps"
+        append_journal(f"openclaw doctor --repair {gateway_service()}")
+        append_runtime_log(repair_message)
+        print(repair_message)
+        return 0
+
+    ok_message = str(state.get("doctor_ok_message", "Doctor OK")).strip() or "Doctor OK"
+    print(ok_message)
+    return 0
+
+
+def status_json() -> int:
+    state = load_state()
+    service_level_reachable = state.get("service_level_reachable")
+    sequence = state.get("service_level_reachable_sequence")
+    if isinstance(sequence, list) and sequence:
+        service_level_reachable = bool(sequence[0])
+        if len(sequence) > 1:
+            state["service_level_reachable_sequence"] = sequence[1:]
+        else:
+            state["service_level_reachable_sequence"] = [sequence[0]]
+        state["service_level_reachable"] = service_level_reachable
+        save_state(state)
+    if service_level_reachable is None:
+        service_level_reachable = bool(state.get("service_active"))
+    payload = {
+        "service_active": bool(state.get("service_active")),
+        "service_main_pid": str(state.get("main_pid", "0")),
+        "listener_pids": [str(item) for item in state.get("listener_pids", [])],
+        "gateway_port": gateway_port(),
+        "plugins": list(state.get("plugins", [])),
+        "gateway": {
+            "reachable": bool(service_level_reachable),
+        },
+    }
+    if any(key in state for key in ("conversation_ready", "minimal_usable_ready", "conversation_summary", "channel_summary")):
+        payload["conversation"] = {
+            "ready": bool(state.get("conversation_ready", False)),
+            "minimalUsable": bool(state.get("minimal_usable_ready", state.get("conversation_ready", False))),
+            "summary": str(state.get("conversation_summary", "")),
+        }
+        payload["channelSummary"] = list(state.get("channel_summary", ["QQ Bot: configured"]))
+    print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def gateway_status() -> int:
+    state = load_state()
+    listeners = " ".join(str(item) for item in state.get("listener_pids", [])) or "none"
+    active = "true" if state.get("service_active") else "false"
+    print(f"service={gateway_service()} active={active} main_pid={state.get('main_pid', '0')} listeners={listeners}")
+    return 0
+
+
+def message_send(args: list[str]) -> int:
+    account = "default"
+    channel = ""
+    target = ""
+    message = ""
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "--account" and index + 1 < len(args):
+            account = args[index + 1]
+            index += 2
+            continue
+        if token == "--channel" and index + 1 < len(args):
+            channel = args[index + 1]
+            index += 2
+            continue
+        if token == "--target" and index + 1 < len(args):
+            target = args[index + 1]
+            index += 2
+            continue
+        if token == "--message" and index + 1 < len(args):
+            message = args[index + 1]
+            index += 2
+            continue
+        index += 1
+    append_line(messages_log_path(), f"[{now_stamp()}] account={account} channel={channel} target={target} message={message}")
+    print("sent")
+    return 0
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if not args:
+        print("openclaw shim", file=sys.stderr)
+        return 1
+
+    if args[:2] == ["plugins", "list"]:
+        return plugins_list()
+
+    if len(args) >= 3 and args[:2] == ["plugins", "install"]:
+        return plugins_install(args[2])
+
+    if args and args[0] == "doctor":
+        return doctor("--repair" in args)
+
+    if args[:2] == ["status", "--json"] or (args and args[0] == "status" and "--json" in args):
+        return status_json()
+
+    if args[:2] == ["gateway", "status"]:
+        return gateway_status()
+
+    if args[:2] == ["message", "send"]:
+        return message_send(args[2:])
+
+    print(f"openclaw shim: unsupported args: {' '.join(args)}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

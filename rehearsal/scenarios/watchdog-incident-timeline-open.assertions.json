@@ -1,0 +1,18 @@
+{
+  "equals": {
+    "state": "open",
+    "owner": "alice",
+    "acknowledged": true,
+    "notes_count": 2,
+    "event_count": 5,
+    "events.0.type": "opened",
+    "events.1.type": "owner-assigned",
+    "events.2.type": "acknowledged",
+    "events.3.type": "note",
+    "events.4.type": "note"
+  },
+  "contains": {
+    "events.3.message": "investigating restart failure",
+    "events.4.message": "waiting for fallback result"
+  }
+}

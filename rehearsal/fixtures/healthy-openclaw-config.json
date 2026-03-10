@@ -1,0 +1,24 @@
+{
+  "channels": {
+    "feishu": {
+      "accounts": {
+        "main": {
+          "appId": "fixture-feishu-app-id",
+          "appSecret": "fixture-feishu-app-secret",
+          "botName": "OpenClaw"
+        }
+      },
+      "defaultAccount": "main",
+      "enabled": true
+    },
+    "qqbot": {
+      "appId": "fixture-qq-app-id",
+      "clientSecret": "fixture-qq-client-secret",
+      "enabled": true
+    }
+  },
+  "logging": {
+    "file": "rehearsal/runtime/logs/openclaw-runtime.log"
+  }
+}
+

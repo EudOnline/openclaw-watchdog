@@ -1,0 +1,11 @@
+{
+  "equals": {
+    "status": "failed",
+    "current_incident_state": "open",
+    "operator_attention_needed": true,
+    "operator_attention_count": 3
+  },
+  "contains": {
+    "message_text": "attention:\n- current incident is unowned\n- current incident is unacknowledged\n- current incident has no operator notes"
+  }
+}

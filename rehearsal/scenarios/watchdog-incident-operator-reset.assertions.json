@@ -1,0 +1,27 @@
+{
+  "equals": {
+    "show.owner": "",
+    "show.acknowledged": false,
+    "show.acknowledged_by": "",
+    "show.acknowledged_at": "",
+    "show.notes_count": 2,
+    "list_owner_alice_count": 0,
+    "list_ack_yes_count": 0,
+    "list_ack_no_count": 1
+  },
+  "contains": {
+    "list_ack_no_first_incident_id": "202",
+    "report_message_text": "owner=none | ack=false",
+    "show.latest_note": "waiting for fallback result"
+  },
+  "includes": {
+    "show.artifacts": [
+      "operator-workflow.json"
+    ]
+  },
+  "glob_file_contains": {
+    "rehearsal/runtime/watchdog/incidents/*/operator-workflow.json": [
+      "waiting for fallback result"
+    ]
+  }
+}

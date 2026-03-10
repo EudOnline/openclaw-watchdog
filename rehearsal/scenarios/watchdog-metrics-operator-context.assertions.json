@@ -1,0 +1,25 @@
+{
+  "equals": {
+    "status": "failed",
+    "health_level": "failed",
+    "current_incident_open": true,
+    "current_incident_state": "open",
+    "current_incident_owner": "alice",
+    "current_incident_owner_assigned": true,
+    "current_incident_acknowledged": true,
+    "current_incident_notes_count": 2,
+    "current_incident_events_count": 4,
+    "current_incident_latest_event_type": "note"
+  },
+  "contains": {
+    "current_incident_id": "202"
+  },
+  "file_contains": {
+    "rehearsal/runtime/watchdog/last-metrics.prom": [
+      "openclaw_watchdog_current_incident_owner_assigned 1",
+      "openclaw_watchdog_current_incident_acknowledged 1",
+      "openclaw_watchdog_current_incident_notes_count 2",
+      "openclaw_watchdog_current_incident_events_count 4"
+    ]
+  }
+}

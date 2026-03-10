@@ -1,0 +1,22 @@
+{
+  "equals": {
+    "status": "failed",
+    "health_level": "failed",
+    "current_incident_open": true,
+    "current_incident_state": "open",
+    "recent_healthy_total": 0,
+    "recent_degraded_total": 0,
+    "recent_recovered_total": 0,
+    "recent_failed_total": 1,
+    "recent_incidents_count": 1
+  },
+  "contains": {
+    "current_incident_id": "202"
+  },
+  "file_contains": {
+    "rehearsal/runtime/watchdog/last-metrics.prom": [
+      "openclaw_watchdog_current_incident_open 1",
+      "openclaw_watchdog_recent_failed_total 1"
+    ]
+  }
+}

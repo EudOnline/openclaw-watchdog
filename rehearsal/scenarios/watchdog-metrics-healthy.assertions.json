@@ -1,0 +1,19 @@
+{
+  "equals": {
+    "status": "healthy",
+    "health_level": "healthy",
+    "service_active": true,
+    "current_incident_open": false,
+    "recent_healthy_total": 1,
+    "recent_degraded_total": 0,
+    "recent_recovered_total": 0,
+    "recent_failed_total": 0,
+    "recent_incidents_count": 0
+  },
+  "file_contains": {
+    "rehearsal/runtime/watchdog/last-metrics.prom": [
+      "openclaw_watchdog_current_incident_open 0",
+      "openclaw_watchdog_recent_healthy_total 1"
+    ]
+  }
+}

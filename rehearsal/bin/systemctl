@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+ROOT = __file__
+
+from pathlib import Path
+
+repo_root = Path(__file__).resolve().parents[2]
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+from rehearsal.lib.rehearsal_common import (  # noqa: E402
+    allocate_pid,
+    append_journal,
+    gateway_service,
+    load_state,
+    render_service_status,
+    save_state,
+)
+
+
+def survival_state_active() -> bool:
+    path = Path(os.environ.get("WATCHDOG_SURVIVAL_STATE_FILE", "rehearsal/runtime/watchdog/survival-mode.json"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False
+    return bool(payload.get("active", False)) if isinstance(payload, dict) else False
+
+
+def apply_restart_profile(state: dict[str, object], profile: str) -> None:
+    profile = profile.strip()
+    if not profile:
+        return
+    if profile == "down":
+        state["service_level_reachable"] = False
+        state["conversation_ready"] = False
+        state["minimal_usable_ready"] = False
+    elif profile == "minimal":
+        state["service_level_reachable"] = True
+        state["conversation_ready"] = False
+        state["minimal_usable_ready"] = True
+    elif profile == "ready":
+        state["service_level_reachable"] = True
+        state["conversation_ready"] = True
+        state["minimal_usable_ready"] = True
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if args[:1] == ["--user"]:
+        args = args[1:]
+    if not args:
+        print("systemctl shim: missing command", file=sys.stderr)
+        return 1
+
+    command = args[0]
+    state = load_state()
+    service = gateway_service()
+
+    if command == "is-active":
+        return 0 if state.get("service_active") else 3
+
+    if command == "show" and "MainPID" in args and "--value" in args:
+        print(state.get("main_pid", "0"))
+        return 0
+
+    if command == "reset-failed":
+        append_journal(f"systemctl reset-failed {service}")
+        return 0
+
+    if command in {"restart", "start"}:
+        sequence = state.get("restart_mode_sequence")
+        if isinstance(sequence, list) and sequence:
+            mode = str(sequence[0])
+            state["restart_mode_sequence"] = sequence[1:] if len(sequence) > 1 else [sequence[0]]
+            state["restart_mode"] = mode
+        else:
+            mode = str(state.get("restart_mode", "healthy"))
+        profile_sequence = state.get("restart_profile_sequence")
+        profile = ""
+        if isinstance(profile_sequence, list) and profile_sequence:
+            profile = str(profile_sequence[0])
+            state["restart_profile_sequence"] = profile_sequence[1:] if len(profile_sequence) > 1 else [profile_sequence[0]]
+        save_state(state)
+        if mode == "restart-fail":
+            append_journal(f"systemctl {command} {service} failed")
+            print(f"Failed to {command} {service}", file=sys.stderr)
+            return 1
+        if survival_state_active() and str(state.get("survival_recovery_mode", "")).strip():
+            recovery_mode = str(state.get("survival_recovery_mode", "")).strip()
+            main_pid = allocate_pid(state)
+            state["main_pid"] = main_pid
+            state["service_active"] = True
+            state["listener_pids"] = [main_pid]
+            state["service_level_reachable"] = True
+            if recovery_mode == "minimal":
+                state["conversation_ready"] = False
+                state["minimal_usable_ready"] = True
+                state["channel_summary"] = ["QQ Bot: configured", "Feishu: disabled by survival mode"]
+                state["conversation_summary"] = "survival mode restored the minimal QQ conversation path"
+            elif recovery_mode == "full":
+                state["conversation_ready"] = True
+                state["minimal_usable_ready"] = True
+                state["channel_summary"] = ["QQ Bot: configured"]
+                state["conversation_summary"] = "survival mode restored the required conversation path"
+            save_state(state)
+            append_journal(f"systemctl {command} {service} -> survival-mode={recovery_mode} main_pid={main_pid}")
+            return 0
+        if mode == "inactive":
+            state["service_active"] = False
+            state["main_pid"] = "0"
+            state["listener_pids"] = []
+            apply_restart_profile(state, profile)
+        else:
+            main_pid = allocate_pid(state)
+            state["main_pid"] = main_pid
+            state["service_active"] = True
+            if mode == "listener-mismatch":
+                state["listener_pids"] = [allocate_pid(state)]
+            else:
+                state["listener_pids"] = [main_pid]
+            apply_restart_profile(state, profile)
+        save_state(state)
+        append_journal(f"systemctl {command} {service} -> mode={mode} main_pid={state.get('main_pid', '0')}")
+        return 0
+
+    if command == "stop":
+        state["service_active"] = False
+        state["main_pid"] = "0"
+        state["listener_pids"] = []
+        save_state(state)
+        append_journal(f"systemctl stop {service}")
+        return 0
+
+    if command in {"enable", "disable", "daemon-reload"}:
+        append_journal(f"systemctl {command} {' '.join(args[1:])}".strip())
+        return 0
+
+    if command == "status":
+        print(render_service_status(state))
+        return 0 if state.get("service_active") else 3
+
+    print(f"systemctl shim: unsupported args: {' '.join(sys.argv[1:])}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

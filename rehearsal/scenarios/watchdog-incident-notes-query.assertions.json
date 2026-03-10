@@ -1,0 +1,22 @@
+{
+  "equals": {
+    "show.notes_count": 4,
+    "list_notes_yes_count": 1,
+    "list_notes_no_count": 0,
+    "timeline_limit_count": 3,
+    "timeline_last_type": "note",
+    "default_note_lines": 3,
+    "all_note_lines": 4
+  },
+  "contains": {
+    "report_message_text": "note=fourth operator note"
+  },
+  "glob_file_contains": {
+    "rehearsal/runtime/scenario-output/watchdog-incident-notes-query/show-all.txt": [
+      "first operator note",
+      "second operator note",
+      "third operator note",
+      "fourth operator note"
+    ]
+  }
+}

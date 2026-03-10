@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.*
+*.log
+*.tmp
+.DS_Store
+config/*.env
+!config/*.env.example
+rehearsal/runtime/

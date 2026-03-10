@@ -1,0 +1,11 @@
+{
+  "equals": {
+    "conversation_ready": true,
+    "minimal_usable_ready": true,
+    "conversation_status": "ready",
+    "health_level": "healthy"
+  },
+  "contains": {
+    "conversation_probe_summary": "ready"
+  }
+}

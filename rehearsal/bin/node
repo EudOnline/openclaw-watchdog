@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TARGET="${1:-}"
+
+case "$TARGET" in
+  "$REPO_ROOT/rehearsal/tools/openclaw-backup.js"|rehearsal/tools/openclaw-backup.js)
+    shift || true
+    exec python3 "$REPO_ROOT/rehearsal/tools/openclaw_backup_runner.py" "$@"
+    ;;
+  *)
+    echo "node shim only supports rehearsal/tools/openclaw-backup.js" >&2
+    exit 127
+    ;;
+esac
+

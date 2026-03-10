@@ -1,0 +1,18 @@
+{
+  "equals": {
+    "outcome.exit_code": 0,
+    "outcome.state": "recovered",
+    "status.run_state.last_recovery_strategy": "rollback",
+    "status.run_state.last_recovery_restored_conversation": true,
+    "status.rollback_candidate_used": "generation-rollback-1",
+    "metrics.last_recovery_strategy": "rollback"
+  },
+  "contains": {
+    "report.message_text": "rollback=generation-rollback-1"
+  },
+  "file_not_contains": {
+    "rehearsal/runtime/watchdog/watchdog.log": [
+      "running openclaw doctor --repair"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "equals": {
+    "list_yes_count": 1,
+    "show_open.attention_needed": true,
+    "show_open.attention_count": 3,
+    "show_open.attention_summary": "unowned,unacknowledged,no-notes",
+    "list_no_count": 1,
+    "current.attention_needed": false,
+    "current.attention_count": 0,
+    "status_recent_incident.attention_needed": false,
+    "status_recent_incident.attention_summary": ""
+  },
+  "contains": {
+    "report_message_text": "attention: none"
+  }
+}

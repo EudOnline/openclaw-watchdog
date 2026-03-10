@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+repo_root = Path(__file__).resolve().parents[2]
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+from rehearsal.lib.rehearsal_common import gateway_port, load_state  # noqa: E402
+
+
+def real_ps() -> list[str]:
+    for candidate in ["/bin/ps", "/usr/bin/ps"]:
+        if os.path.exists(candidate):
+            return [candidate]
+    return ["ps"]
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if len(args) >= 4 and args[0] == "-p" and args[2] == "-o" and args[3].startswith("args"):
+        pid = args[1]
+        state = load_state()
+        known = {str(state.get("main_pid", "0")), *[str(item) for item in state.get("listener_pids", [])]}
+        if pid in known:
+            print(f"openclaw gateway --port {gateway_port()}")
+            return 0
+    completed = subprocess.run(real_ps() + args, check=False)
+    return completed.returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

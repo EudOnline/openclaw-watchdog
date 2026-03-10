@@ -1,0 +1,26 @@
+{
+  "equals": {
+    "outcome.exit_code": 0,
+    "outcome.state": "recovered",
+    "status.current_mode": "survival",
+    "status.survival_mode_active": true,
+    "status.conversation_ready": false,
+    "status.minimal_usable_ready": true,
+    "status.run_state.last_recovery_strategy": "survival",
+    "metrics.survival_mode_active": true,
+    "metrics.last_recovery_strategy": "survival"
+  },
+  "contains": {
+    "report.message_text": "survival_mode: active"
+  },
+  "file_contains": {
+    "rehearsal/runtime/watchdog/watchdog.log": [
+      "survival mode activated"
+    ]
+  },
+  "file_not_contains": {
+    "rehearsal/runtime/watchdog/watchdog.log": [
+      "running openclaw doctor --repair"
+    ]
+  }
+}

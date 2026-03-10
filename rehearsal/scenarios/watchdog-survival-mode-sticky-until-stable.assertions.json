@@ -1,0 +1,14 @@
+{
+  "equals": {
+    "first_outcome.exit_code": 0,
+    "first_outcome.state": "recovered",
+    "second_outcome.exit_code": 0,
+    "second_outcome.state": "healthy",
+    "second_status.current_mode": "survival",
+    "second_status.survival_mode_active": true,
+    "second_metrics.survival_mode_active": true
+  },
+  "contains": {
+    "second_report.message_text": "waiting for stable full-ready window"
+  }
+}

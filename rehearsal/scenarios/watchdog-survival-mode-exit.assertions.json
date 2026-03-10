@@ -1,0 +1,17 @@
+{
+  "equals": {
+    "first_outcome.exit_code": 0,
+    "first_outcome.state": "recovered",
+    "pending_outcome.exit_code": 0,
+    "pending_outcome.state": "healthy",
+    "pending_status.survival_mode_active": true,
+    "final_outcome.exit_code": 0,
+    "final_outcome.state": "healthy",
+    "final_status.survival_mode_active": false,
+    "final_status.current_mode": "normal",
+    "final_metrics.survival_mode_active": false
+  },
+  "contains": {
+    "pending_report.message_text": "manual-clear-or-reconfig"
+  }
+}

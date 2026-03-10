@@ -1,0 +1,14 @@
+{
+  "equals": {
+    "status": "failed",
+    "current_incident_state": "open",
+    "current_incident_owner": "alice",
+    "current_incident_acknowledged": true,
+    "current_incident_notes_count": 1,
+    "operator_attention_needed": false,
+    "operator_attention_count": 0
+  },
+  "contains": {
+    "message_text": "attention: none"
+  }
+}

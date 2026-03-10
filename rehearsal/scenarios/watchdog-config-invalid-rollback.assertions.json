@@ -1,0 +1,9 @@
+{
+  "contains": {
+    "summary": "service active and listener matches main pid"
+  },
+  "equals": {
+    "exit_code": 0,
+    "state": "healthy"
+  }
+}

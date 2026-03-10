@@ -1,0 +1,11 @@
+{
+  "equals": {
+    "outcome.exit_code": 0,
+    "outcome.state": "recovered",
+    "status.run_state.last_recovery_strategy": "restart"
+  },
+  "contains": {
+    "messages_log": "conversation=ready",
+    "report.message_text": "recovery=restart"
+  }
+}

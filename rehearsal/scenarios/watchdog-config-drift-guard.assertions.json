@@ -1,0 +1,33 @@
+{
+  "equals": {
+    "outcome.exit_code": 0,
+    "outcome.state": "recovered",
+    "status.run_state.last_recovery_strategy": "rollback",
+    "status.config_drift_detected": true,
+    "metrics.config_drift_detected": true,
+    "metrics.guard_last_operation": "restore-last-good"
+  },
+  "includes": {
+    "status.drift_scope": [
+      "openclaw_config"
+    ],
+    "metrics.drift_scope": [
+      "openclaw_config"
+    ]
+  },
+  "contains": {
+    "report.message_text": "drift_guard: detected",
+    "status.drift_since_last_good": "generation=generation-drift-1"
+  },
+  "file_contains": {
+    "rehearsal/runtime/watchdog/drift-guard.json": [
+      "restore-last-good",
+      "openclaw_config"
+    ]
+  },
+  "file_not_contains": {
+    "rehearsal/runtime/watchdog/watchdog.log": [
+      "running openclaw doctor --repair"
+    ]
+  }
+}

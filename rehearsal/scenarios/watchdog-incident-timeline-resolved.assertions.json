@@ -1,0 +1,19 @@
+{
+  "equals": {
+    "state": "resolved",
+    "owner": "alice",
+    "acknowledged": true,
+    "notes_count": 2,
+    "event_count": 6,
+    "events.0.type": "opened",
+    "events.4.type": "resolved",
+    "events.5.type": "note"
+  },
+  "contains": {
+    "events.0.summary": "deterministic remediation failed",
+    "events.2.summary": "acknowledged by alice",
+    "events.3.message": "triaged after recovery",
+    "events.4.summary": "service active and listener matches main pid",
+    "events.5.message": "closed after healthy verification"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "equals": {
+    "baseline_outcome.exit_code": 0,
+    "baseline_outcome.state": "healthy",
+    "recovery_outcome.exit_code": 0,
+    "recovery_outcome.state": "recovered",
+    "status.run_state.last_recovery_strategy": "rollback",
+    "status.config_drift_detected": true,
+    "metrics.config_drift_detected": true
+  },
+  "contains": {
+    "report.message_text": "drift_guard: detected",
+    "env_file_text": "WATCHDOG_NOTIFY_TARGET=\"rehearsal-target\""
+  },
+  "file_not_contains": {
+    "rehearsal/runtime/watchdog/watchdog.log": [
+      "running openclaw doctor --repair"
+    ]
+  }
+}

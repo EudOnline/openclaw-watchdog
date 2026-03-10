@@ -1,0 +1,17 @@
+{
+  "equals": {
+    "queue_open.summary.open_total": 1,
+    "queue_open.summary.attention_total": 1,
+    "queue_open.summary.handled_total": 0,
+    "status_open_summary.open_total": 1,
+    "status_open_summary.attention_total": 1,
+    "report_open_summary.open_total": 1,
+    "report_open_summary.attention_total": 1,
+    "queue_handled.summary.open_total": 1,
+    "queue_handled.summary.attention_total": 0,
+    "queue_handled.summary.handled_total": 1,
+    "queue_handled.summary.owned_total": 1,
+    "queue_handled.summary.acknowledged_total": 1,
+    "queue_handled.summary.with_notes_total": 1
+  }
+}

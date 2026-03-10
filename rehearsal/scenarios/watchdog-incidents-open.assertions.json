@@ -1,0 +1,19 @@
+{
+  "equals": {
+    "state": "open",
+    "health_level": "failed",
+    "active": "false",
+    "main_pid": "0"
+  },
+  "contains": {
+    "summary": "codex_result=codex-missing->launched"
+  },
+  "includes": {
+    "artifacts": [
+      "operator-summary.txt",
+      "incident-state.json",
+      "run-codex.sh",
+      "run-opencode-fallback.sh"
+    ]
+  }
+}

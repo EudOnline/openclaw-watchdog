@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+import sys
+import time
+from pathlib import Path
+
+repo_root = Path(__file__).resolve().parents[2]
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+from rehearsal.lib.rehearsal_common import append_line, now_stamp, opencode_log_path  # noqa: E402
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    append_line(opencode_log_path(), f"[{now_stamp()}] argv={' '.join(args)}")
+    if not args or args[0] in {"--help", "help"}:
+        print("opencode shim")
+        return 0
+    if args[0] == "run":
+        prompt = " ".join(args[1:]).strip()
+        print("OpenCode rehearsal shim accepted prompt")
+        if prompt:
+            print(prompt[:200])
+        time.sleep(float(os.environ.get("OPENCODE_SHIM_SLEEP_SECONDS", "2")))
+        print("OpenCode rehearsal shim completed")
+        return 0
+    if args[0] == "--version":
+        print("opencode-shim 0.1.0")
+        return 0
+    print(f"opencode shim: unsupported args: {' '.join(args)}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
