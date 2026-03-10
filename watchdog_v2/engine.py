@@ -15,8 +15,10 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from watchdog_v2 import events as event_ops
 from watchdog_v2 import handoff as handoff_ops
 from watchdog_v2 import health as health_ops
+from watchdog_v2 import incident_context as incident_context_ops
 from watchdog_v2 import incidents as incident_ops
 from watchdog_v2 import repair as repair_ops
 from watchdog_v2 import reporting as reporting_ops
@@ -405,29 +407,10 @@ class WatchdogEngine:
         return incident_dir / "incident-state.json"
 
     def event_severity(self, status: str, health_level: str, summary: str) -> str:
-        text = (summary or "").lower()
-        if status == "failed" or health_level == "failed":
-            return "critical"
-        if status == "degraded" or health_level == "degraded":
-            return "warning"
-        if status == "recovered":
-            return "success"
-        if status == "healthy":
-            if "maintenance" in text:
-                return "info"
-            return "ok"
-        return "info"
+        return event_ops.event_severity(status, health_level, summary)
 
     def event_human_summary(self, status: str, health_level: str, summary: str) -> str:
-        if status == "failed" or health_level == "failed":
-            return f"watchdog 判定修复失败：{summary}"
-        if status == "degraded" or health_level == "degraded":
-            return f"watchdog 判定服务降级：{summary}"
-        if status == "recovered":
-            return f"watchdog 已完成恢复：{summary}"
-        if status == "healthy":
-            return f"watchdog 健康检查正常：{summary}"
-        return summary
+        return event_ops.event_human_summary(status, health_level, summary)
 
     def append_event_history(self, event_payload: dict[str, object]) -> None:
         state_store.append_event_history(
@@ -673,42 +656,30 @@ class WatchdogEngine:
     ) -> dict[str, object]:
         target_incident_id = incident_id or self.incident_id
         target_incident_dir = incident_dir or self.incident_dir
-        state_payload = self.read_incident_state_payload(target_incident_dir) if target_incident_dir is not None else {}
-        workflow_payload = self.read_incident_operator_workflow_payload(target_incident_dir) if target_incident_dir is not None else {}
-        notes = workflow_payload.get("notes", []) if isinstance(workflow_payload.get("notes", []), list) else []
-        latest_note = notes[-1] if notes else {}
-        return {
-            "incident_id": target_incident_id,
-            "time": self.run_ts,
-            "summary": summary,
-            "state": str(state_payload.get("state", "unknown") or "unknown"),
-            "created_at": str(state_payload.get("created_at", "") or ""),
-            "resolved_at": str(state_payload.get("resolved_at", "") or ""),
-            "resolution_summary": str(state_payload.get("resolution_summary", "") or ""),
-            "health_level": health_level or str(self.read_run_state().get("health_level", "unknown")),
-            "active": active,
-            "main_pid": main_pid,
-            "listeners": listeners,
-            "incident_dir": str(target_incident_dir) if target_incident_dir else "",
-            "pre_repair_backup_result": pre_repair_backup_result or self.pre_repair_backup_result,
-            "rollback_occurred": self.rollback_occurred if rollback_occurred is None else rollback_occurred,
-            "rollback_summary_archive_file": rollback_summary_archive_file if rollback_summary_archive_file is not None else self.rollback_summary_archive_file,
-            "rollback_candidate_used": self.rollback_candidate_used,
-            "rollback_reason": self.rollback_reason,
-            "conversation_status": str(self.read_run_state().get("conversation_status", "down") or "down"),
-            "last_recovery_strategy": self.last_recovery_strategy,
-            "last_recovery_path": self.recovery_path_text(),
-            "codex_trigger_result": codex_trigger_result or self.codex_trigger_result,
-            "opencode_fallback_trigger_result": opencode_fallback_trigger_result or self.opencode_fallback_trigger_result,
-            "owner": str(workflow_payload.get("owner", "") or ""),
-            "acknowledged": bool(workflow_payload.get("acknowledged", False)),
-            "acknowledged_by": str(workflow_payload.get("acknowledged_by", "") or ""),
-            "acknowledged_at": str(workflow_payload.get("acknowledged_at", "") or ""),
-            "notes_count": len(notes),
-            "latest_note": str(latest_note.get("message", "") or ""),
-            "latest_note_by": str(latest_note.get("by", "") or ""),
-            "latest_note_at": str(latest_note.get("time", "") or ""),
-        }
+        return incident_context_ops.build_incident_index_entry(
+            run_ts=self.run_ts,
+            incident_id=target_incident_id,
+            incident_dir=str(target_incident_dir) if target_incident_dir else "",
+            summary=summary,
+            state_payload=self.read_incident_state_payload(target_incident_dir) if target_incident_dir is not None else {},
+            workflow_payload=self.read_incident_operator_workflow_payload(target_incident_dir) if target_incident_dir is not None else {},
+            run_state={
+                **self.read_run_state(),
+                'health_level': health_level or str(self.read_run_state().get('health_level', 'unknown') or 'unknown'),
+            },
+            active=active,
+            main_pid=main_pid,
+            listeners=listeners,
+            pre_repair_backup_result=pre_repair_backup_result or self.pre_repair_backup_result,
+            rollback_occurred=self.rollback_occurred if rollback_occurred is None else rollback_occurred,
+            rollback_summary_archive_file=rollback_summary_archive_file if rollback_summary_archive_file is not None else self.rollback_summary_archive_file,
+            rollback_candidate_used=self.rollback_candidate_used,
+            rollback_reason=self.rollback_reason,
+            last_recovery_strategy=self.last_recovery_strategy,
+            last_recovery_path=self.recovery_path_text(),
+            codex_trigger_result=codex_trigger_result or self.codex_trigger_result,
+            opencode_fallback_trigger_result=opencode_fallback_trigger_result or self.opencode_fallback_trigger_result,
+        )
 
     def update_incident_index(
         self,
@@ -942,84 +913,40 @@ class WatchdogEngine:
 
     def write_event(self, status: str, summary: str) -> None:
         run_state = self.read_run_state()
-        health_level = str(run_state.get("health_level", "unknown"))
-        severity = self.event_severity(status, health_level, summary)
-        human_summary = self.event_human_summary(status, health_level, summary)
-        event_payload = {
-            "status": status,
-            "time": self.run_ts,
-            "summary": summary,
-            "human_summary": human_summary,
-            "severity": severity,
-            "rollback_occurred": self.rollback_occurred,
-            "rollback_summary_file": str(self.config.watchdog_last_rollback_summary_file),
-            "rollback_summary_archive_file": self.rollback_summary_archive_file,
-            "rollback_broken_config_file": self.rollback_broken_config_file,
-            "rollback_candidate_used": str(run_state.get("rollback_candidate_used", "") or ""),
-            "rollback_reason": str(run_state.get("rollback_reason", "") or ""),
-            "pre_repair_backup_result": self.pre_repair_backup_result,
-            "consecutive_failures": self.consecutive_failures,
-            "health_level": health_level,
-            "current_mode": run_state.get("current_mode", "normal"),
-            "conversation_ready": bool(run_state.get("conversation_ready", False)),
-            "minimal_usable_ready": bool(run_state.get("minimal_usable_ready", False)),
-            "conversation_status": str(run_state.get("conversation_status", "down") or "down"),
-            "conversation_probe_summary": str(run_state.get("conversation_probe_summary", "") or ""),
-            "last_recovery_strategy": str(run_state.get("last_recovery_strategy", "none") or "none"),
-            "last_recovery_path": str(run_state.get("last_recovery_path", "none") or "none"),
-            "last_recovery_action_count": int(run_state.get("last_recovery_action_count", 0) or 0),
-            "last_recovery_restored_conversation": bool(run_state.get("last_recovery_restored_conversation", False)),
-            "config_drift_detected": bool(run_state.get("config_drift_detected", False)),
-            "incident_id": self.incident_id,
-            "incident_dir": str(self.incident_dir) if self.incident_dir else "",
-            "codex": {
-                "prompt_file": str(self.codex_prompt_file) if self.codex_prompt_file else "",
-                "handoff_file": str(self.codex_handoff_file) if self.codex_handoff_file else "",
-                "runner_file": str(self.codex_runner_file) if self.codex_runner_file else "",
-                "run_log_file": str(self.codex_run_log_file) if self.codex_run_log_file else "",
-                "run_pid": self.codex_run_pid,
-                "trigger_result": self.codex_trigger_result,
-                "autorun_ready": self.codex_autorun_ready,
+        event_payload = event_ops.build_event_payload(
+            run_ts=self.run_ts,
+            status=status,
+            summary=summary,
+            run_state=run_state,
+            rollback_occurred=self.rollback_occurred,
+            rollback_summary_file=str(self.config.watchdog_last_rollback_summary_file),
+            rollback_summary_archive_file=self.rollback_summary_archive_file,
+            rollback_broken_config_file=self.rollback_broken_config_file,
+            pre_repair_backup_result=self.pre_repair_backup_result,
+            consecutive_failures=self.consecutive_failures,
+            incident_id=self.incident_id,
+            incident_dir=str(self.incident_dir) if self.incident_dir else '',
+            codex_context={
+                'prompt_file': str(self.codex_prompt_file) if self.codex_prompt_file else '',
+                'handoff_file': str(self.codex_handoff_file) if self.codex_handoff_file else '',
+                'runner_file': str(self.codex_runner_file) if self.codex_runner_file else '',
+                'run_log_file': str(self.codex_run_log_file) if self.codex_run_log_file else '',
+                'run_pid': self.codex_run_pid,
+                'trigger_result': self.codex_trigger_result,
+                'autorun_ready': self.codex_autorun_ready,
             },
-            "opencode_fallback": {
-                "handoff_file": str(self.opencode_fallback_handoff_file) if self.opencode_fallback_handoff_file else "",
-                "runner_file": str(self.opencode_fallback_runner_file) if self.opencode_fallback_runner_file else "",
-                "run_log_file": str(self.opencode_fallback_run_log_file) if self.opencode_fallback_run_log_file else "",
-                "run_pid": self.opencode_fallback_run_pid,
-                "trigger_result": self.opencode_fallback_trigger_result,
+            opencode_fallback_context={
+                'handoff_file': str(self.opencode_fallback_handoff_file) if self.opencode_fallback_handoff_file else '',
+                'runner_file': str(self.opencode_fallback_runner_file) if self.opencode_fallback_runner_file else '',
+                'run_log_file': str(self.opencode_fallback_run_log_file) if self.opencode_fallback_run_log_file else '',
+                'run_pid': self.opencode_fallback_run_pid,
+                'trigger_result': self.opencode_fallback_trigger_result,
             },
-        }
-        payload = textwrap.dedent(
-            f"""\
-            status={status}
-            time={self.run_ts}
-            summary={summary}
-            rollback_occurred={'true' if self.rollback_occurred else 'false'}
-            rollback_summary_file={self.config.watchdog_last_rollback_summary_file}
-            rollback_summary_archive_file={self.rollback_summary_archive_file}
-            rollback_broken_config_file={self.rollback_broken_config_file}
-            pre_repair_backup_result={self.pre_repair_backup_result}
-            consecutive_failures={self.consecutive_failures}
-            incident_id={self.incident_id}
-            incident_dir={self.incident_dir or ''}
-            codex_prompt_file={self.codex_prompt_file or ''}
-            codex_handoff_file={self.codex_handoff_file or ''}
-            codex_runner_file={self.codex_runner_file or ''}
-            codex_run_log_file={self.codex_run_log_file or ''}
-            codex_run_pid={self.codex_run_pid}
-            codex_trigger_result={self.codex_trigger_result}
-            codex_autorun_ready={'true' if self.codex_autorun_ready else 'false'}
-            opencode_fallback_handoff_file={self.opencode_fallback_handoff_file or ''}
-            opencode_fallback_runner_file={self.opencode_fallback_runner_file or ''}
-            opencode_fallback_run_log_file={self.opencode_fallback_run_log_file or ''}
-            opencode_fallback_run_pid={self.opencode_fallback_run_pid}
-            opencode_fallback_trigger_result={self.opencode_fallback_trigger_result}
-            """
         )
-        self.config.watchdog_event_file.write_text(payload, encoding="utf-8")
+        self.config.watchdog_event_file.write_text(event_ops.render_event_text(event_payload), encoding='utf-8')
         self.sibling_json_path(self.config.watchdog_event_file).write_text(
-            json.dumps(event_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
+            json.dumps(event_payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
+            encoding='utf-8',
         )
         self.append_event_history(event_payload)
 

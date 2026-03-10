@@ -3,18 +3,11 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
+from watchdog_v2 import incident_context as incident_context_ops
+
 
 def report_attention_items(report: dict[str, object]) -> list[str]:
-    items: list[str] = []
-    if str(report.get("current_incident_state", "") or "") != "open":
-        return items
-    if not str(report.get("current_incident_owner", "") or "").strip():
-        items.append("current incident is unowned")
-    if not bool(report.get("current_incident_acknowledged", False)):
-        items.append("current incident is unacknowledged")
-    if int(report.get("current_incident_notes_count", 0) or 0) <= 0:
-        items.append("current incident has no operator notes")
-    return items
+    return incident_context_ops.report_attention_items(report)
 
 
 def _string_list(value: object) -> list[str]:
@@ -369,19 +362,13 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
     payload = engine.status_payload()
     current_incident = engine.current_incident_payload() if str(payload.get("current_incident_id", "") or "") else {}
     recent_incidents = engine.list_incident_snapshots(limit=max(1, incident_limit))
-    compact_incidents: list[str] = []
-    if isinstance(recent_incidents, list):
-        for incident in recent_incidents[-max(1, incident_limit):]:
-            if not isinstance(incident, dict):
-                continue
-            latest_note = incident.get('latest_note', '') or ''
-            latest_note_suffix = f" | note={latest_note}" if latest_note else ""
-            attention_suffix = f" | attention={incident.get('attention_summary', 'none') or 'none'}"
-            compact_incidents.append(
-                f"{incident.get('incident_id', 'none')} | {incident.get('state', 'unknown')} | {incident.get('health_level', 'unknown')} | "
-                f"owner={incident.get('owner', '') or 'none'} | ack={str(bool(incident.get('acknowledged', False))).lower()} | notes={incident.get('notes_count', 0)} | "
-                f"{incident.get('summary', '')}{latest_note_suffix}{attention_suffix}"
-            )
+    incident_context = incident_context_ops.build_report_incident_context(
+        current_incident_id=payload.get('current_incident_id', ''),
+        current_incident_state=payload.get('current_incident_state', ''),
+        current_incident=current_incident,
+        recent_incidents=recent_incidents,
+        incident_limit=max(1, incident_limit),
+    )
     status = str(payload.get("last_status", "unknown"))
     effective_health_level = str(payload.get("health_level", "unknown") or "unknown")
     report = {
@@ -398,13 +385,13 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "last_event": payload.get("last_event", {}),
         "recent_event_stats": payload.get("recent_event_stats", {}),
         "incident_queue_summary": payload.get("incident_queue_summary", {}),
-        "recent_incidents": recent_incidents,
-        "recent_incident_summaries": compact_incidents,
-        "current_incident_id": payload.get("current_incident_id", ""),
-        "current_incident_state": payload.get("current_incident_state", ""),
-        "current_incident_owner": str(current_incident.get("owner", "") or ""),
-        "current_incident_acknowledged": bool(current_incident.get("acknowledged", False)),
-        "current_incident_notes_count": int(current_incident.get("notes_count", 0) or 0),
+        "recent_incidents": incident_context['recent_incidents'],
+        "recent_incident_summaries": incident_context['recent_incident_summaries'],
+        "current_incident_id": incident_context['current_incident_id'],
+        "current_incident_state": incident_context['current_incident_state'],
+        "current_incident_owner": incident_context['current_incident_owner'],
+        "current_incident_acknowledged": incident_context['current_incident_acknowledged'],
+        "current_incident_notes_count": incident_context['current_incident_notes_count'],
         "survival_mode_active": bool(payload.get("survival_mode_active", False)),
         "survival_mode_reason": str(payload.get("survival_mode_reason", "") or ""),
         "survival_mode_since": str(payload.get("survival_mode_since", "") or ""),
@@ -447,9 +434,9 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "maintenance": payload.get("maintenance", {}),
         "env_file": payload.get("env_file", ""),
     }
-    report["operator_attention_items"] = report_attention_items(report)
-    report["operator_attention_needed"] = bool(report["operator_attention_items"])
-    report["operator_attention_count"] = len(report["operator_attention_items"])
+    report['operator_attention_items'] = incident_context['operator_attention_items']
+    report['operator_attention_needed'] = incident_context['operator_attention_needed']
+    report['operator_attention_count'] = incident_context['operator_attention_count']
     report["message_text"] = message_report_text(report)
     write_report_snapshot(engine, report)
     return report
