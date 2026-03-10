@@ -136,11 +136,12 @@ This repo includes a rehearsal harness for validating flows without using a live
 
 Start with:
 
+- `docs/README.md`
 - `rehearsal/README.md`
 - `docs/live-acceptance-checklist.md`
 - `docs/live-samples.md`
 - `docs/compatibility-and-deprecations.md`
-- `MIGRATION-v2.md` (historical migration notes)
+- `docs/history/MIGRATION-v2.md` (historical migration notes)
 
 ## Design notes
 
@@ -162,7 +163,7 @@ The watchdog is designed around a few principles:
   - `scripts/openclaw-watchdog-v2`
   - `scripts/install-openclaw-watchdog-v2-units.sh`
   - `scripts/openclaw-watchdog-v2-live-acceptance.sh`
-- Historical migration notes remain in `MIGRATION-v2.md`
+- Historical migration notes remain in `docs/history/MIGRATION-v2.md`
 - See also: [docs/compatibility-and-deprecations.md](docs/compatibility-and-deprecations.md)
 
 ## Security

@@ -24,5 +24,6 @@ All notable changes to this public repository will be documented here.
 
 ### Notes
 - Internal module naming remains `watchdog_v2` for compatibility with the original workspace history
-- Historical migration notes remain in `MIGRATION-v2.md`
+- Historical migration notes remain in `docs/history/MIGRATION-v2.md`
 - Deprecated shim scripts remain available for transition, but are no longer part of the primary public installation path
+- Current and historical docs are now separated under `docs/` and `docs/history/`

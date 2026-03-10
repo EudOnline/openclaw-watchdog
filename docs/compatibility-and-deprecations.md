@@ -43,4 +43,4 @@ These duplicate public-facing files were removed so the repository has one obvio
 
 ## Historical docs
 
-`MIGRATION-v2.md` is retained as a historical migration record. Its filename is intentionally unchanged.
+`docs/history/MIGRATION-v2.md` is retained as a historical migration record. Its filename is intentionally unchanged.
