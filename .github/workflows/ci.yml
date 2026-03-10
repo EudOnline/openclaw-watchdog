@@ -36,3 +36,6 @@ jobs:
         run: |
           bash rehearsal/scripts/run-scenario.sh bootstrap-missing-openclaw
           bash rehearsal/scripts/run-scenario.sh watchdog-active-no-listener-grace
+          bash rehearsal/scripts/run-scenario.sh watchdog-conversation-probe-ready
+          bash rehearsal/scripts/run-scenario.sh watchdog-failed-fallback
+          bash rehearsal/scripts/run-scenario.sh watchdog-incident-queue
