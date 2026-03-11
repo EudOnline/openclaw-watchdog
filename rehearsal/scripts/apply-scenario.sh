@@ -94,6 +94,33 @@ write_feishu_markers() {
 EOF
 }
 
+write_litellm_response() {
+  mkdir -p "$HOME"
+  cat > "$HOME/litellm-response.json"
+}
+
+write_cli_response() {
+  local cli_name="$1"
+  mkdir -p "$HOME"
+  cat > "$HOME/${cli_name}-response.json"
+}
+
+rescue_root() {
+  printf '%s' "$HOME/.openclaw-backup/watchdog/rescue"
+}
+
+write_rescue_rule() {
+  local rule_id="$1"
+  mkdir -p "$(rescue_root)/rules"
+  cat > "$(rescue_root)/rules/${rule_id}.json"
+}
+
+write_rescue_case() {
+  local case_id="$1"
+  mkdir -p "$(rescue_root)/cases"
+  cat > "$(rescue_root)/cases/${case_id}.json"
+}
+
 case "$SCENARIO" in
   bootstrap-missing-openclaw)
     write_state <<'EOF'
@@ -131,24 +158,6 @@ EOF
 }
 EOF
     ;;
-  bootstrap-install-openclaw)
-    write_feishu_markers
-    write_state <<'EOF'
-{
-  "doctor_fail_message": "",
-  "doctor_ok_message": "Doctor OK",
-  "listener_pids": [],
-  "main_pid": "0",
-  "next_pid": 4400,
-  "plugin_install_fails": false,
-  "plugins": [],
-  "repair_fixes_invalid_config": false,
-  "repair_message": "Applied simulated repair steps",
-  "restart_mode": "healthy",
-  "service_active": false
-}
-EOF
-    ;;
   watchdog-recovery)
     bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
     bash rehearsal/scripts/install-opencode-shim.sh >/dev/null
@@ -166,6 +175,331 @@ EOF
   "repair_message": "Applied simulated repair steps",
   "restart_mode": "healthy",
   "service_active": false
+}
+EOF
+    ;;
+  watchdog-rescue-chain-codex)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    bash rehearsal/scripts/install-codex-shim.sh >/dev/null
+    write_valid_config
+    write_cli_response codex <<'EOF'
+{
+  "plan_id": "plan-codex-rescue",
+  "diagnosis": "codex generated restart plan",
+  "actions": [{"kind": "restart_service", "params": {}}],
+  "validations": ["minimal_usable_ready"],
+  "rollback_strategy": "auto",
+  "risk_level": "medium",
+  "rationale": "codex rehearsal rescue"
+}
+EOF
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "codex should restore the minimal path after deterministic rescue is exhausted",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 5500,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "doctor could not restore service",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
+}
+EOF
+    ;;
+  watchdog-rescue-chain-claude-code)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    bash rehearsal/scripts/install-claude-shim.sh >/dev/null
+    write_valid_config
+    write_cli_response claude <<'EOF'
+{
+  "response": "{\"plan_id\":\"plan-claude-rescue\",\"diagnosis\":\"claude generated restart plan\",\"actions\":[{\"kind\":\"restart_service\",\"params\":{}}],\"validations\":[\"minimal_usable_ready\"],\"rollback_strategy\":\"auto\",\"risk_level\":\"medium\",\"rationale\":\"claude rehearsal rescue\"}"
+}
+EOF
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "claude code should restore the minimal path after deterministic rescue is exhausted",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 5510,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "doctor could not restore service",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
+}
+EOF
+    ;;
+  watchdog-rescue-chain-gemini-cli)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    bash rehearsal/scripts/install-gemini-shim.sh >/dev/null
+    write_valid_config
+    write_cli_response gemini <<'EOF'
+{
+  "result": {
+    "plan_id": "plan-gemini-rescue",
+    "diagnosis": "gemini generated restart plan",
+    "actions": [{"kind": "restart_service", "params": {}}],
+    "validations": ["minimal_usable_ready"],
+    "rollback_strategy": "auto",
+    "risk_level": "medium",
+    "rationale": "gemini rehearsal rescue"
+  }
+}
+EOF
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "gemini should restore the minimal path after deterministic rescue is exhausted",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 5520,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "doctor could not restore service",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
+}
+EOF
+    ;;
+  watchdog-rescue-chain-opencode)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    bash rehearsal/scripts/install-opencode-shim.sh >/dev/null
+    write_valid_config
+    write_cli_response opencode <<'EOF'
+{
+  "plan_id": "plan-opencode-rescue",
+  "diagnosis": "opencode generated restart plan",
+  "actions": [{"kind": "restart_service", "params": {}}],
+  "validations": ["minimal_usable_ready"],
+  "rollback_strategy": "auto",
+  "risk_level": "medium",
+  "rationale": "opencode rehearsal rescue"
+}
+EOF
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "opencode should restore the minimal path after deterministic rescue is exhausted",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 5530,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "doctor could not restore service",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
+}
+EOF
+    ;;
+  watchdog-rescue-chain-litellm)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    write_valid_config
+    write_litellm_response <<'EOF'
+{
+  "plan_id": "plan-litellm-rescue",
+  "diagnosis": "model-backed restart after deterministic rescue exhausted",
+  "actions": [{"kind": "restart_service", "params": {}}],
+  "validations": ["minimal_usable_ready"],
+  "rollback_strategy": "auto",
+  "risk_level": "medium",
+  "rationale": "litellm rehearsal rescue"
+}
+EOF
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "litellm should restore the minimal path after deterministic rescue is exhausted",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 5600,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "doctor could not restore service",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
+}
+EOF
+    ;;
+  watchdog-rescue-chain-rule-agent)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    write_valid_config
+    write_rescue_rule process-down-rule-agent <<'EOF'
+{
+  "rule_id": "process-down-rule-agent",
+  "match": {"failure_signature": "process-down"},
+  "diagnosis": "offline restart rule",
+  "actions": [{"kind": "restart_service", "params": {}}],
+  "validations": ["minimal_usable_ready"],
+  "risk_level": "low"
+}
+EOF
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "rule-agent should restore the minimal path after deterministic rescue is exhausted",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 5610,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "doctor could not restore service",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
+}
+EOF
+    ;;
+  watchdog-candidate-rule-auto-promotion)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    write_valid_config
+    write_rescue_case case-auto-1 <<'EOF'
+{
+  "case_id": "case-auto-1",
+  "failure_signature": "process-down",
+  "status": "recovered",
+  "risk_level": "low",
+  "candidate_rule": {
+    "rule_id": "process-down-litellm",
+    "match": {"failure_signature": "process-down"},
+    "diagnosis": "litellm restart rescue",
+    "actions": [{"kind": "restart_service", "params": {}}],
+    "validations": ["minimal_usable_ready"]
+  }
+}
+EOF
+    write_rescue_case case-auto-2 <<'EOF'
+{
+  "case_id": "case-auto-2",
+  "failure_signature": "process-down",
+  "status": "recovered",
+  "risk_level": "low",
+  "candidate_rule": {
+    "rule_id": "process-down-litellm",
+    "match": {"failure_signature": "process-down"},
+    "diagnosis": "litellm restart rescue",
+    "actions": [{"kind": "restart_service", "params": {}}],
+    "validations": ["minimal_usable_ready"]
+  }
+}
+EOF
+    write_litellm_response <<'EOF'
+{
+  "plan_id": "plan-litellm-auto-promote",
+  "diagnosis": "third successful litellm restart case",
+  "actions": [{"kind": "restart_service", "params": {}}],
+  "validations": ["minimal_usable_ready"],
+  "rollback_strategy": "auto",
+  "risk_level": "low",
+  "rationale": "litellm low-risk candidate promotion rehearsal"
+}
+EOF
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "third low-risk litellm repair should auto-promote a candidate rule",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 5620,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "doctor could not restore service",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
+}
+EOF
+    ;;
+  watchdog-candidate-rule-review-pending)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    write_valid_config
+    write_litellm_response <<'EOF'
+{
+  "plan_id": "plan-litellm-review",
+  "diagnosis": "high-risk litellm config change requires manual review",
+  "actions": [{"kind": "restart_service", "params": {}}],
+  "validations": ["minimal_usable_ready"],
+  "rollback_strategy": "auto",
+  "risk_level": "high",
+  "rationale": "litellm high-risk candidate review rehearsal"
+}
+EOF
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "high-risk litellm repair should create a pending review",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 5630,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "doctor could not restore service",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
 }
 EOF
     ;;

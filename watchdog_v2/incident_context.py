@@ -68,8 +68,6 @@ def build_incident_index_entry(
     rollback_reason: str,
     last_recovery_strategy: str,
     last_recovery_path: str,
-    codex_trigger_result: str,
-    opencode_fallback_trigger_result: str,
 ) -> dict[str, object]:
     state = state_payload if isinstance(state_payload, dict) else {}
     workflow = workflow_payload if isinstance(workflow_payload, dict) else {}
@@ -97,8 +95,14 @@ def build_incident_index_entry(
         'conversation_status': current_run_state.conversation_status,
         'last_recovery_strategy': last_recovery_strategy,
         'last_recovery_path': last_recovery_path,
-        'codex_trigger_result': codex_trigger_result,
-        'opencode_fallback_trigger_result': opencode_fallback_trigger_result,
+        'rescue_attempt_count': current_run_state.rescue_attempt_count,
+        'rescue_executor_selected': current_run_state.rescue_executor_selected,
+        'rescue_plan_generated': current_run_state.rescue_plan_generated,
+        'rescue_plan_source': current_run_state.rescue_plan_source,
+        'rescue_plan_status': current_run_state.rescue_plan_status,
+        'rescue_tier': current_run_state.rescue_tier,
+        'case_ingest_result': current_run_state.case_ingest_result,
+        'candidate_rule_status': current_run_state.candidate_rule_status,
         'owner': str(workflow.get('owner', '') or ''),
         'acknowledged': bool(workflow.get('acknowledged', False)),
         'acknowledged_by': str(workflow.get('acknowledged_by', '') or ''),

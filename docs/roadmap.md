@@ -1,12 +1,13 @@
 # Roadmap
 
-This roadmap now assumes the current internal seams are in place: typed models, presenters, flow modules, a run context, and a step-based bootstrap pipeline. Future work should build on those seams instead of collapsing logic back into `watchdog_v2/engine.py` or `watchdog_v2/cli.py`.
+This roadmap now assumes the current internal seams are in place: typed models, presenters, a single rescue-first flow, a run context, a white-listed rescue action boundary, and a step-based bootstrap pipeline. Future work should build on those seams instead of collapsing logic back into `watchdog_v2/engine.py` or `watchdog_v2/cli.py`.
 
 ## Near-term follow-up
 
-- deepen direct flow coverage for restart, rollback, and escalation branches
+- deepen direct flow coverage for restart, rollback, survival, and rescue-dispatch branches
+- improve the external CLI adapters so `Codex`, `Claude Code`, `Gemini CLI`, and `OpenCode` can return structured rescue plans without arbitrary shell access
 - expand rehearsal smoke coverage only for scenarios that represent real operator risk
-- keep report / metrics operationally useful and remove compatibility-only fields when they no longer serve fallback behavior
+- keep report / metrics operationally useful and remove stale fields whenever they stop serving the OpenClaw rescue chain
 - continue improving deployment docs and host onboarding guidance
 
 ## Validation policy

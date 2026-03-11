@@ -38,7 +38,7 @@ It combines:
 - **Layered health model**: process, service probe, and conversation readiness
 - **Incident workflow** with queueing, ownership, acknowledgement, notes, and timelines
 - **Safety rails** for rollback, drift detection, and repair sequencing
-- **Bootstrap / fallback helpers** for OpenClaw, Codex, and OpenCode handoff flows
+- **Detect-only bootstrap / fallback helpers** for OpenClaw and the prioritized rescue chain
 - **Rehearsal scenarios** for testing expected failure and recovery paths
 - **Systemd user units** for unattended timer-based execution on Linux
 
@@ -66,7 +66,7 @@ The codebase is organized around fallback-first seams so recovery logic stays ex
 - `watchdog_v2/models.py` for typed state models at serialization boundaries
 - `watchdog_v2/presenters/` for human-readable CLI formatting
 - `watchdog_v2/run_context.py` for mutable per-run state
-- `watchdog_v2/flows/` for run orchestration paths
+- `watchdog_v2/flows/` for rescue-first run orchestration
 - `watchdog_v2/bootstrap_steps.py` for ordered bootstrap step execution
 - `watchdog_v2/engine.py` as the runtime facade and dependency hub
 
@@ -129,9 +129,11 @@ Important knobs include:
 - service-level failure threshold
 - notification target/channel
 - backup / rollback behavior
-- Codex / OpenCode fallback settings
+- rescue executor priority (`Codex -> Claude Code -> Gemini CLI -> OpenCode -> LiteLLM -> rule-agent`)
+- remote-model settings for the `LiteLLM` specialist agent
+- editable OpenClaw file/key boundaries for controlled rescue mutation
 
-The example config is intentionally sanitized. Its paths and conservative rollout toggles are now aligned with the built-in defaults so a missing env file does not silently fall back to `/root/...`-style paths or enable aggressive automation. You must still set values appropriate for your own host.
+The example config is intentionally sanitized. Its paths and conservative rollout toggles are now aligned with the built-in defaults so a missing env file does not silently fall back to `/root/...`-style paths or enable aggressive automation. Bootstrap and `detect` inventory available rescue executors, but they do not install missing tools for you. OpenClaw and any external rescue CLI must already be installed on the host you operate.
 
 ## Common commands
 

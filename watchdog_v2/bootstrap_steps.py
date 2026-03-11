@@ -17,114 +17,78 @@ class PipelineResult:
         return bool(self.state)
 
 
+
 def _continue(summary: BootstrapSummary) -> PipelineResult:
     return PipelineResult(bootstrap_summary=summary)
+
 
 
 def _stop(summary: BootstrapSummary, *, state: str, message: str, exit_code: int) -> PipelineResult:
     return PipelineResult(bootstrap_summary=summary, state=state, message=message, exit_code=exit_code)
 
 
-def _add_tooling_warnings(bootstrapper, summary: BootstrapSummary, warnings: list[str]) -> None:
-    opencode = summary.opencode
-    codex = summary.codex
 
-    if opencode and not opencode.get('watchdog_bin_available', False):
-        watchdog_bin = opencode.get('watchdog_bin') or bootstrapper.config.watchdog_opencode_fallback_bin
-        detected_binary = opencode.get('binary') or 'opencode'
-        warnings.append(f'WATCHDOG_OPENCODE_FALLBACK_BIN does not currently resolve: {watchdog_bin}')
-        summary.next_steps.append(
-            f'Update WATCHDOG_OPENCODE_FALLBACK_BIN if needed so watchdog autorun can find OpenCode ({detected_binary}).'
-        )
-
-    if codex and not codex.get('available', False):
-        warnings.append('Codex was not detected; OpenCode remains the prepared fallback path')
-        summary.next_steps.append('Install Codex separately later if you want a primary autorun path in addition to OpenCode.')
-    elif codex and not codex.get('configured_available', False) and codex.get('detected_binary'):
-        warnings.append('Codex was detected on PATH but WATCHDOG_CODEX_BIN does not currently resolve')
-        summary.next_steps.append('Update WATCHDOG_CODEX_BIN if you want watchdog autorun to use the detected Codex binary.')
+def _record_executor(summary: BootstrapSummary, name: str, payload: dict[str, object]) -> None:
+    summary.executors[name] = dict(payload)
 
 
-def ensure_opencode_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
-    summary.opencode = bootstrapper.ensure_opencode()
-    if summary.opencode.get('status') != 'failed':
-        return _continue(summary)
-    summary.next_steps.append('Fix the OpenCode install/config problem and rerun bootstrap.')
-    warnings: list[str] = []
-    _add_tooling_warnings(bootstrapper, summary, warnings)
-    summary.warnings = bootstrapper.unique_nonempty(warnings)
-    return _stop(
-        summary,
-        state='failed',
-        message=str(summary.opencode.get('summary', 'OpenCode bootstrap failed.')),
-        exit_code=1,
-    )
+
+def detect_opencode_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
+    summary.opencode = bootstrapper.detect_opencode()
+    _record_executor(summary, 'opencode', summary.opencode)
+    return _continue(summary)
+
 
 
 def detect_codex_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
     summary.codex = bootstrapper.detect_codex()
+    _record_executor(summary, 'codex', summary.codex)
     return _continue(summary)
+
+
+
+def detect_claude_code_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
+    _record_executor(summary, 'claude-code', bootstrapper.detect_claude_code())
+    return _continue(summary)
+
+
+
+def detect_gemini_cli_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
+    _record_executor(summary, 'gemini-cli', bootstrapper.detect_gemini_cli())
+    return _continue(summary)
+
+
+
+def detect_litellm_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
+    _record_executor(summary, 'litellm', bootstrapper.detect_litellm())
+    return _continue(summary)
+
 
 
 def detect_openclaw_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
-    installed, detected_path, detect_result = bootstrapper.detect_openclaw()
-    summary.openclaw = {
-        'installed': installed,
-        'binary': detected_path,
-        'confirmation_required': False,
-        'install_allowed': bootstrapper.allow_install,
-        'install_command': bootstrapper.config.openclaw_install_command,
-        'detect_returncode': detect_result.returncode,
-    }
-    if installed or bootstrapper.allow_install:
-        return _continue(summary)
-    summary.openclaw['confirmation_required'] = True
-    summary.next_steps = [
-        'Set OPENCLAW_INSTALL_COMMAND in the env file or shell environment.',
-        'Rerun bootstrap with --install-openclaw once you want the install command to execute.',
-    ]
-    warnings: list[str] = []
-    _add_tooling_warnings(bootstrapper, summary, warnings)
-    summary.warnings = bootstrapper.unique_nonempty(warnings)
-    return _stop(
-        summary,
-        state='confirmation-required',
-        message=bootstrapper.openclaw_confirmation_summary(summary.opencode),
-        exit_code=10,
-    )
-
-
-def ensure_openclaw_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
-    install_details = bootstrapper.ensure_openclaw(bool(summary.openclaw.get('installed', False)))
-    summary.openclaw.update(install_details)
-    effective_openclaw = bool(summary.openclaw.get('installed', False) or summary.openclaw.get('would_install', False))
-    if effective_openclaw:
-        return _continue(summary)
-    summary.next_steps.append('Fix the OpenClaw installation issue and rerun bootstrap.')
-    warnings: list[str] = []
-    _add_tooling_warnings(bootstrapper, summary, warnings)
-    summary.warnings = bootstrapper.unique_nonempty(warnings)
-    return _stop(
-        summary,
-        state='failed',
-        message=str(summary.openclaw.get('summary', 'OpenClaw installation failed.')),
-        exit_code=1,
-    )
-
-
-def ensure_qq_plugin_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
-    summary.qq_plugin.update(bootstrapper.ensure_qq_plugin())
+    summary.openclaw = bootstrapper.detect_openclaw()
+    if not bool(summary.openclaw.get('available', False)):
+        summary.next_steps.append('Install or expose OpenClaw on PATH before enabling live rescue flows.')
     return _continue(summary)
 
 
-def ensure_default_channel_config_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
-    summary.config.update(bootstrapper.ensure_default_channel_config())
+
+def inspect_qq_plugin_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
+    summary.qq_plugin.update(bootstrapper.inspect_qq_plugin())
     return _continue(summary)
+
+
+
+def inspect_default_channel_config_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
+    summary.config.update(bootstrapper.inspect_default_channel_config())
+    return _continue(summary)
+
 
 
 def detect_feishu_runtime_step(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
     summary.feishu_runtime = bootstrapper.detect_feishu_runtime_markers()
     return _continue(summary)
+
 
 
 def finalize_bootstrap(bootstrapper, summary: BootstrapSummary) -> PipelineResult:
@@ -137,14 +101,18 @@ def finalize_bootstrap(bootstrapper, summary: BootstrapSummary) -> PipelineResul
     if disabled_channels:
         summary.config['disabled_channels'] = disabled_channels
 
-    failures: list[str] = []
-    if summary.qq_plugin.get('status') == 'failed':
-        failures.append('QQ plugin install failed')
-    if summary.config.get('status') == 'failed':
-        failures.append('config scaffold failed')
-
     warnings: list[str] = []
-    _add_tooling_warnings(bootstrapper, summary, warnings)
+    if not bool(summary.openclaw.get('available', False)):
+        warnings.append('OpenClaw binary was not detected yet')
+    if not bool(summary.qq_plugin.get('installed', False)):
+        warnings.append('QQ plugin is not installed yet')
+        summary.next_steps.append('Install the QQ plugin manually before expecting qqbot recovery.')
+    if summary.config.get('status') == 'missing':
+        warnings.append('OpenClaw default channel config is not present yet')
+        summary.next_steps.append('Review or create the OpenClaw channel config before enabling live rescue flows.')
+    elif summary.config.get('status') == 'failed':
+        warnings.append('OpenClaw default channel config could not be inspected')
+        summary.next_steps.append('Fix the OpenClaw config file so bootstrap can inspect channel prerequisites.')
 
     placeholders = summary.config.get('placeholders_remaining')
     if placeholders:
@@ -157,57 +125,61 @@ def finalize_bootstrap(bootstrapper, summary: BootstrapSummary) -> PipelineResul
         summary.next_steps.append(
             f"Review and enable these channels if desired: {', '.join(disabled_channels)}, then restart the gateway manually."
         )
-    else:
-        summary.next_steps.append('Restart the OpenClaw gateway manually so plugin and channel changes are picked up.')
 
     if summary.feishu_runtime.get('checked') and not summary.feishu_runtime.get('found'):
         warnings.append('Feishu runtime markers were not observed in logs yet')
 
+    for executor_name, label in (
+        ('codex', 'Codex'),
+        ('claude-code', 'Claude Code'),
+        ('gemini-cli', 'Gemini CLI'),
+        ('opencode', 'OpenCode'),
+    ):
+        payload = summary.executors.get(executor_name, {})
+        if isinstance(payload, dict) and not bool(payload.get('available', False)):
+            warnings.append(f'{label} was not detected in the rescue chain inventory')
+
+    litellm = summary.executors.get('litellm', {}) if isinstance(summary.executors.get('litellm', {}), dict) else {}
+    if litellm and not bool(litellm.get('available', False)):
+        warnings.append('LiteLLM specialist agent is not configured yet')
+
+    if summary.opencode and not bool(summary.opencode.get('watchdog_bin_available', False)):
+        watchdog_bin = summary.opencode.get('watchdog_bin') or bootstrapper.config.watchdog_opencode_fallback_bin
+        warnings.append(f'WATCHDOG_OPENCODE_FALLBACK_BIN does not currently resolve: {watchdog_bin}')
+        summary.next_steps.append(
+            f'Update WATCHDOG_OPENCODE_FALLBACK_BIN if needed so the rescue chain can find OpenCode ({summary.opencode.get("detected_binary") or "opencode"}).'
+        )
+
     summary.next_steps = bootstrapper.unique_nonempty(summary.next_steps)
     summary.warnings = bootstrapper.unique_nonempty(warnings)
 
-    changed = any(
-        [
-            bool(summary.opencode.get('changed')),
-            bool(summary.openclaw.get('changed')),
-            bool(summary.qq_plugin.get('changed')),
-            bool(summary.config.get('changed')),
-        ]
-    )
-
-    if failures:
-        return _stop(summary, state='failed', message='; '.join(failures), exit_code=1)
     if bootstrapper.dry_run:
         return _stop(
             summary,
             state='dry-run',
-            message='Bootstrap dry-run completed for OpenCode fallback, Codex detection, OpenClaw provisioning, QQ plugin handling, and default channel scaffolding.',
-            exit_code=0,
-        )
-    if changed:
-        return _stop(
-            summary,
-            state='bootstrapped',
-            message='Bootstrap completed with OpenCode fallback provisioning, Codex detection, OpenClaw provisioning checks, QQ plugin handling, and default channel scaffolding.',
+            message='Bootstrap dry-run completed for rescue executor detection and OpenClaw prerequisite inspection.',
             exit_code=0,
         )
     return _stop(
         summary,
-        state='already-ready',
-        message='OpenCode fallback, QQ plugin, and default channel scaffolding are already in place; Codex availability has been reported.',
+        state='ready',
+        message='Bootstrap detection completed with rescue executor inventory and OpenClaw prerequisite checks.',
         exit_code=0,
     )
 
 
 BOOTSTRAP_STEPS = [
-    ensure_opencode_step,
+    detect_opencode_step,
     detect_codex_step,
+    detect_claude_code_step,
+    detect_gemini_cli_step,
+    detect_litellm_step,
     detect_openclaw_step,
-    ensure_openclaw_step,
-    ensure_qq_plugin_step,
-    ensure_default_channel_config_step,
+    inspect_qq_plugin_step,
+    inspect_default_channel_config_step,
     detect_feishu_runtime_step,
 ]
+
 
 
 def run_bootstrap_pipeline(bootstrapper, summary: BootstrapSummary) -> PipelineResult:

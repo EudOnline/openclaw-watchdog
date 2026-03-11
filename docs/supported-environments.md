@@ -21,8 +21,10 @@ The current supported production baseline is:
 - `systemd --user`
 - OpenClaw installed on the target machine
 - Standard host tools used by the watchdog flows, such as `systemctl`, `ss`, `ps`, and `journalctl`
+- any rescue CLI you expect the fallback chain to use (`Codex`, `Claude Code`, `Gemini CLI`, or `OpenCode`) already installed if you want that tier available
+- a configured remote-model endpoint if you want the `LiteLLM` specialist agent to be available
 
-This is the only environment family the sample systemd units, first-deployment guide, and unattended timer flow are designed around today.
+This is the only environment family the sample systemd units, first-deployment guide, and unattended timer flow are designed around today. The watchdog does not install missing rescue executors, model clients, or OpenClaw automatically; support assumes required tools are already present and configured.
 
 ## Repo-local rehearsal support
 
@@ -32,6 +34,7 @@ The rehearsal harness is intended to be host-isolated and repo-local, but the re
 - POSIX shell environment
 - ability to run the scripts under `rehearsal/scripts/`
 - ability to execute the shipped shims and repo-local command wrappers
+- optional access to a remote model endpoint when rehearsal coverage exercises the `LiteLLM` rescue tier
 
 The rehearsal harness does **not** require a real OpenClaw deployment, but it still depends on a compatible Python interpreter and standard shell tooling.
 
@@ -52,7 +55,7 @@ At minimum, release validation should continue to cover:
 - `python -m unittest tests/test_cli_smoke.py -v`
 - `python -m unittest discover -s tests -v`
 - `python -m py_compile watchdog_v2/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py`
-- bounded rehearsal scenarios that represent conversation readiness, remediation failure, and incident workflow behavior
+- bounded rehearsal scenarios that represent conversation readiness, remediation failure, incident workflow behavior, and rescue-chain selection
 
 ## Explicitly unsupported today
 

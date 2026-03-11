@@ -19,7 +19,7 @@ Human-readable text such as `report --message` and `status --summary` should sta
 When changing report or metrics output:
 
 1. protect the fields used by rehearsals, live acceptance, dashboards, or active automation;
-2. prefer removing compatibility-only fields over preserving them indefinitely;
+2. prefer removing stale or migration-only fields over preserving them indefinitely;
 3. update focused regression tests together with the implementation;
 4. update `docs/live-acceptance-checklist.md` and `CHANGELOG.md` when the operational surface changes.
 
@@ -37,6 +37,18 @@ These top-level `report --json` fields are treated as the current operational mi
 - `last_recovery_path`
 - `last_recovery_action_count`
 - `last_recovery_restored_conversation`
+- `rescue_attempt_count`
+- `rescue_executor_selected`
+- `rescue_plan_generated`
+- `rescue_plan_source`
+- `rescue_plan_status`
+- `rescue_tier`
+- `case_ingest_result`
+- `candidate_rule_status`
+- `rescue_attempt_order`
+- `rescue_rejected_executors`
+- `rescue_learning_summary`
+- `rescue_mutation_scope`
 - `rollback_candidate_used`
 - `config_drift_detected`
 - `current_incident_id`
@@ -57,12 +69,17 @@ These top-level `metrics --json` fields are treated as the current operational m
 - `survival_mode_active`
 - `survival_mode_exit_ready`
 - `last_recovery_action_count`
+- `rescue_attempt_count`
+- `rescue_executor_selected`
+- `rescue_plan_generated`
+- `rescue_plan_status`
+- `rescue_tier`
+- `candidate_rule_status`
 - `config_drift_detected`
 - `current_incident_open`
 - `current_incident_acknowledged`
 - `current_incident_notes_count`
 - `current_incident_owner_assigned`
-- `cooldown_remaining_seconds`
 - `recent_healthy_total`
 - `recent_degraded_total`
 - `recent_recovered_total`
@@ -83,7 +100,7 @@ The Prometheus exposition should preserve metric names that are likely to be scr
 
 ## Intentionally unprotected details
 
-The watchdog no longer protects compatibility-only reporting details such as:
+The watchdog no longer protects stale reporting details such as:
 
 - `recent_incident_summaries`
 - `current_incident_events_count`

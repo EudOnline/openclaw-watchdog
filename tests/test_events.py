@@ -12,7 +12,7 @@ class EventsTest(unittest.TestCase):
         self.assertEqual(event_human_summary('failed', 'failed', 'doctor repair exhausted'), 'watchdog 判定修复失败：doctor repair exhausted')
         self.assertEqual(event_human_summary('healthy', 'healthy', 'listener ready'), 'watchdog 健康检查正常：listener ready')
 
-    def test_build_event_payload_includes_run_state_and_handoff_context(self) -> None:
+    def test_build_event_payload_keeps_rescue_state_without_legacy_handoff_context(self) -> None:
         payload = build_event_payload(
             run_ts='2026-03-10 12:00:00 UTC',
             status='failed',
@@ -31,6 +31,9 @@ class EventsTest(unittest.TestCase):
                 'config_drift_detected': True,
                 'rollback_candidate_used': 'gen-2',
                 'rollback_reason': 'config invalid',
+                'rescue_executor_selected': 'rule-agent',
+                'rescue_plan_status': 'generated',
+                'candidate_rule_status': 'candidate-recorded',
             },
             rollback_occurred=True,
             rollback_summary_file='state/last-rollback-summary.txt',
@@ -40,31 +43,15 @@ class EventsTest(unittest.TestCase):
             consecutive_failures=3,
             incident_id='incident-42',
             incident_dir='state/incidents/incident-42',
-            codex_context={
-                'prompt_file': 'state/incidents/incident-42/codex-prompt.md',
-                'handoff_file': 'state/incidents/incident-42/run-codex.sh',
-                'runner_file': 'state/incidents/incident-42/codex-runner.sh',
-                'run_log_file': 'state/incidents/incident-42/codex-run.log',
-                'run_pid': '111',
-                'trigger_result': 'triggered',
-                'autorun_ready': True,
-            },
-            opencode_fallback_context={
-                'handoff_file': 'state/incidents/incident-42/run-opencode-fallback.sh',
-                'runner_file': 'state/incidents/incident-42/opencode-fallback-runner.sh',
-                'run_log_file': 'state/incidents/incident-42/opencode-fallback.log',
-                'run_pid': '222',
-                'trigger_result': 'not-run',
-            },
         )
 
         self.assertEqual(payload['severity'], 'critical')
         self.assertEqual(payload['human_summary'], 'watchdog 判定修复失败：deterministic remediation failed')
         self.assertEqual(payload['rollback_candidate_used'], 'gen-2')
         self.assertTrue(payload['config_drift_detected'])
-        self.assertEqual(payload['codex']['trigger_result'], 'triggered')
-        self.assertEqual(payload['opencode_fallback']['run_pid'], '222')
         self.assertEqual(payload['incident_id'], 'incident-42')
+        self.assertNotIn('codex', payload)
+        self.assertNotIn('opencode_fallback', payload)
 
 
 if __name__ == '__main__':

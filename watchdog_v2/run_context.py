@@ -21,6 +21,19 @@ class RunContext:
     last_recovery_strategy: str = 'none'
     last_recovery_action_count: int = 0
     last_recovery_restored_conversation: bool = False
+    rescue_attempt_count: int = 0
+    rescue_executor_selected: str = ''
+    rescue_plan_generated: bool = False
+    rescue_plan_source: str = ''
+    rescue_plan_id: str = ''
+    rescue_plan_status: str = 'not-run'
+    rescue_tier: str = 'none'
+    case_ingest_result: str = 'not-run'
+    candidate_rule_status: str = 'none'
+    rescue_attempt_order: list[str] = field(default_factory=list)
+    rescue_rejected_executors: list[str] = field(default_factory=list)
+    rescue_learning_summary: str = 'not-run / none'
+    rescue_mutation_scope: list[str] = field(default_factory=list)
     last_good_validated_at: str = ''
     last_good_generation_id: str = ''
     last_good_generation_count: int = 0
@@ -50,20 +63,8 @@ class RunContext:
     latest_probe: dict[str, object] = field(default_factory=dict)
     incident_id: str = ''
     incident_dir: Path | None = None
-    codex_prompt_file: Path | None = None
-    codex_handoff_file: Path | None = None
-    codex_runner_file: Path | None = None
-    codex_run_log_file: Path | None = None
-    codex_run_pid: str = ''
-    codex_trigger_result: str = 'not-run'
-    codex_autorun_ready: bool = False
     last_run_started_at: datetime | None = None
     last_run_finished_at: datetime | None = None
-    opencode_fallback_handoff_file: Path | None = None
-    opencode_fallback_runner_file: Path | None = None
-    opencode_fallback_run_log_file: Path | None = None
-    opencode_fallback_run_pid: str = ''
-    opencode_fallback_trigger_result: str = 'not-run'
 
     @classmethod
     def initial(cls, *, stable_required_runs: int) -> 'RunContext':

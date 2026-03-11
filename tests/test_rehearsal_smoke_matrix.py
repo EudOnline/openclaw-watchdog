@@ -6,9 +6,14 @@ import unittest
 
 CRITICAL_SCENARIOS = [
     'bootstrap-missing-openclaw',
-    'watchdog-conversation-probe-ready',
-    'watchdog-failed-fallback',
-    'watchdog-incident-queue',
+    'watchdog-rescue-chain-codex',
+    'watchdog-rescue-chain-claude-code',
+    'watchdog-rescue-chain-gemini-cli',
+    'watchdog-rescue-chain-opencode',
+    'watchdog-rescue-chain-litellm',
+    'watchdog-rescue-chain-rule-agent',
+    'watchdog-candidate-rule-auto-promotion',
+    'watchdog-candidate-rule-review-pending',
 ]
 
 

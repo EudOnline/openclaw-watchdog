@@ -7,21 +7,29 @@ from watchdog_v2.config import Config
 
 
 class ConfigDefaultsTest(unittest.TestCase):
+    def _load_with_home(self, temp_home: str, env_text: str | None = None) -> Config:
+        env_file = Path(temp_home) / 'watchdog.env'
+        if env_text is not None:
+            env_file.write_text(env_text, encoding='utf-8')
+        old_home = os.environ.get('HOME')
+        os.environ['HOME'] = temp_home
+        try:
+            return Config.load(env_file if env_text is not None else Path(temp_home) / 'missing.env')
+        finally:
+            if old_home is None:
+                os.environ.pop('HOME', None)
+            else:
+                os.environ['HOME'] = old_home
+
     def test_safe_defaults_without_env_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_home:
             expected_home = Path(temp_home)
-            old_home = os.environ.get('HOME')
-            os.environ['HOME'] = temp_home
-            try:
-                config = Config.load(Path(temp_home) / 'missing.env')
-            finally:
-                if old_home is None:
-                    os.environ.pop('HOME', None)
-                else:
-                    os.environ['HOME'] = old_home
+            config = self._load_with_home(temp_home)
 
         self.assertFalse(config.watchdog_enable_pre_repair_backup)
-        self.assertFalse(config.watchdog_enable_codex_autorun)
+        self.assertFalse(hasattr(config, 'openclaw_install_command'))
+        self.assertFalse(hasattr(config, 'opencode_install_command'))
+        self.assertFalse(hasattr(config, 'watchdog_enable_codex_autorun'))
         self.assertEqual(config.watchdog_backup_script, Path('./tools/openclaw-backup.js').expanduser())
         self.assertEqual(config.watchdog_backup_env_file, Path('./config/openclaw-backup.env').expanduser())
         self.assertEqual(config.watchdog_restart_wait_seconds, 12)
@@ -31,6 +39,61 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(config.watchdog_opencode_fallback_workdir, expected_home)
         self.assertEqual(config.openclaw_config, expected_home / '.openclaw/openclaw.json')
         self.assertEqual(config.watchdog_state_dir, expected_home / '.openclaw-backup/watchdog')
+        self.assertEqual(
+            config.watchdog_rescue_executor_priority,
+            ('codex', 'claude-code', 'gemini-cli', 'opencode', 'litellm', 'rule-agent'),
+        )
+        self.assertFalse(config.watchdog_litellm_enabled)
+        self.assertEqual(config.watchdog_rescue_knowledge_root, expected_home / '.openclaw-backup/watchdog/rescue')
+        self.assertEqual(config.watchdog_rescue_cases_dir, expected_home / '.openclaw-backup/watchdog/rescue/cases')
+        self.assertEqual(config.watchdog_rescue_candidate_rules_dir, expected_home / '.openclaw-backup/watchdog/rescue/candidate-rules')
+        self.assertEqual(config.watchdog_rescue_rules_dir, expected_home / '.openclaw-backup/watchdog/rescue/rules')
+        self.assertEqual(config.watchdog_rescue_reviews_dir, expected_home / '.openclaw-backup/watchdog/rescue/reviews')
+        self.assertFalse(hasattr(config, 'watchdog_codex_last_trigger_file'))
+        self.assertFalse(hasattr(config, 'watchdog_codex_min_failures'))
+        self.assertFalse(hasattr(config, 'watchdog_codex_cooldown_seconds'))
+
+    def test_parses_litellm_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_home:
+            config = self._load_with_home(
+                temp_home,
+                '\n'.join(
+                    [
+                        'WATCHDOG_LITELLM_ENABLED=true',
+                        'WATCHDOG_LITELLM_MODEL=openai/gpt-5',
+                        'WATCHDOG_LITELLM_API_BASE=https://example.invalid/v1',
+                        'WATCHDOG_LITELLM_API_KEY_ENV=OPENAI_API_KEY',
+                        'WATCHDOG_LITELLM_TIMEOUT_SECONDS=45',
+                    ]
+                ),
+            )
+
+        self.assertTrue(config.watchdog_litellm_enabled)
+        self.assertEqual(config.watchdog_litellm_model, 'openai/gpt-5')
+        self.assertEqual(config.watchdog_litellm_api_base, 'https://example.invalid/v1')
+        self.assertEqual(config.watchdog_litellm_api_key_env, 'OPENAI_API_KEY')
+        self.assertEqual(config.watchdog_litellm_timeout_seconds, 45)
+
+    def test_parses_rescue_editable_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_home:
+            config = self._load_with_home(
+                temp_home,
+                '\n'.join(
+                    [
+                        'WATCHDOG_RESCUE_EDITABLE_PATHS=~/.openclaw/openclaw.json,~/.openclaw/extensions',
+                        'WATCHDOG_RESCUE_EDITABLE_KEYS=channels.qqbot.enabled,extensions,services',
+                    ]
+                ),
+            )
+
+        self.assertEqual(
+            config.watchdog_rescue_editable_paths,
+            ('~/.openclaw/openclaw.json', '~/.openclaw/extensions'),
+        )
+        self.assertEqual(
+            config.watchdog_rescue_editable_keys,
+            ('channels.qqbot.enabled', 'extensions', 'services'),
+        )
 
 
 if __name__ == '__main__':

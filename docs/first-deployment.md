@@ -26,7 +26,6 @@ The built-in defaults now mirror the sample env for home-directory paths and kee
 Keep these values off for the first live deployment:
 
 - `WATCHDOG_ENABLE_PRE_REPAIR_BACKUP=false`
-- `WATCHDOG_ENABLE_CODEX_AUTORUN=false`
 - `WATCHDOG_ENABLE_SURVIVABILITY_FLOW=false`
 - `WATCHDOG_ENABLE_SURVIVAL_MODE=false`
 
@@ -78,7 +77,6 @@ Review the generated file before merging any values into your main config.
 **Leave conservative on the first rollout**
 
 - `WATCHDOG_ENABLE_PRE_REPAIR_BACKUP=false`
-- `WATCHDOG_ENABLE_CODEX_AUTORUN=false`
 - `WATCHDOG_ENABLE_SURVIVABILITY_FLOW=false`
 - `WATCHDOG_ENABLE_SURVIVAL_MODE=false`
 

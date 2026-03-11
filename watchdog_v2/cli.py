@@ -99,11 +99,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Provision OpenCode fallback, report Codex, and scaffold OpenClaw qqbot/feishu defaults",
     )
     bootstrap.add_argument("--json", action="store_true")
-    bootstrap.add_argument(
-        "--install-openclaw",
-        action="store_true",
-        help="Explicitly allow running OPENCLAW_INSTALL_COMMAND when OpenClaw is missing",
-    )
     bootstrap.add_argument("--dry-run", action="store_true", help="Report planned changes without editing config or running installs")
 
     maintenance = subparsers.add_parser("maintenance", help="Manage maintenance mode")
@@ -200,7 +195,6 @@ def _print_metrics(payload: dict[str, object]) -> None:
     print(f"last_good_validated_at={payload.get('last_good_validated_at', '') or 'none'}")
     print(f"consecutive_failures={payload.get('consecutive_failures', 0)}")
     print(f"service_probe_failures={payload.get('service_probe_failures', 0)}")
-    print(f"cooldown_remaining_seconds={payload.get('cooldown_remaining_seconds', 0)}")
     print(f"current_incident_open={str(bool(payload.get('current_incident_open', False))).lower()}")
     print(f"current_incident_id={payload.get('current_incident_id', '') or 'none'}")
     print(f"current_incident_state={payload.get('current_incident_state', '') or 'none'}")
@@ -279,7 +273,6 @@ def _print_status(payload: dict[str, object]) -> None:
     print(f"service_probe_failures={payload['service_probe_failures']}")
     print(f"service_probe_summary={payload['service_probe_summary']}")
     print(f"conversation_probe_summary={payload.get('conversation_probe_summary', 'n/a')}")
-    print(f"cooldown_remaining_seconds={payload['cooldown_remaining_seconds']}")
     print(f"consecutive_failures={payload['consecutive_failures']}")
     print(f"guard_last_operation={payload.get('guard_last_operation', '') or 'none'}")
     print(f"guard_last_summary={payload.get('guard_last_summary', '') or 'none'}")
@@ -370,8 +363,6 @@ def _print_incident_detail(payload: dict[str, object], *, notes_all: bool = Fals
     print(f"pre_repair_backup_result={payload.get('pre_repair_backup_result', 'not-run')}")
     print(f"rollback_occurred={str(bool(payload.get('rollback_occurred', False))).lower()}")
     print(f"rollback_summary_archive_file={payload.get('rollback_summary_archive_file', '') or 'none'}")
-    print(f"codex_trigger_result={payload.get('codex_trigger_result', 'not-run')}")
-    print(f"opencode_fallback_trigger_result={payload.get('opencode_fallback_trigger_result', 'not-run')}")
     print(f"owner={payload.get('owner', '') or 'none'}")
     print(f"acknowledged={str(bool(payload.get('acknowledged', False))).lower()}")
     print(f"acknowledged_by={payload.get('acknowledged_by', '') or 'none'}")
@@ -443,7 +434,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in {"bootstrap", "provision"}:
         outcome = Bootstrapper(
             config,
-            allow_install=args.install_openclaw,
             dry_run=args.dry_run,
         ).run()
         if args.json:

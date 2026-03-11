@@ -60,9 +60,10 @@ The script automatically validates these consistency checks:
 15. `incidents current --json` is consistent with `status.current_incident_id`
 16. `report.json` exposes `operator_attention_items` in list form
 17. when there is no current incident, `report.operator_attention_needed == false`
-18. `report.json` exposes the fallback-first fields (`conversation_*`, `survival_mode_*`, `last_recovery_*`, `rollback_candidate_used`, `config_drift_detected`, `drift_*`)
-19. `metrics.json` exposes the fallback-first, drift-guard, and last-good fields
+18. `report.json` exposes the fallback-first fields (`conversation_*`, `survival_mode_*`, `last_recovery_*`, `rescue_*`, `case_ingest_result`, `candidate_rule_status`, `rollback_candidate_used`, `config_drift_detected`, `drift_*`)
+19. `metrics.json` exposes the fallback-first, rescue-chain, drift-guard, and last-good fields
 20. `metrics.json` still exposes the current-incident operator fields (`current_incident_owner`, `current_incident_owner_assigned`, `current_incident_acknowledged`, `current_incident_notes_count`)
+21. `report.json` and `metrics.json` agree on the winning rescue executor, plan status, and rescue tier
 
 If any check fails, the script exits non-zero.
 

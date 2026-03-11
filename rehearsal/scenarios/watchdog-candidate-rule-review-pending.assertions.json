@@ -1,0 +1,17 @@
+{
+  "equals": {
+    "outcome.exit_code": 0,
+    "outcome.state": "recovered",
+    "status.run_state.rescue_executor_selected": "litellm",
+    "status.run_state.candidate_rule_status": "pending-review",
+    "metrics.candidate_rule_status": "pending-review"
+  },
+  "contains": {
+    "report.message_text": " / pending-review"
+  },
+  "file_contains": {
+    "rehearsal/runtime/home/.openclaw-backup/watchdog/rescue/reviews/process-down-litellm.json": [
+      "pending-review"
+    ]
+  }
+}

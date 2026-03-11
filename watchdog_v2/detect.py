@@ -18,6 +18,10 @@ CORE_COMMANDS: tuple[str, ...] = (
     "ps",
     "journalctl",
     "codex",
+    "claude",
+    "claude-code",
+    "gemini",
+    "gemini-cli",
     "opencode",
 )
 
@@ -94,6 +98,39 @@ def _detect_commands() -> dict[str, dict[str, object]]:
             "path": resolved or "",
         }
     return payload
+
+
+def _executor_inventory(engine: WatchdogEngine, commands: dict[str, dict[str, object]]) -> dict[str, dict[str, object]]:
+    def _pick(*names: str) -> dict[str, object]:
+        for name in names:
+            command = commands.get(name, {}) if isinstance(commands.get(name, {}), dict) else {}
+            if command.get('available'):
+                return {
+                    'available': True,
+                    'command': name,
+                    'path': str(command.get('path', '') or ''),
+                }
+        return {
+            'available': False,
+            'command': names[0] if names else '',
+            'path': '',
+        }
+
+    litellm_enabled = bool(getattr(engine.config, 'watchdog_litellm_enabled', False))
+    litellm_model = str(getattr(engine.config, 'watchdog_litellm_model', '') or '')
+    litellm_available = litellm_enabled and bool(litellm_model)
+    return {
+        'codex': _pick('codex'),
+        'claude-code': _pick('claude', 'claude-code'),
+        'gemini-cli': _pick('gemini', 'gemini-cli'),
+        'opencode': _pick('opencode'),
+        'litellm': {
+            'available': litellm_available,
+            'enabled': litellm_enabled,
+            'configured': litellm_available,
+            'model': litellm_model,
+        },
+    }
 
 
 def _gateway_probe(engine: WatchdogEngine, status_payload: dict[str, object] | None) -> dict[str, object]:
@@ -200,7 +237,6 @@ def render_suggested_env(payload: dict[str, object]) -> str:
                 "WATCHDOG_ENABLE_DOCTOR_REPAIR",
                 "WATCHDOG_ENABLE_SURVIVABILITY_FLOW",
                 "WATCHDOG_ENABLE_SURVIVAL_MODE",
-                "WATCHDOG_ENABLE_CODEX_AUTORUN",
             ],
         ),
     ]
@@ -222,6 +258,7 @@ def write_suggested_env(payload: dict[str, object], target: Path) -> Path:
 
 def detect_payload(engine: WatchdogEngine) -> dict[str, object]:
     commands = _detect_commands()
+    executor_inventory = _executor_inventory(engine, commands)
     status_payload = _run_json(engine, ["openclaw", "status", "--json", "--timeout", str(engine.config.watchdog_service_level_timeout_seconds * 1000)], timeout=engine.config.watchdog_service_level_timeout_seconds + 5) if commands["openclaw"]["available"] else None
     health_payload = _run_json(engine, ["openclaw", "health", "--json"], timeout=engine.config.watchdog_service_level_timeout_seconds + 5) if commands["openclaw"]["available"] else None
     gateway = _gateway_probe(engine, status_payload)
@@ -245,13 +282,13 @@ def detect_payload(engine: WatchdogEngine) -> dict[str, object]:
         "WATCHDOG_ENABLE_DOCTOR_REPAIR": "false",
         "WATCHDOG_ENABLE_SURVIVABILITY_FLOW": "false",
         "WATCHDOG_ENABLE_SURVIVAL_MODE": "false",
-        "WATCHDOG_ENABLE_CODEX_AUTORUN": "false",
     }
     return {
         "detected_at": _now_iso(),
         "repo_root": str(engine.config.repo_root),
         "env_file": str(env_file) if env_file else "",
         "commands": commands,
+        "executors": executor_inventory,
         "openclaw": {
             "installed": commands["openclaw"]["available"],
             "config": openclaw_config_probe,
@@ -272,6 +309,7 @@ def detect_payload(engine: WatchdogEngine) -> dict[str, object]:
 
 def print_detect(payload: dict[str, object]) -> None:
     commands = payload.get("commands", {}) if isinstance(payload.get("commands"), dict) else {}
+    executors = payload.get("executors", {}) if isinstance(payload.get("executors"), dict) else {}
     gateway = payload.get("gateway", {}) if isinstance(payload.get("gateway"), dict) else {}
     channels = payload.get("channels", {}) if isinstance(payload.get("channels"), dict) else {}
     state_dir = payload.get("state_dir", {}) if isinstance(payload.get("state_dir"), dict) else {}
@@ -300,6 +338,10 @@ def print_detect(payload: dict[str, object]) -> None:
     print(f"suggested_primary_targets={','.join(suggested) if suggested else 'gateway'}")
     available = [name for name, info in commands.items() if isinstance(info, dict) and info.get("available")]
     missing = [name for name, info in commands.items() if isinstance(info, dict) and not info.get("available")]
+    rescue_available = [name for name, info in executors.items() if isinstance(info, dict) and info.get("available")]
+    rescue_missing = [name for name, info in executors.items() if isinstance(info, dict) and not info.get("available")]
     print(f"commands_available={','.join(available) if available else 'none'}")
     print(f"commands_missing={','.join(missing) if missing else 'none'}")
+    print(f"rescue_executors_available={','.join(rescue_available) if rescue_available else 'none'}")
+    print(f"rescue_executors_missing={','.join(rescue_missing) if rescue_missing else 'none'}")
     print("next_step=review suggested_env and run preflight once implemented")

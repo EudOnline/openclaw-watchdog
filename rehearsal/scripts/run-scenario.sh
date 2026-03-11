@@ -6,7 +6,7 @@ SCENARIO="${1:-bootstrap-missing-openclaw}"
 ENV_FILE="rehearsal/env/openclaw-watchdog.rehearsal.env"
 
 cd "$REPO_ROOT"
-export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$REPO_ROOT/rehearsal/shims/python:$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export HOME="$REPO_ROOT/rehearsal/runtime/home"
 bash rehearsal/scripts/prepare-system-bin.sh >/dev/null
 export PATH="$REPO_ROOT/rehearsal/bin:$REPO_ROOT/rehearsal/runtime/bin:$REPO_ROOT/rehearsal/runtime/system-bin"
@@ -66,16 +66,37 @@ run_json() {
 
 case "$SCENARIO" in
   bootstrap-missing-openclaw)
-    run_exact "$SCENARIO" 10 scripts/openclaw-watchdog --env "$ENV_FILE" bootstrap
+    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" bootstrap
     ;;
   bootstrap-openclaw-missing-plugin)
     run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" bootstrap
     ;;
-  bootstrap-install-openclaw)
-    run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" bootstrap --install-openclaw
-    ;;
   watchdog-recovery)
     run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" run-once
+    ;;
+  watchdog-rescue-chain-codex)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-codex.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=codex,rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    ;;
+  watchdog-rescue-chain-claude-code)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-claude-code.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=claude-code,rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    ;;
+  watchdog-rescue-chain-gemini-cli)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-gemini-cli.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=gemini-cli,rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    ;;
+  watchdog-rescue-chain-opencode)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-opencode.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=opencode,rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    ;;
+  watchdog-rescue-chain-litellm)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-litellm.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=litellm,rule-agent WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    ;;
+  watchdog-rescue-chain-rule-agent)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-rule-agent.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    ;;
+  watchdog-candidate-rule-auto-promotion)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-candidate-rule-auto-promotion.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=litellm,rule-agent WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    ;;
+  watchdog-candidate-rule-review-pending)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-candidate-rule-review-pending.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=litellm,rule-agent WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-failed-fallback)
     run_json "$SCENARIO" 1 rehearsal/scenarios/watchdog-failed-fallback.assertions.json scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json
@@ -187,8 +208,11 @@ case "$SCENARIO" in
     ;;
   all)
     rehearsal/scripts/run-scenario.sh bootstrap-missing-openclaw
+    rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-litellm
+    rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-rule-agent
+    rehearsal/scripts/run-scenario.sh watchdog-candidate-rule-auto-promotion
+    rehearsal/scripts/run-scenario.sh watchdog-candidate-rule-review-pending
     rehearsal/scripts/run-scenario.sh bootstrap-openclaw-missing-plugin
-    rehearsal/scripts/run-scenario.sh bootstrap-install-openclaw
     rehearsal/scripts/run-scenario.sh watchdog-recovery
     rehearsal/scripts/run-scenario.sh watchdog-failed-fallback
     rehearsal/scripts/run-scenario.sh watchdog-active-no-listener-grace
