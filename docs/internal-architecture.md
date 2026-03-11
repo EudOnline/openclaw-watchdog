@@ -39,36 +39,36 @@ The current layout keeps the operator-facing fallback surface coherent while mak
 
 ### Engine facade and run context
 
-- `watchdog_v2/run_context.py` defines mutable per-run state such as recovery metadata, survival-mode state, incident handoff files, and current timestamps
+- `watchdog_v2/run_context.py` defines mutable per-run state such as recovery metadata, rescue attempt order, learning summaries, survival-mode state, and current timestamps
 - `watchdog_v2/engine.py` keeps long-lived dependencies and filesystem helpers on the engine itself
 - mutable runtime-only fields live under `engine.ctx`; there is no legacy attribute bridge
 
 ### Run flows
 
-- `watchdog_v2/flows/legacy_run.py` contains the legacy `run-once` orchestration path
-- `watchdog_v2/flows/survivability_run.py` contains the survivability-first orchestration path
-- `watchdog_v2/engine.py` now selects the active flow and delegates into those modules
+- `watchdog_v2/flows/rescue_run.py` contains the single rescue-first `run-once` orchestration path
+- deterministic repair always runs in one order: restart -> rollback -> survival -> doctor -> rescue dispatch
+- `watchdog_v2/engine.py` now builds a typed `RescueContext`, dispatches the prioritized executor chain, and records learning outcomes
 - low-level repair / health / incident primitives stay in their focused modules; only orchestration moved out
 
 ### Bootstrap pipeline
 
 - `watchdog_v2/bootstrap.py` keeps the public `Bootstrapper` and final payload shaping
-- `watchdog_v2/bootstrap_steps.py` coordinates the ordered internal steps:
-  - ensure OpenCode
-  - detect Codex
-  - detect / install OpenClaw
-  - ensure QQ plugin
-  - scaffold default channel config
+- `watchdog_v2/bootstrap_steps.py` coordinates the ordered detect-only bootstrap steps:
+  - detect OpenCode
+  - detect Codex / Claude Code / Gemini CLI
+  - detect `LiteLLM` specialist-agent readiness
+  - detect OpenClaw availability
+  - inspect QQ plugin and default channel prerequisites
   - scan Feishu runtime markers
-- `watchdog_v2/models.BootstrapSummary` remains the serializable bootstrap payload
+- `watchdog_v2/models.BootstrapSummary` remains the serializable bootstrap payload and executor inventory snapshot
 
 ## Validation layers
 
 The repository now uses three complementary validation layers:
 
-1. **Unit / focused output tests** for models, presenters, reporting, events, and runtime helpers
-2. **Direct orchestration tests** for run context, run flows, and bootstrap steps
-3. **Rehearsal smoke scenarios** for end-to-end operator behavior in a bounded local harness
+1. **Unit / focused output tests** for models, presenters, reporting, events, runtime helpers, rescue dispatch, and learning
+2. **Direct orchestration tests** for run context, the unified rescue flow, and bootstrap steps
+3. **Rehearsal smoke scenarios** for the `LiteLLM` tier, rule-agent tier, candidate auto-promotion, and pending-review paths in a bounded local harness
 
 ## Operational boundaries
 

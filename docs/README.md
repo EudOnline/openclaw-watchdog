@@ -17,7 +17,7 @@ These are the documents new users and operators should start with:
 
 ## Historical notes
 
-These documents are retained for migration and implementation context:
+These documents are retained only for historical and implementation context:
 
 - [compatibility-and-deprecations.md](compatibility-and-deprecations.md)
 - [history/MIGRATION-v2.md](history/MIGRATION-v2.md)
