@@ -1,0 +1,21 @@
+{
+  "equals": {
+    "outcome.exit_code": 0,
+    "outcome.state": "recovered",
+    "status.run_state.last_recovery_strategy": "gemini-cli",
+    "status.run_state.rescue_executor_selected": "gemini-cli",
+    "status.run_state.rescue_plan_generated": true,
+    "status.run_state.candidate_rule_status": "candidate-recorded",
+    "metrics.rescue_tier": "external-cli",
+    "metrics.candidate_rule_status": "candidate-recorded"
+  },
+  "contains": {
+    "report.message_text": "executor:gemini-cli"
+  },
+  "glob_file_contains": {
+    "rehearsal/runtime/home/.openclaw-backup/watchdog/rescue/cases/*.json": [
+      "\"executor\": \"gemini-cli\"",
+      "\"failure_signature\": \"process-down\""
+    ]
+  }
+}

@@ -59,8 +59,6 @@ def incident_snapshot(engine, incident_dir: Path) -> dict[str, object]:
         "pre_repair_backup_result": str(index_payload.get("pre_repair_backup_result") or operator_payload.get("pre_repair_backup_result") or "not-run"),
         "rollback_occurred": engine._incident_bool(index_payload.get("rollback_occurred", operator_payload.get("rollback_occurred", False))),
         "rollback_summary_archive_file": str(index_payload.get("rollback_summary_archive_file") or operator_payload.get("rollback_summary_archive_file") or ""),
-        "codex_trigger_result": str(index_payload.get("codex_trigger_result") or operator_payload.get("codex_trigger_result") or "not-run"),
-        "opencode_fallback_trigger_result": str(index_payload.get("opencode_fallback_trigger_result") or operator_payload.get("opencode_fallback_trigger_result") or "not-run"),
         "owner": str(workflow_payload.get("owner") or index_payload.get("owner") or ""),
         "acknowledged": engine._incident_bool(workflow_payload.get("acknowledged", index_payload.get("acknowledged", False))),
         "acknowledged_by": str(workflow_payload.get("acknowledged_by") or index_payload.get("acknowledged_by") or ""),
@@ -266,8 +264,6 @@ def refresh_incident_index_for(engine, incident_id: str, *, summary: str | None 
         pre_repair_backup_result=str(existing_index_payload.get("pre_repair_backup_result", engine.ctx.pre_repair_backup_result) or engine.ctx.pre_repair_backup_result),
         rollback_occurred=bool(existing_index_payload.get("rollback_occurred", engine.ctx.rollback_occurred)),
         rollback_summary_archive_file=str(existing_index_payload.get("rollback_summary_archive_file", engine.ctx.rollback_summary_archive_file) or engine.ctx.rollback_summary_archive_file),
-        codex_trigger_result=str(existing_index_payload.get("codex_trigger_result", engine.ctx.codex_trigger_result) or engine.ctx.codex_trigger_result),
-        opencode_fallback_trigger_result=str(existing_index_payload.get("opencode_fallback_trigger_result", engine.ctx.opencode_fallback_trigger_result) or engine.ctx.opencode_fallback_trigger_result),
         incident_id=incident_id,
         incident_dir=incident_dir,
     )

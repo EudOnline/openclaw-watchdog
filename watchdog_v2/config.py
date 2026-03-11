@@ -83,8 +83,6 @@ class Config:
     repo_root: Path
     env_file: Path | None
     openclaw_config: Path
-    openclaw_install_command: str
-    opencode_install_command: str
     opencode_bootstrap_config_path: Path
     opencode_bootstrap_model: str
     openclaw_bootstrap_timeout_seconds: int
@@ -112,7 +110,6 @@ class Config:
     watchdog_last_metrics_file: Path
     watchdog_failure_count_file: Path
     watchdog_maintenance_file: Path
-    watchdog_codex_last_trigger_file: Path
     watchdog_lock_file: Path
     watchdog_notify_channel: str
     watchdog_notify_target: str
@@ -150,16 +147,26 @@ class Config:
     watchdog_protected_paths: tuple[str, ...]
     watchdog_enable_drift_auto_rollback: bool
     watchdog_keep_incidents: int
-    watchdog_enable_codex_autorun: bool
     watchdog_codex_bin: str
     watchdog_codex_model_hint: str
     watchdog_codex_workdir: Path
     watchdog_codex_timeout_seconds: int
-    watchdog_codex_min_failures: int
-    watchdog_codex_cooldown_seconds: int
     watchdog_opencode_fallback_bin: str
     watchdog_opencode_fallback_workdir: Path
     watchdog_opencode_fallback_timeout_seconds: int
+    watchdog_rescue_executor_priority: tuple[str, ...]
+    watchdog_litellm_enabled: bool
+    watchdog_litellm_model: str
+    watchdog_litellm_api_base: str
+    watchdog_litellm_api_key_env: str
+    watchdog_litellm_timeout_seconds: int
+    watchdog_rescue_knowledge_root: Path
+    watchdog_rescue_cases_dir: Path
+    watchdog_rescue_candidate_rules_dir: Path
+    watchdog_rescue_rules_dir: Path
+    watchdog_rescue_reviews_dir: Path
+    watchdog_rescue_editable_paths: tuple[str, ...]
+    watchdog_rescue_editable_keys: tuple[str, ...]
 
     @classmethod
     def load(cls, env_file: Path | None = None) -> "Config":
@@ -171,8 +178,6 @@ class Config:
             repo_root=root,
             env_file=resolved_env_file,
             openclaw_config=_env_path(raw, "OPENCLAW_CONFIG", "~/.openclaw/openclaw.json"),
-            openclaw_install_command=_env(raw, "OPENCLAW_INSTALL_COMMAND", "").strip(),
-            opencode_install_command=_env(raw, "OPENCODE_INSTALL_COMMAND", "npm install -g opencode-ai@latest").strip(),
             opencode_bootstrap_config_path=_env_path(
                 raw,
                 "OPENCODE_BOOTSTRAP_CONFIG_PATH",
@@ -219,7 +224,6 @@ class Config:
             watchdog_last_metrics_file=_env_path(raw, "WATCHDOG_LAST_METRICS_FILE", "~/.openclaw-backup/watchdog/last-metrics.json"),
             watchdog_failure_count_file=_env_path(raw, "WATCHDOG_FAILURE_COUNT_FILE", "~/.openclaw-backup/watchdog/consecutive-failures"),
             watchdog_maintenance_file=_env_path(raw, "WATCHDOG_MAINTENANCE_FILE", "~/.openclaw-backup/watchdog/maintenance-mode"),
-            watchdog_codex_last_trigger_file=_env_path(raw, "WATCHDOG_CODEX_LAST_TRIGGER_FILE", "~/.openclaw-backup/watchdog/codex-last-trigger"),
             watchdog_lock_file=_env_path(raw, "WATCHDOG_LOCK_FILE", "~/.openclaw-backup/watchdog/watchdog.lock"),
             watchdog_notify_channel=_env(raw, "WATCHDOG_NOTIFY_CHANNEL", ""),
             watchdog_notify_target=_env(raw, "WATCHDOG_NOTIFY_TARGET", ""),
@@ -257,14 +261,40 @@ class Config:
             watchdog_protected_paths=_env_csv(raw, "WATCHDOG_PROTECTED_PATHS", ""),
             watchdog_enable_drift_auto_rollback=_env_bool(raw, "WATCHDOG_ENABLE_DRIFT_AUTO_ROLLBACK", True),
             watchdog_keep_incidents=max(1, _env_int(raw, "WATCHDOG_KEEP_INCIDENTS", 10)),
-            watchdog_enable_codex_autorun=_env_bool(raw, "WATCHDOG_ENABLE_CODEX_AUTORUN", False),
             watchdog_codex_bin=_env(raw, "WATCHDOG_CODEX_BIN", "codex"),
             watchdog_codex_model_hint=_env(raw, "WATCHDOG_CODEX_MODEL_HINT", "gpt-5.4-xhigh"),
             watchdog_codex_workdir=_env_path(raw, "WATCHDOG_CODEX_WORKDIR", "~"),
             watchdog_codex_timeout_seconds=_env_int(raw, "WATCHDOG_CODEX_TIMEOUT_SECONDS", 1800),
-            watchdog_codex_min_failures=max(1, _env_int(raw, "WATCHDOG_CODEX_MIN_FAILURES", 2)),
-            watchdog_codex_cooldown_seconds=max(0, _env_int(raw, "WATCHDOG_CODEX_COOLDOWN_SECONDS", 1800)),
             watchdog_opencode_fallback_bin=_env(raw, "WATCHDOG_OPENCODE_FALLBACK_BIN", "opencode"),
             watchdog_opencode_fallback_workdir=_env_path(raw, "WATCHDOG_OPENCODE_FALLBACK_WORKDIR", "~"),
             watchdog_opencode_fallback_timeout_seconds=_env_int(raw, "WATCHDOG_OPENCODE_FALLBACK_TIMEOUT_SECONDS", 1800),
+            watchdog_rescue_executor_priority=_env_csv(
+                raw,
+                "WATCHDOG_RESCUE_EXECUTOR_PRIORITY",
+                "codex,claude-code,gemini-cli,opencode,litellm,rule-agent",
+            ),
+            watchdog_litellm_enabled=_env_bool(raw, "WATCHDOG_LITELLM_ENABLED", False),
+            watchdog_litellm_model=_env(raw, "WATCHDOG_LITELLM_MODEL", "").strip(),
+            watchdog_litellm_api_base=_env(raw, "WATCHDOG_LITELLM_API_BASE", "").strip(),
+            watchdog_litellm_api_key_env=_env(raw, "WATCHDOG_LITELLM_API_KEY_ENV", "OPENAI_API_KEY").strip(),
+            watchdog_litellm_timeout_seconds=max(1, _env_int(raw, "WATCHDOG_LITELLM_TIMEOUT_SECONDS", 60)),
+            watchdog_rescue_knowledge_root=_env_path(raw, "WATCHDOG_RESCUE_KNOWLEDGE_ROOT", "~/.openclaw-backup/watchdog/rescue"),
+            watchdog_rescue_cases_dir=_env_path(raw, "WATCHDOG_RESCUE_CASES_DIR", "~/.openclaw-backup/watchdog/rescue/cases"),
+            watchdog_rescue_candidate_rules_dir=_env_path(
+                raw,
+                "WATCHDOG_RESCUE_CANDIDATE_RULES_DIR",
+                "~/.openclaw-backup/watchdog/rescue/candidate-rules",
+            ),
+            watchdog_rescue_rules_dir=_env_path(raw, "WATCHDOG_RESCUE_RULES_DIR", "~/.openclaw-backup/watchdog/rescue/rules"),
+            watchdog_rescue_reviews_dir=_env_path(raw, "WATCHDOG_RESCUE_REVIEWS_DIR", "~/.openclaw-backup/watchdog/rescue/reviews"),
+            watchdog_rescue_editable_paths=_env_csv(
+                raw,
+                "WATCHDOG_RESCUE_EDITABLE_PATHS",
+                "~/.openclaw/openclaw.json,~/.openclaw/extensions,~/.openclaw-backup/watchdog/openclaw.survival.json",
+            ),
+            watchdog_rescue_editable_keys=_env_csv(
+                raw,
+                "WATCHDOG_RESCUE_EDITABLE_KEYS",
+                "channels,extensions,mcpServers,services,workers,schedules",
+            ),
         )

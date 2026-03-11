@@ -16,45 +16,63 @@ class _Result:
 
 
 class FakeBootstrapper:
-    def __init__(self, *, allow_install: bool = False, dry_run: bool = False) -> None:
-        self.allow_install = allow_install
+    def __init__(self, *, dry_run: bool = False) -> None:
+        self.allow_install = False
         self.dry_run = dry_run
         self.config = SimpleNamespace(
             openclaw_config=Path('state/openclaw.json'),
-            openclaw_install_command='curl -fsSL install-openclaw.sh | bash',
+            watchdog_codex_bin='codex',
             watchdog_opencode_fallback_bin='opencode',
+            watchdog_litellm_enabled=False,
+            watchdog_litellm_model='',
         )
-        self._opencode = {'status': 'ready', 'changed': False, 'watchdog_bin_available': True, 'config': {'path': 'state/opencode.json', 'changed': False, 'backup_path': ''}}
+        self._opencode = {
+            'available': True,
+            'detected_binary': 'opencode',
+            'watchdog_bin_available': True,
+            'config_ready': True,
+        }
         self._codex = {'available': True, 'configured_available': True, 'detected_binary': 'codex'}
-        self._detect_openclaw = (True, '/usr/local/bin/openclaw', _Result(0))
-        self._ensure_openclaw = {'installed': True, 'changed': False}
-        self._qq_plugin = {'status': 'ready', 'installed': True, 'changed': False}
-        self._config_payload = {'status': 'ready', 'changed': False, 'path': 'state/openclaw.json', 'backup_path': '', 'channels': {'qqbot': {'enabled': True}, 'feishu': {'enabled': False}}, 'placeholders_remaining': []}
+        self._claude_code = {'available': False, 'detected_binary': ''}
+        self._gemini_cli = {'available': False, 'detected_binary': ''}
+        self._litellm = {'available': False, 'enabled': False, 'configured': False, 'model': ''}
+        self._openclaw = {'available': True, 'binary': '/usr/local/bin/openclaw', 'detect_returncode': 0}
+        self._qq_plugin = {'status': 'ready', 'installed': True, 'detect_returncode': 0}
+        self._config_payload = {
+            'status': 'ready',
+            'changed': False,
+            'path': 'state/openclaw.json',
+            'channels': {'qqbot': {'enabled': True}, 'feishu': {'enabled': False}},
+            'placeholders_remaining': [],
+        }
         self._feishu_runtime = {'checked': True, 'found': True}
 
-    def ensure_opencode(self):
+    def detect_opencode(self):
         return dict(self._opencode)
 
     def detect_codex(self):
         return dict(self._codex)
 
+    def detect_claude_code(self):
+        return dict(self._claude_code)
+
+    def detect_gemini_cli(self):
+        return dict(self._gemini_cli)
+
+    def detect_litellm(self):
+        return dict(self._litellm)
+
     def detect_openclaw(self):
-        return self._detect_openclaw
+        return dict(self._openclaw)
 
-    def ensure_openclaw(self, installed: bool):
-        return dict(self._ensure_openclaw)
-
-    def ensure_qq_plugin(self):
+    def inspect_qq_plugin(self):
         return dict(self._qq_plugin)
 
-    def ensure_default_channel_config(self):
+    def inspect_default_channel_config(self):
         return dict(self._config_payload)
 
     def detect_feishu_runtime_markers(self):
         return dict(self._feishu_runtime)
-
-    def openclaw_confirmation_summary(self, opencode_payload):
-        return 'OpenClaw missing; rerun with --install-openclaw.'
 
     def unique_nonempty(self, values):
         seen = set()
@@ -68,64 +86,51 @@ class FakeBootstrapper:
 
 
 class BootstrapStepsTest(unittest.TestCase):
-    def test_missing_openclaw_without_confirmation_stops_with_exit_10(self) -> None:
-        bootstrapper = FakeBootstrapper(allow_install=False)
-        bootstrapper._codex = {'available': False, 'configured_available': False, 'detected_binary': ''}
-        bootstrapper._detect_openclaw = (False, '', _Result(1))
-
-        result = run_bootstrap_pipeline(
-            bootstrapper,
-            BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False),
-        )
-
-        self.assertEqual(result.state, 'confirmation-required')
-        self.assertEqual(result.exit_code, 10)
-        self.assertTrue(result.bootstrap_summary.openclaw['confirmation_required'])
-        self.assertIn('Rerun bootstrap with --install-openclaw once you want the install command to execute.', result.bootstrap_summary.next_steps)
-
-    def test_opencode_config_change_is_preserved_in_summary(self) -> None:
+    def test_detect_only_bootstrap_reports_executor_inventory_without_installing(self) -> None:
         bootstrapper = FakeBootstrapper()
+        bootstrapper._claude_code = {'available': False, 'detected_binary': ''}
+        bootstrapper._gemini_cli = {'available': True, 'detected_binary': 'gemini'}
         bootstrapper._opencode = {
-            'status': 'ready',
-            'changed': True,
-            'watchdog_bin_available': True,
-            'config': {
-                'path': 'state/opencode.json',
-                'changed': True,
-                'backup_path': 'state/opencode.backup.json',
-            },
+            'available': False,
+            'detected_binary': '',
+            'watchdog_bin_available': False,
+            'config_ready': False,
         }
-        bootstrapper._config_payload['changed'] = True
 
         result = run_bootstrap_pipeline(
             bootstrapper,
             BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False),
         )
 
-        self.assertEqual(result.state, 'bootstrapped')
-        self.assertTrue(result.bootstrap_summary.opencode['changed'])
-        self.assertTrue(result.bootstrap_summary.opencode['config']['changed'])
-        self.assertEqual(result.bootstrap_summary.opencode['config']['path'], 'state/opencode.json')
+        self.assertEqual(result.state, 'ready')
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.bootstrap_summary.executors['codex']['available'], True)
+        self.assertEqual(result.bootstrap_summary.executors['claude-code']['available'], False)
+        self.assertEqual(result.bootstrap_summary.executors['gemini-cli']['available'], True)
+        self.assertEqual(result.bootstrap_summary.executors['opencode']['available'], False)
+        self.assertEqual(result.bootstrap_summary.executors['litellm']['available'], False)
+        self.assertEqual(result.bootstrap_summary.files_changed, [])
+        self.assertEqual(result.bootstrap_summary.backup_files, [])
 
-    def test_plugin_install_failure_bubbles_up_as_failed_state(self) -> None:
+    def test_missing_openclaw_adds_manual_next_step_without_confirmation_stop(self) -> None:
         bootstrapper = FakeBootstrapper()
-        bootstrapper._qq_plugin = {'status': 'failed', 'installed': False, 'changed': False}
+        bootstrapper._openclaw = {'available': False, 'binary': '', 'detect_returncode': 1}
 
         result = run_bootstrap_pipeline(
             bootstrapper,
             BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False),
         )
 
-        self.assertEqual(result.state, 'failed')
-        self.assertEqual(result.message, 'QQ plugin install failed')
+        self.assertEqual(result.state, 'ready')
+        self.assertFalse(result.bootstrap_summary.openclaw['available'])
+        self.assertIn('Install or expose OpenClaw on PATH before enabling live rescue flows.', result.bootstrap_summary.next_steps)
 
     def test_placeholder_credentials_keep_warning_and_next_step(self) -> None:
         bootstrapper = FakeBootstrapper()
         bootstrapper._config_payload = {
             'status': 'ready',
-            'changed': True,
+            'changed': False,
             'path': 'state/openclaw.json',
-            'backup_path': '',
             'channels': {'qqbot': {'enabled': True}, 'feishu': {'enabled': False}},
             'placeholders_remaining': ['qqbot.appid', 'feishu.appSecret'],
         }
@@ -146,13 +151,15 @@ class BootstrapStepsTest(unittest.TestCase):
     def test_bootstrapper_run_passes_bootstrap_summary_into_finish(self) -> None:
         config = SimpleNamespace(
             openclaw_config=Path('state/openclaw.json'),
+            watchdog_codex_bin='codex',
             watchdog_opencode_fallback_bin='opencode',
-            openclaw_install_command='curl -fsSL install-openclaw.sh | bash',
+            watchdog_litellm_enabled=False,
+            watchdog_litellm_model='',
         )
 
         class RecordingBootstrapper(Bootstrapper):
             def __init__(self) -> None:
-                super().__init__(config, allow_install=False, dry_run=False)
+                super().__init__(config, dry_run=False)
                 self.received_summary = None
 
             def finish(self, bootstrap_summary, *, state: str, summary: str, exit_code: int) -> BootstrapOutcome:
@@ -160,14 +167,14 @@ class BootstrapStepsTest(unittest.TestCase):
                 return BootstrapOutcome(exit_code=exit_code, state=state, summary=summary, payload={})
 
         bootstrap_summary = BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False)
-        bootstrap_summary.opencode['changed'] = True
+        bootstrap_summary.executors = {'codex': {'available': True}}
         bootstrapper = RecordingBootstrapper()
 
         with patch(
             'watchdog_v2.bootstrap.bootstrap_step_ops.run_bootstrap_pipeline',
             return_value=PipelineResult(
                 bootstrap_summary=bootstrap_summary,
-                state='bootstrapped',
+                state='ready',
                 message='ok',
                 exit_code=0,
             ),
@@ -179,31 +186,51 @@ class BootstrapStepsTest(unittest.TestCase):
     def test_bootstrapper_finish_accepts_bootstrap_summary_without_round_trip(self) -> None:
         config = SimpleNamespace(
             openclaw_config=Path('state/openclaw.json'),
+            watchdog_codex_bin='codex',
             watchdog_opencode_fallback_bin='opencode',
-            openclaw_install_command='curl -fsSL install-openclaw.sh | bash',
+            watchdog_litellm_enabled=False,
+            watchdog_litellm_model='',
         )
-        bootstrapper = Bootstrapper(config, allow_install=False, dry_run=False)
+        bootstrapper = Bootstrapper(config, dry_run=False)
         bootstrap_summary = BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False)
-        bootstrap_summary.opencode = {
-            'config': {
-                'path': 'state/opencode.json',
-                'changed': True,
-                'backup_path': 'state/opencode.backup.json',
-            }
+        bootstrap_summary.executors = {
+            'codex': {'available': True, 'detected_binary': 'codex'},
+            'claude-code': {'available': False, 'detected_binary': ''},
         }
         bootstrap_summary.config = {
             'path': 'state/openclaw.json',
-            'changed': True,
-            'backup_path': 'state/openclaw.backup.json',
+            'changed': False,
+            'backup_path': '',
         }
 
-        outcome = bootstrapper.finish(bootstrap_summary, state='bootstrapped', summary='ok', exit_code=0)
+        outcome = bootstrapper.finish(bootstrap_summary, state='ready', summary='ok', exit_code=0)
 
-        self.assertEqual(outcome.payload['files_changed'], ['state/opencode.json', 'state/openclaw.json'])
-        self.assertEqual(outcome.payload['backup_files'], ['state/opencode.backup.json', 'state/openclaw.backup.json'])
-        self.assertEqual(outcome.payload['state'], 'bootstrapped')
+        self.assertEqual(outcome.payload['files_changed'], [])
+        self.assertEqual(outcome.payload['backup_files'], [])
+        self.assertEqual(outcome.payload['state'], 'ready')
         self.assertEqual(outcome.payload['summary'], 'ok')
         self.assertEqual(outcome.payload['exit_code'], 0)
+        self.assertEqual(outcome.payload['executors']['codex']['available'], True)
+
+    def test_detect_opencode_populates_watchdog_binary_status(self) -> None:
+        config = SimpleNamespace(
+            openclaw_config=Path('state/openclaw.json'),
+            watchdog_codex_bin='codex',
+            watchdog_opencode_fallback_bin='opencode-watchdog',
+            watchdog_litellm_enabled=False,
+            watchdog_litellm_model='',
+        )
+        bootstrapper = Bootstrapper(config, dry_run=False)
+
+        with patch.object(bootstrapper, 'detect_binary', side_effect=[(True, '/usr/local/bin/opencode', _Result(0)), (True, '/usr/local/bin/opencode-watchdog', _Result(0))]):
+            with patch.object(bootstrapper, 'inspect_opencode_config', return_value={'path': 'state/opencode.json', 'ready': True}):
+                payload = bootstrapper.detect_opencode()
+
+        self.assertTrue(payload['available'])
+        self.assertTrue(payload['watchdog_bin_available'])
+        self.assertEqual(payload['watchdog_binary'], '/usr/local/bin/opencode-watchdog')
+        self.assertTrue(payload['config_ready'])
+
 
 
 if __name__ == '__main__':

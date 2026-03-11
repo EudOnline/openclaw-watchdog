@@ -61,9 +61,8 @@ class BootstrapError(RuntimeError):
 
 
 class Bootstrapper:
-    def __init__(self, config: Config, *, allow_install: bool, dry_run: bool):
+    def __init__(self, config: Config, *, dry_run: bool):
         self.config = config
-        self.allow_install = allow_install
         self.dry_run = dry_run
 
     def run(self) -> BootstrapOutcome:
@@ -121,30 +120,22 @@ class Bootstrapper:
 
         if opencode and not opencode.get("watchdog_bin_available", False):
             watchdog_bin = opencode.get("watchdog_bin") or self.config.watchdog_opencode_fallback_bin
-            detected_binary = opencode.get("binary") or "opencode"
+            detected_binary = opencode.get("detected_binary") or opencode.get("watchdog_binary") or "opencode"
             warnings.append(f"WATCHDOG_OPENCODE_FALLBACK_BIN does not currently resolve: {watchdog_bin}")
             bootstrap_summary.next_steps.append(
-                f"Update WATCHDOG_OPENCODE_FALLBACK_BIN if needed so watchdog autorun can find OpenCode ({detected_binary})."
+                f"Update WATCHDOG_OPENCODE_FALLBACK_BIN if needed so the rescue chain can find OpenCode ({detected_binary})."
             )
 
         if codex and not codex.get("available", False):
             warnings.append("Codex was not detected; OpenCode remains the prepared fallback path")
             bootstrap_summary.next_steps.append(
-                "Install Codex separately later if you want a primary autorun path in addition to OpenCode."
+                "Install Codex separately later if you want it at the front of the rescue chain."
             )
         elif codex and not codex.get("configured_available", False) and codex.get("detected_binary"):
             warnings.append("Codex was detected on PATH but WATCHDOG_CODEX_BIN does not currently resolve")
             bootstrap_summary.next_steps.append(
-                "Update WATCHDOG_CODEX_BIN if you want watchdog autorun to use the detected Codex binary."
+                "Update WATCHDOG_CODEX_BIN if you want the rescue chain to use the detected Codex binary."
             )
-
-    def openclaw_confirmation_summary(self, opencode_payload: dict[str, Any]) -> str:
-        summary = "OpenClaw is not installed; rerun with --install-openclaw after setting OPENCLAW_INSTALL_COMMAND."
-        if self.dry_run and (opencode_payload.get("would_install") or opencode_payload.get("config", {}).get("changed")):
-            return f"{summary} OpenCode fallback changes are planned by dry-run."
-        if opencode_payload.get("status") in {"ready", "planned"}:
-            return f"{summary} OpenCode fallback is ready."
-        return summary
 
     def run_shell(self, command: str, *, timeout: int | None = None) -> ShellResult:
         try:
@@ -200,8 +191,33 @@ class Bootstrapper:
             ),
         )
 
-    def detect_openclaw(self) -> tuple[bool, str, ShellResult]:
+    def _detect_openclaw_binary(self) -> tuple[bool, str, ShellResult]:
         return self.detect_binary("openclaw")
+
+    def detect_openclaw(self) -> dict[str, Any]:
+        available, detected_binary, detect_result = self._detect_openclaw_binary()
+        return {
+            "available": available,
+            "binary": detected_binary,
+            "detect_returncode": detect_result.returncode,
+        }
+
+    def detect_first_available(self, *candidates: str) -> dict[str, Any]:
+        for candidate in candidates:
+            available, detected_binary, detect_result = self.detect_binary(candidate)
+            if available:
+                return {
+                    "available": True,
+                    "detected_binary": detected_binary,
+                    "detect_returncode": detect_result.returncode,
+                }
+        candidate = next((item for item in candidates if item), "")
+        _, _, detect_result = self.detect_binary(candidate) if candidate else (False, "", ShellResult(command="", returncode=1, stdout="", stderr="empty candidate"))
+        return {
+            "available": False,
+            "detected_binary": "",
+            "detect_returncode": detect_result.returncode,
+        }
 
     def detect_codex(self) -> dict[str, Any]:
         configured_available, configured_binary, configured_result = self.detect_binary(self.config.watchdog_codex_bin)
@@ -219,94 +235,136 @@ class Bootstrapper:
             "detected_binary": detected_binary,
         }
 
-    def ensure_opencode(self) -> dict[str, Any]:
+    def detect_claude_code(self) -> dict[str, Any]:
+        return self.detect_first_available("claude", "claude-code")
+
+    def detect_gemini_cli(self) -> dict[str, Any]:
+        return self.detect_first_available("gemini", "gemini-cli")
+
+    def detect_litellm(self) -> dict[str, Any]:
+        enabled = bool(getattr(self.config, "watchdog_litellm_enabled", False))
+        model = str(getattr(self.config, "watchdog_litellm_model", "") or "")
+        api_base = str(getattr(self.config, "watchdog_litellm_api_base", "") or "")
+        configured = enabled and bool(model)
+        return {
+            "available": configured,
+            "enabled": enabled,
+            "configured": configured,
+            "model": model,
+            "api_base": api_base,
+        }
+
+    def populate_opencode_watchdog_status(self, payload: dict[str, Any]) -> None:
+        watchdog_bin = str(getattr(self.config, 'watchdog_opencode_fallback_bin', 'opencode') or 'opencode').strip() or 'opencode'
+        payload['watchdog_bin'] = watchdog_bin
+        available, detected_binary, _ = self.detect_binary(watchdog_bin)
+        payload['watchdog_bin_available'] = available
+        payload['watchdog_binary'] = detected_binary
+
+    def inspect_opencode_config(self) -> dict[str, Any]:
+        path = self.config.opencode_bootstrap_config_path.expanduser()
+        payload: dict[str, Any] = {
+            "path": str(path),
+            "exists": path.exists(),
+            "configured_model": "",
+            "desired_model": self.config.opencode_bootstrap_model,
+            "ready": False,
+        }
+        if not path.exists():
+            return payload
+        try:
+            current = self.load_json_object(path, label="existing OpenCode config", allow_jsonc=True)
+        except BootstrapError as exc:
+            payload["error"] = str(exc)
+            return payload
+        configured_model = str(current.get("model", "") or "")
+        payload["configured_model"] = configured_model
+        payload["ready"] = bool(configured_model)
+        return payload
+
+    def detect_opencode(self) -> dict[str, Any]:
         installed, detected_path, detect_result = self.detect_binary("opencode")
         payload: dict[str, Any] = {
-            "status": "ready",
-            "changed": False,
-            "installed": installed,
-            "binary": detected_path,
-            "install_attempted": False,
-            "install_returncode": 0,
-            "would_install": False,
-            "install_command": self.config.opencode_install_command,
-            "desired_model": self.config.opencode_bootstrap_model,
+            "available": installed,
+            "detected_binary": detected_path,
             "detect_returncode": detect_result.returncode,
-            "config": {},
             "watchdog_bin": self.config.watchdog_opencode_fallback_bin,
             "watchdog_bin_available": False,
             "watchdog_binary": "",
+            "config": self.inspect_opencode_config(),
+            "config_ready": False,
         }
-
-        effective_installed = installed
-        if not installed:
-            install_command = self.config.opencode_install_command.strip()
-            if not install_command:
-                payload["status"] = "failed"
-                payload["summary"] = "OpenCode is missing and OPENCODE_INSTALL_COMMAND is empty."
-                self.populate_opencode_watchdog_status(payload)
-                return payload
-            payload["install_attempted"] = True
-            if self.dry_run:
-                payload["would_install"] = True
-                payload["changed"] = True
-                effective_installed = True
-            else:
-                result = self.run_shell(install_command, timeout=self.config.openclaw_bootstrap_timeout_seconds)
-                payload["install_returncode"] = result.returncode
-                payload["install_stdout"] = result.stdout.strip()
-                payload["install_stderr"] = result.stderr.strip()
-                detected, detected_path, _ = self.detect_binary("opencode")
-                payload["installed"] = detected
-                payload["binary"] = detected_path
-                payload["changed"] = detected and result.returncode == 0
-                effective_installed = detected
-                if not detected:
-                    payload["status"] = "failed"
-                    payload["summary"] = "OpenCode install command finished but opencode is still not on PATH."
-                    payload["config"] = {
-                        "path": str(self.config.opencode_bootstrap_config_path),
-                        "status": "blocked",
-                        "changed": False,
-                        "backup_path": "",
-                        "created": False,
-                        "desired_model": self.config.opencode_bootstrap_model,
-                        "configured_model": "",
-                        "previous_model": "",
-                    }
-                    self.populate_opencode_watchdog_status(payload)
-                    return payload
-
-        config_payload = self.ensure_opencode_config()
-        payload["config"] = config_payload
-        payload["changed"] = bool(payload["changed"] or config_payload.get("changed"))
         self.populate_opencode_watchdog_status(payload)
-
-        if config_payload.get("status") == "failed":
-            payload["status"] = "failed"
-            payload["summary"] = config_payload.get("error", "OpenCode config update failed.")
-            return payload
-
-        if not effective_installed:
-            payload["status"] = "failed"
-            payload["summary"] = "OpenCode is still unavailable after bootstrap."
-            return payload
-
-        if self.dry_run and (payload.get("would_install") or config_payload.get("changed")):
-            payload["status"] = "planned"
-            payload["summary"] = "OpenCode install/config changes are planned by dry-run."
-            return payload
-
-        if payload["changed"]:
-            payload["summary"] = "OpenCode is installed and configured with the desired free fallback model."
-        else:
-            payload["summary"] = "OpenCode is already installed and configured with the desired free fallback model."
+        payload["config_ready"] = bool(payload["config"].get("ready", False)) if isinstance(payload.get("config"), dict) else False
         return payload
 
-    def populate_opencode_watchdog_status(self, payload: dict[str, Any]) -> None:
-        watchdog_available, watchdog_binary, _ = self.detect_binary(self.config.watchdog_opencode_fallback_bin)
-        payload["watchdog_bin_available"] = watchdog_available
-        payload["watchdog_binary"] = watchdog_binary
+    def inspect_qq_plugin(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "status": "ready",
+            "installed": False,
+            "detect_returncode": 0,
+            "detect_output": "",
+        }
+        list_result = self.run_shell("openclaw plugins list", timeout=60)
+        output = list_result.output.lower()
+        installed = list_result.returncode == 0 and ("@sliverp/qqbot" in output or "qqbot" in output)
+        payload["installed"] = installed
+        payload["detect_returncode"] = list_result.returncode
+        payload["detect_output"] = list_result.output.strip()
+        if not installed:
+            payload["status"] = "missing"
+        return payload
+
+    def inspect_default_channel_config(self) -> dict[str, Any]:
+        path = self.config.openclaw_config
+        payload: dict[str, Any] = {
+            "status": "ready",
+            "path": str(path),
+            "exists_before": path.exists(),
+            "changed": False,
+            "backup_path": "",
+            "created": False,
+            "placeholders_remaining": [],
+            "channels": {},
+        }
+        if not path.exists():
+            payload["status"] = "missing"
+            return payload
+        try:
+            current = self.load_json_object(path, label="existing OpenClaw config", allow_jsonc=False)
+        except BootstrapError as exc:
+            payload["status"] = "failed"
+            payload["error"] = str(exc)
+            return payload
+
+        channels = current.get("channels") if isinstance(current.get("channels"), dict) else {}
+        qqbot = channels.get("qqbot") if isinstance(channels.get("qqbot"), dict) else {}
+        feishu = channels.get("feishu") if isinstance(channels.get("feishu"), dict) else {}
+        placeholders: list[str] = []
+        qq_app_id = str(qqbot.get("appId", "") or "")
+        qq_secret = str(qqbot.get("clientSecret", "") or "")
+        if not qq_app_id or qq_app_id == QQBOT_APP_ID_PLACEHOLDER:
+            placeholders.append("qqbot.appid")
+        if not qq_secret or qq_secret == QQBOT_CLIENT_SECRET_PLACEHOLDER:
+            placeholders.append("qqbot.clientSecret")
+
+        feishu_payload = feishu
+        if not any(key in feishu for key in ("appId", "appSecret")):
+            accounts = feishu.get("accounts") if isinstance(feishu.get("accounts"), dict) else {}
+            feishu_payload = accounts.get("main") if isinstance(accounts.get("main"), dict) else {}
+        feishu_app_id = str(feishu_payload.get("appId", "") or "")
+        feishu_secret = str(feishu_payload.get("appSecret", "") or "")
+        if not feishu_app_id or feishu_app_id == FEISHU_APP_ID_PLACEHOLDER:
+            placeholders.append("feishu.appId")
+        if not feishu_secret or feishu_secret == FEISHU_APP_SECRET_PLACEHOLDER:
+            placeholders.append("feishu.appSecret")
+
+        payload["placeholders_remaining"] = placeholders
+        payload["channels"] = {
+            "qqbot": {"enabled": bool(qqbot.get("enabled", False))},
+            "feishu": {"enabled": bool(feishu.get("enabled", False))},
+        }
+        return payload
 
     def ensure_opencode_config(self) -> dict[str, Any]:
         path = self.config.opencode_bootstrap_config_path.expanduser()
@@ -509,39 +567,6 @@ class Bootstrapper:
             index += 1
 
         return "".join(output)
-
-    def ensure_openclaw(self, installed: bool) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "changed": False,
-            "install_attempted": False,
-            "install_returncode": 0,
-            "would_install": False,
-        }
-        if installed:
-            payload["summary"] = "OpenClaw already installed."
-            return payload
-        install_command = self.config.openclaw_install_command.strip()
-        if not install_command:
-            payload["summary"] = "OpenClaw is missing and OPENCLAW_INSTALL_COMMAND is not configured."
-            payload["install_returncode"] = 2
-            return payload
-        payload["install_attempted"] = True
-        payload["install_command"] = install_command
-        if self.dry_run:
-            payload["would_install"] = True
-            payload["changed"] = True
-            payload["summary"] = "OpenClaw install is planned by dry-run."
-            return payload
-        result = self.run_shell(install_command, timeout=self.config.openclaw_bootstrap_timeout_seconds)
-        payload["install_returncode"] = result.returncode
-        payload["install_stdout"] = result.stdout.strip()
-        payload["install_stderr"] = result.stderr.strip()
-        detected, detected_path, _ = self.detect_openclaw()
-        payload["installed"] = detected
-        payload["binary"] = detected_path
-        payload["changed"] = detected and result.returncode == 0
-        payload["summary"] = "OpenClaw install command completed successfully." if detected else "OpenClaw install command finished but openclaw is still not on PATH."
-        return payload
 
     def ensure_qq_plugin(self) -> dict[str, Any]:
         payload: dict[str, Any] = {

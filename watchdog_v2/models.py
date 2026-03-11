@@ -85,6 +85,19 @@ class RunStateSnapshot:
     last_recovery_path: str = 'none'
     last_recovery_action_count: int = 0
     last_recovery_restored_conversation: bool = False
+    rescue_attempt_count: int = 0
+    rescue_executor_selected: str = ''
+    rescue_plan_generated: bool = False
+    rescue_plan_source: str = ''
+    rescue_plan_id: str = ''
+    rescue_plan_status: str = 'not-run'
+    rescue_tier: str = 'none'
+    case_ingest_result: str = 'not-run'
+    candidate_rule_status: str = 'none'
+    rescue_attempt_order: list[str] = field(default_factory=list)
+    rescue_rejected_executors: list[str] = field(default_factory=list)
+    rescue_learning_summary: str = 'not-run / none'
+    rescue_mutation_scope: list[str] = field(default_factory=list)
     last_good_validated_at: str = ''
     last_good_generation_id: str = ''
     last_good_generation_count: int = 0
@@ -117,6 +130,19 @@ class RunStateSnapshot:
             last_recovery_path=_as_str(raw.get('last_recovery_path', 'none'), 'none') or 'none',
             last_recovery_action_count=_as_int(raw.get('last_recovery_action_count', 0)),
             last_recovery_restored_conversation=_as_bool(raw.get('last_recovery_restored_conversation', False)),
+            rescue_attempt_count=_as_int(raw.get('rescue_attempt_count', 0)),
+            rescue_executor_selected=_as_str(raw.get('rescue_executor_selected', ''), ''),
+            rescue_plan_generated=_as_bool(raw.get('rescue_plan_generated', False)),
+            rescue_plan_source=_as_str(raw.get('rescue_plan_source', ''), ''),
+            rescue_plan_id=_as_str(raw.get('rescue_plan_id', ''), ''),
+            rescue_plan_status=_as_str(raw.get('rescue_plan_status', 'not-run'), 'not-run') or 'not-run',
+            rescue_tier=_as_str(raw.get('rescue_tier', 'none'), 'none') or 'none',
+            case_ingest_result=_as_str(raw.get('case_ingest_result', 'not-run'), 'not-run') or 'not-run',
+            candidate_rule_status=_as_str(raw.get('candidate_rule_status', 'none'), 'none') or 'none',
+            rescue_attempt_order=_as_str_list(raw.get('rescue_attempt_order', [])),
+            rescue_rejected_executors=_as_str_list(raw.get('rescue_rejected_executors', [])),
+            rescue_learning_summary=_as_str(raw.get('rescue_learning_summary', 'not-run / none'), 'not-run / none') or 'not-run / none',
+            rescue_mutation_scope=_as_str_list(raw.get('rescue_mutation_scope', [])),
             last_good_validated_at=_as_str(raw.get('last_good_validated_at', ''), ''),
             last_good_generation_id=_as_str(raw.get('last_good_generation_id', ''), ''),
             last_good_generation_count=_as_int(raw.get('last_good_generation_count', 0)),
@@ -149,6 +175,19 @@ class RunStateSnapshot:
             'last_recovery_path': self.last_recovery_path,
             'last_recovery_action_count': self.last_recovery_action_count,
             'last_recovery_restored_conversation': self.last_recovery_restored_conversation,
+            'rescue_attempt_count': self.rescue_attempt_count,
+            'rescue_executor_selected': self.rescue_executor_selected,
+            'rescue_plan_generated': self.rescue_plan_generated,
+            'rescue_plan_source': self.rescue_plan_source,
+            'rescue_plan_id': self.rescue_plan_id,
+            'rescue_plan_status': self.rescue_plan_status,
+            'rescue_tier': self.rescue_tier,
+            'case_ingest_result': self.case_ingest_result,
+            'candidate_rule_status': self.candidate_rule_status,
+            'rescue_attempt_order': list(self.rescue_attempt_order),
+            'rescue_rejected_executors': list(self.rescue_rejected_executors),
+            'rescue_learning_summary': self.rescue_learning_summary,
+            'rescue_mutation_scope': list(self.rescue_mutation_scope),
             'last_good_validated_at': self.last_good_validated_at,
             'last_good_generation_id': self.last_good_generation_id,
             'last_good_generation_count': self.last_good_generation_count,
@@ -235,16 +274,18 @@ class BootstrapSummary:
     default_channels: list[str] = field(default_factory=lambda: ['qqbot', 'feishu'])
     flow: list[str] = field(
         default_factory=lambda: [
-            'ensure-opencode',
-            'ensure-opencode-free-model',
+            'detect-opencode',
             'detect-codex',
+            'detect-claude-code',
+            'detect-gemini-cli',
+            'detect-litellm',
             'detect-openclaw',
-            'ensure-openclaw-if-confirmed',
-            'ensure-qq-plugin',
-            'ensure-openclaw-channel-config',
+            'inspect-qq-plugin',
+            'inspect-openclaw-channel-config',
             'scan-feishu-runtime-markers',
         ]
     )
+    executors: dict[str, Any] = field(default_factory=dict)
     opencode: dict[str, Any] = field(default_factory=lambda: {'config': {}})
     codex: dict[str, Any] = field(default_factory=dict)
     openclaw: dict[str, Any] = field(default_factory=dict)
@@ -260,6 +301,7 @@ class BootstrapSummary:
     def initial(cls, *, config_path: str, dry_run: bool) -> 'BootstrapSummary':
         return cls(
             dry_run=dry_run,
+            executors={},
             opencode={'config': {}},
             qq_plugin={'package': '@sliverp/qqbot@latest', 'command': 'openclaw plugins install @sliverp/qqbot@latest'},
             config={'path': config_path},
@@ -275,6 +317,7 @@ class BootstrapSummary:
             dry_run=_as_bool(raw.get('dry_run', False)),
             default_channels=_as_str_list(raw.get('default_channels', ['qqbot', 'feishu'])) or ['qqbot', 'feishu'],
             flow=_as_str_list(raw.get('flow', [])) or cls().flow,
+            executors=dict(raw.get('executors', {})) if isinstance(raw.get('executors', {}), dict) else {},
             opencode=dict(raw.get('opencode', {})) if isinstance(raw.get('opencode', {}), dict) else {'config': {}},
             codex=dict(raw.get('codex', {})) if isinstance(raw.get('codex', {}), dict) else {},
             openclaw=dict(raw.get('openclaw', {})) if isinstance(raw.get('openclaw', {}), dict) else {},
@@ -295,6 +338,7 @@ class BootstrapSummary:
             'dry_run': self.dry_run,
             'default_channels': list(self.default_channels),
             'flow': list(self.flow),
+            'executors': dict(self.executors),
             'opencode': dict(self.opencode),
             'codex': dict(self.codex),
             'openclaw': dict(self.openclaw),

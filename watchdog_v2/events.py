@@ -44,11 +44,7 @@ def build_event_payload(
     consecutive_failures: int,
     incident_id: str,
     incident_dir: str,
-    codex_context: dict[str, object] | None = None,
-    opencode_fallback_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    codex_payload = dict(codex_context or {})
-    opencode_payload = dict(opencode_fallback_context or {})
     health_level = str(run_state.get('health_level', 'unknown') or 'unknown')
     return {
         'status': status,
@@ -77,28 +73,10 @@ def build_event_payload(
         'config_drift_detected': bool(run_state.get('config_drift_detected', False)),
         'incident_id': incident_id,
         'incident_dir': incident_dir,
-        'codex': {
-            'prompt_file': str(codex_payload.get('prompt_file', '') or ''),
-            'handoff_file': str(codex_payload.get('handoff_file', '') or ''),
-            'runner_file': str(codex_payload.get('runner_file', '') or ''),
-            'run_log_file': str(codex_payload.get('run_log_file', '') or ''),
-            'run_pid': str(codex_payload.get('run_pid', '') or ''),
-            'trigger_result': str(codex_payload.get('trigger_result', '') or ''),
-            'autorun_ready': bool(codex_payload.get('autorun_ready', False)),
-        },
-        'opencode_fallback': {
-            'handoff_file': str(opencode_payload.get('handoff_file', '') or ''),
-            'runner_file': str(opencode_payload.get('runner_file', '') or ''),
-            'run_log_file': str(opencode_payload.get('run_log_file', '') or ''),
-            'run_pid': str(opencode_payload.get('run_pid', '') or ''),
-            'trigger_result': str(opencode_payload.get('trigger_result', '') or ''),
-        },
     }
 
 
 def render_event_text(event_payload: dict[str, object]) -> str:
-    codex_payload = event_payload.get('codex', {}) if isinstance(event_payload.get('codex', {}), dict) else {}
-    opencode_payload = event_payload.get('opencode_fallback', {}) if isinstance(event_payload.get('opencode_fallback', {}), dict) else {}
     return textwrap.dedent(
         f"""\
         status={event_payload.get('status', '')}
@@ -112,17 +90,5 @@ def render_event_text(event_payload: dict[str, object]) -> str:
         consecutive_failures={int(event_payload.get('consecutive_failures', 0) or 0)}
         incident_id={event_payload.get('incident_id', '')}
         incident_dir={event_payload.get('incident_dir', '')}
-        codex_prompt_file={codex_payload.get('prompt_file', '')}
-        codex_handoff_file={codex_payload.get('handoff_file', '')}
-        codex_runner_file={codex_payload.get('runner_file', '')}
-        codex_run_log_file={codex_payload.get('run_log_file', '')}
-        codex_run_pid={codex_payload.get('run_pid', '')}
-        codex_trigger_result={codex_payload.get('trigger_result', '')}
-        codex_autorun_ready={'true' if bool(codex_payload.get('autorun_ready', False)) else 'false'}
-        opencode_fallback_handoff_file={opencode_payload.get('handoff_file', '')}
-        opencode_fallback_runner_file={opencode_payload.get('runner_file', '')}
-        opencode_fallback_run_log_file={opencode_payload.get('run_log_file', '')}
-        opencode_fallback_run_pid={opencode_payload.get('run_pid', '')}
-        opencode_fallback_trigger_result={opencode_payload.get('trigger_result', '')}
         """
     )

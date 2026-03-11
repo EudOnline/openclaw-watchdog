@@ -16,7 +16,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from watchdog_v2 import events as event_ops
-from watchdog_v2 import handoff as handoff_ops
 from watchdog_v2 import health as health_ops
 from watchdog_v2 import incident_context as incident_context_ops
 from watchdog_v2 import incidents as incident_ops
@@ -145,6 +144,19 @@ class WatchdogEngine:
         self.ctx.last_recovery_strategy = "none"
         self.ctx.last_recovery_action_count = 0
         self.ctx.last_recovery_restored_conversation = False
+        self.ctx.rescue_attempt_count = 0
+        self.ctx.rescue_executor_selected = ""
+        self.ctx.rescue_plan_generated = False
+        self.ctx.rescue_plan_source = ""
+        self.ctx.rescue_plan_id = ""
+        self.ctx.rescue_plan_status = "not-run"
+        self.ctx.rescue_tier = "none"
+        self.ctx.case_ingest_result = "not-run"
+        self.ctx.candidate_rule_status = "none"
+        self.ctx.rescue_attempt_order = []
+        self.ctx.rescue_rejected_executors = []
+        self.ctx.rescue_learning_summary = "not-run / none"
+        self.ctx.rescue_mutation_scope = []
         self.ctx.rollback_candidate_used = ""
         self.ctx.rollback_reason = ""
         self.ctx.config_drift_detected = False
@@ -187,38 +199,6 @@ class WatchdogEngine:
     def finalize_recovery_tracking(self, *, strategy: str, restored_conversation: bool) -> None:
         self.ctx.last_recovery_strategy = strategy or "none"
         self.ctx.last_recovery_restored_conversation = bool(restored_conversation)
-
-    def write_codex_trigger_status(self, file_path: Path, final_result: str, detail: str) -> None:
-        file_path.write_text(
-            textwrap.dedent(
-                f"""\
-                primary=codex
-                fallback=opencode
-                final_result={final_result}
-                detail={detail}
-                codex_bin={self.config.watchdog_codex_bin}
-                opencode_fallback_bin={self.config.watchdog_opencode_fallback_bin}
-                incident_id={self.ctx.incident_id}
-                incident_dir={self.ctx.incident_dir or ''}
-                """
-            ),
-            encoding="utf-8",
-        )
-
-    def write_opencode_fallback_status(self, file_path: Path, final_result: str, detail: str) -> None:
-        file_path.write_text(
-            textwrap.dedent(
-                f"""\
-                primary=opencode-fallback
-                final_result={final_result}
-                detail={detail}
-                opencode_fallback_bin={self.config.watchdog_opencode_fallback_bin}
-                incident_id={self.ctx.incident_id}
-                incident_dir={self.ctx.incident_dir or ''}
-                """
-            ),
-            encoding="utf-8",
-        )
 
     def read_failure_count(self) -> int:
         try:
@@ -263,7 +243,6 @@ class WatchdogEngine:
             "last_service_probe_result": "not-run",
             "last_service_probe_summary": "",
             "last_service_probe_rc": 0,
-            "cooldown_remaining_seconds": 0,
             "current_mode": "normal",
             "health_level": "unknown",
             "survival_mode_active": False,
@@ -294,6 +273,19 @@ class WatchdogEngine:
             "last_recovery_path": "none",
             "last_recovery_action_count": 0,
             "last_recovery_restored_conversation": False,
+            "rescue_attempt_count": 0,
+            "rescue_executor_selected": "",
+            "rescue_plan_generated": False,
+            "rescue_plan_source": "",
+            "rescue_plan_id": "",
+            "rescue_plan_status": "not-run",
+            "rescue_tier": "none",
+            "case_ingest_result": "not-run",
+            "candidate_rule_status": "none",
+            "rescue_attempt_order": [],
+            "rescue_rejected_executors": [],
+            "rescue_learning_summary": "not-run / none",
+            "rescue_mutation_scope": [],
             "last_good_validated_at": "",
             "last_good_generation_id": "",
             "last_good_generation_count": 0,
@@ -305,8 +297,6 @@ class WatchdogEngine:
             "guard_last_phase": "",
             "guard_last_time": "",
             "guard_last_summary": "",
-            "autorun_primary": "codex",
-            "autorun_fallback": "opencode",
             "current_incident_id": "",
             "current_incident_state": "",
             "current_incident_age_seconds": 0,
@@ -326,26 +316,13 @@ class WatchdogEngine:
         self.run_state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return state
 
-    def codex_cooldown_remaining(self) -> int:
-        cooldown = self.config.watchdog_codex_cooldown_seconds
-        if cooldown <= 0:
-            return 0
-        try:
-            last_trigger = int(self.config.watchdog_codex_last_trigger_file.read_text(encoding="utf-8").strip())
-        except (FileNotFoundError, ValueError):
-            return 0
-        return max(0, cooldown - (int(time.time()) - last_trigger))
-
     def current_mode(self, *, maintenance: bool, degraded: bool = False, survival: bool = False) -> str:
         if maintenance:
             return "maintenance"
         if survival:
             return "survival"
-        cooldown_remaining = self.codex_cooldown_remaining()
         if degraded:
             return "degraded"
-        if cooldown_remaining > 0:
-            return "cooldown"
         return "normal"
 
     def incident_state_file(self, incident_dir: Path) -> Path:
@@ -578,8 +555,6 @@ class WatchdogEngine:
             f"rollback_reason={self.ctx.rollback_reason or 'none'}",
             f"last_recovery_strategy={self.ctx.last_recovery_strategy}",
             f"last_recovery_path={self.recovery_path_text()}",
-            f"codex_trigger_result={self.ctx.codex_trigger_result}",
-            f"opencode_fallback_trigger_result={self.ctx.opencode_fallback_trigger_result}",
         ]
         return "\n".join(lines) + "\n"
 
@@ -594,8 +569,6 @@ class WatchdogEngine:
         pre_repair_backup_result: str | None = None,
         rollback_occurred: bool | None = None,
         rollback_summary_archive_file: str | None = None,
-        codex_trigger_result: str | None = None,
-        opencode_fallback_trigger_result: str | None = None,
         incident_id: str | None = None,
         incident_dir: Path | None = None,
     ) -> dict[str, object]:
@@ -622,8 +595,6 @@ class WatchdogEngine:
             rollback_reason=self.ctx.rollback_reason,
             last_recovery_strategy=self.ctx.last_recovery_strategy,
             last_recovery_path=self.recovery_path_text(),
-            codex_trigger_result=codex_trigger_result or self.ctx.codex_trigger_result,
-            opencode_fallback_trigger_result=opencode_fallback_trigger_result or self.ctx.opencode_fallback_trigger_result,
         )
 
     def update_incident_index(
@@ -637,8 +608,6 @@ class WatchdogEngine:
         pre_repair_backup_result: str | None = None,
         rollback_occurred: bool | None = None,
         rollback_summary_archive_file: str | None = None,
-        codex_trigger_result: str | None = None,
-        opencode_fallback_trigger_result: str | None = None,
         incident_id: str | None = None,
         incident_dir: Path | None = None,
     ) -> None:
@@ -661,8 +630,6 @@ class WatchdogEngine:
             pre_repair_backup_result=pre_repair_backup_result,
             rollback_occurred=rollback_occurred,
             rollback_summary_archive_file=rollback_summary_archive_file,
-            codex_trigger_result=codex_trigger_result,
-            opencode_fallback_trigger_result=opencode_fallback_trigger_result,
             incident_id=target_incident_id,
             incident_dir=incident_dir,
         )
@@ -709,11 +676,6 @@ class WatchdogEngine:
             pre_repair_backup_result=str(existing_index_payload.get("pre_repair_backup_result", self.ctx.pre_repair_backup_result) or self.ctx.pre_repair_backup_result),
             rollback_occurred=bool(existing_index_payload.get("rollback_occurred", self.ctx.rollback_occurred)),
             rollback_summary_archive_file=str(existing_index_payload.get("rollback_summary_archive_file", self.ctx.rollback_summary_archive_file) or self.ctx.rollback_summary_archive_file),
-            codex_trigger_result=str(existing_index_payload.get("codex_trigger_result", self.ctx.codex_trigger_result) or self.ctx.codex_trigger_result),
-            opencode_fallback_trigger_result=str(
-                existing_index_payload.get("opencode_fallback_trigger_result", self.ctx.opencode_fallback_trigger_result)
-                or self.ctx.opencode_fallback_trigger_result
-            ),
         )
 
     def refresh_incident_index_for(self, incident_id: str, *, summary: str | None = None, health_level: str | None = None) -> None:
@@ -816,14 +778,6 @@ class WatchdogEngine:
         self.ctx.incident_id = incident_id
         self.ctx.incident_dir = incident_dir
         self.current_incident_marker.write_text(f"{incident_id}\n", encoding="utf-8")
-        self.ctx.codex_prompt_file = self.ctx.incident_dir / "codex-prompt.md"
-        self.ctx.codex_handoff_file = self.ctx.incident_dir / "run-codex.sh"
-        self.ctx.codex_runner_file = self.ctx.incident_dir / "codex-runner.sh"
-        self.ctx.codex_run_log_file = self.ctx.incident_dir / "codex-run.log"
-        self.ctx.codex_autorun_ready = self.ctx.codex_handoff_file.exists()
-        self.ctx.opencode_fallback_handoff_file = self.ctx.incident_dir / "run-opencode-fallback.sh"
-        self.ctx.opencode_fallback_runner_file = self.ctx.incident_dir / "opencode-fallback-runner.sh"
-        self.ctx.opencode_fallback_run_log_file = self.ctx.incident_dir / "opencode-fallback.log"
         return True
 
     def attach_current_incident_if_any(self) -> bool:
@@ -838,18 +792,6 @@ class WatchdogEngine:
         self.current_incident_marker.unlink(missing_ok=True)
         self.ctx.incident_id = ""
         self.ctx.incident_dir = None
-        self.ctx.codex_prompt_file = None
-        self.ctx.codex_handoff_file = None
-        self.ctx.codex_runner_file = None
-        self.ctx.codex_run_log_file = None
-        self.ctx.codex_run_pid = ""
-        self.ctx.codex_trigger_result = "not-run"
-        self.ctx.codex_autorun_ready = False
-        self.ctx.opencode_fallback_handoff_file = None
-        self.ctx.opencode_fallback_runner_file = None
-        self.ctx.opencode_fallback_run_log_file = None
-        self.ctx.opencode_fallback_run_pid = ""
-        self.ctx.opencode_fallback_trigger_result = "not-run"
 
     def sibling_json_path(self, path: Path) -> Path:
         if path.suffix:
@@ -871,22 +813,6 @@ class WatchdogEngine:
             consecutive_failures=self.ctx.consecutive_failures,
             incident_id=self.ctx.incident_id,
             incident_dir=str(self.ctx.incident_dir) if self.ctx.incident_dir else '',
-            codex_context={
-                'prompt_file': str(self.ctx.codex_prompt_file) if self.ctx.codex_prompt_file else '',
-                'handoff_file': str(self.ctx.codex_handoff_file) if self.ctx.codex_handoff_file else '',
-                'runner_file': str(self.ctx.codex_runner_file) if self.ctx.codex_runner_file else '',
-                'run_log_file': str(self.ctx.codex_run_log_file) if self.ctx.codex_run_log_file else '',
-                'run_pid': self.ctx.codex_run_pid,
-                'trigger_result': self.ctx.codex_trigger_result,
-                'autorun_ready': self.ctx.codex_autorun_ready,
-            },
-            opencode_fallback_context={
-                'handoff_file': str(self.ctx.opencode_fallback_handoff_file) if self.ctx.opencode_fallback_handoff_file else '',
-                'runner_file': str(self.ctx.opencode_fallback_runner_file) if self.ctx.opencode_fallback_runner_file else '',
-                'run_log_file': str(self.ctx.opencode_fallback_run_log_file) if self.ctx.opencode_fallback_run_log_file else '',
-                'run_pid': self.ctx.opencode_fallback_run_pid,
-                'trigger_result': self.ctx.opencode_fallback_trigger_result,
-            },
         )
         self.config.watchdog_event_file.write_text(event_ops.render_event_text(event_payload), encoding='utf-8')
         self.sibling_json_path(self.config.watchdog_event_file).write_text(
@@ -923,6 +849,19 @@ class WatchdogEngine:
             "last_recovery_path": self.recovery_path_text(),
             "last_recovery_action_count": self.ctx.last_recovery_action_count,
             "last_recovery_restored_conversation": self.ctx.last_recovery_restored_conversation,
+            "rescue_attempt_count": self.ctx.rescue_attempt_count,
+            "rescue_executor_selected": self.ctx.rescue_executor_selected,
+            "rescue_plan_generated": self.ctx.rescue_plan_generated,
+            "rescue_plan_source": self.ctx.rescue_plan_source,
+            "rescue_plan_id": self.ctx.rescue_plan_id,
+            "rescue_plan_status": self.ctx.rescue_plan_status,
+            "rescue_tier": self.ctx.rescue_tier,
+            "case_ingest_result": self.ctx.case_ingest_result,
+            "candidate_rule_status": self.ctx.candidate_rule_status,
+            "rescue_attempt_order": list(self.ctx.rescue_attempt_order),
+            "rescue_rejected_executors": list(self.ctx.rescue_rejected_executors),
+            "rescue_learning_summary": self.ctx.rescue_learning_summary,
+            "rescue_mutation_scope": list(self.ctx.rescue_mutation_scope),
             **survival_ops.run_state_fields(self),
             "last_good_validated_at": self.ctx.last_good_validated_at,
             "last_good_generation_id": self.ctx.last_good_generation_id,
@@ -930,7 +869,6 @@ class WatchdogEngine:
             "drift_scope": list(self.ctx.drift_scope),
             "drift_since_last_good": self.ctx.drift_since_last_good,
             "drift_summary": self.ctx.drift_summary,
-            "cooldown_remaining_seconds": self.codex_cooldown_remaining(),
             **guard_info,
         }
         if self.ctx.latest_probe:
@@ -1108,37 +1046,6 @@ class WatchdogEngine:
     def healthy_now(self) -> bool:
         return health_ops.healthy_now(self)
 
-    def prune_incident_archives(self) -> None:
-        handoff_ops.prune_incident_archives(self)
-
-    def ensure_incident_context(self) -> None:
-        handoff_ops.ensure_incident_context(self)
-
-    def copy_if_exists(self, src: Path, dest: Path) -> None:
-        handoff_ops.copy_if_exists(self, src, dest)
-
-    def render_codex_prompt(self, summary: str) -> None:
-        handoff_ops.render_codex_prompt(self, summary)
-
-    def pid_is_alive(self, pid: str) -> bool:
-        return handoff_ops.pid_is_alive(self, pid)
-
-    def trigger_opencode_fallback(self, reason: str) -> None:
-        handoff_ops.trigger_opencode_fallback(self, reason)
-
-    def trigger_codex_autorun(self) -> None:
-        handoff_ops.trigger_codex_autorun(self)
-
-    def collect_incident_bundle(
-        self,
-        summary: str,
-        doctor_output: str,
-        active: str,
-        main_pid: str,
-        listeners: str,
-    ) -> None:
-        handoff_ops.collect_incident_bundle(self, summary, doctor_output, active, main_pid, listeners)
-
     def run_doctor_repair(self) -> None:
         repair_ops.run_doctor_repair(self)
 
@@ -1186,10 +1093,309 @@ class WatchdogEngine:
         self.log("INFO", f"maintenance mode disabled file={self.config.watchdog_maintenance_file}")
         return self.maintenance_status_payload()
 
-    def _run_once_legacy(self) -> RunOutcome:
-        from watchdog_v2.flows import legacy_run
+    def _rescue_failure_signature(self, probe: dict[str, object]) -> str:
+        if bool(probe.get("config_invalid", False)):
+            return "config-invalid"
+        if not bool(probe.get("process_layer_healthy", False)):
+            return "process-down"
+        if bool(probe.get("service_layer_healthy", True)) and not bool(probe.get("minimal_usable_ready", False)):
+            return "conversation-down"
+        if not bool(probe.get("service_layer_healthy", True)):
+            return "service-layer-degraded"
+        return "unknown-failure"
 
-        return legacy_run.run(self, self.ctx)
+    def _rescue_available_executors(self) -> tuple[str, ...]:
+        priority = list(getattr(self.config, "watchdog_rescue_executor_priority", [])) or [
+            "codex",
+            "claude-code",
+            "gemini-cli",
+            "opencode",
+            "litellm",
+            "rule-agent",
+        ]
+        available: list[str] = []
+        command_map = {
+            "codex": ("codex",),
+            "claude-code": ("claude", "claude-code"),
+            "gemini-cli": ("gemini", "gemini-cli"),
+            "opencode": ("opencode",),
+        }
+        for name in priority:
+            if name == "rule-agent":
+                available.append(name)
+                continue
+            if name == "litellm":
+                litellm_enabled = bool(getattr(self.config, "watchdog_litellm_enabled", False))
+                litellm_model = str(getattr(self.config, "watchdog_litellm_model", "") or "")
+                if litellm_enabled and litellm_model:
+                    available.append(name)
+                continue
+            for command in command_map.get(name, (name,)):
+                if shutil.which(command):
+                    available.append(name)
+                    break
+        if "rule-agent" not in available:
+            available.append("rule-agent")
+        return tuple(available)
+
+    def _rescue_command(self, name: str) -> str:
+        if name == "codex":
+            configured = str(getattr(self.config, "watchdog_codex_bin", "codex") or "codex")
+            return configured if shutil.which(configured) else "codex"
+        if name == "opencode":
+            configured = str(getattr(self.config, "watchdog_opencode_fallback_bin", "opencode") or "opencode")
+            return configured if shutil.which(configured) else "opencode"
+        candidates = {
+            "claude-code": ("claude", "claude-code"),
+            "gemini-cli": ("gemini", "gemini-cli"),
+        }
+        for candidate in candidates.get(name, (name,)):
+            if shutil.which(candidate):
+                return candidate
+        return name
+
+
+    def build_rescue_context(self, probe: dict[str, object]):
+        from watchdog_v2.learning import LearningStore
+        from watchdog_v2.rescue_models import RescueContext
+
+        failure_signature = self._rescue_failure_signature(probe)
+        store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
+        recent_cases = [
+            {
+                'case_id': str(case.get('case_id', '') or ''),
+                'executor': str(case.get('executor', '') or ''),
+                'strategy': str(case.get('strategy', '') or ''),
+                'status': str(case.get('status', '') or ''),
+            }
+            for case in store.similar_cases({'failure_signature': failure_signature})[-3:]
+        ]
+        known_rules = [
+            {
+                'rule_id': str(rule.get('rule_id', '') or ''),
+                'match': dict(rule.get('match', {})) if isinstance(rule.get('match', {}), dict) else {},
+                'diagnosis': str(rule.get('diagnosis', '') or ''),
+            }
+            for rule in store.load_rules()[-5:]
+        ]
+        metadata = {
+            "config_invalid": bool(probe.get("config_invalid", False)),
+            "failure_signature": failure_signature,
+            "conversation_status": str(probe.get("conversation_status", "down") or "down"),
+            "process_layer_healthy": bool(probe.get("process_layer_healthy", False)),
+            "service_layer_healthy": bool(probe.get("service_layer_healthy", False)),
+            "minimal_usable_ready": bool(probe.get("minimal_usable_ready", False)),
+            "service_active": bool(probe.get("service_active", False)),
+            "recent_cases": recent_cases,
+            "known_rules": known_rules,
+        }
+        incident_id = self.ctx.incident_id or f"incident-{datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}"
+        self.ctx.incident_id = incident_id
+        return RescueContext(
+            incident_id=incident_id,
+            health_level=str(self.read_run_state().get("health_level", "failed") or "failed"),
+            conversation_status=str(probe.get("conversation_status", "down") or "down"),
+            available_executors=self._rescue_available_executors(),
+            editable_paths=tuple(str(item) for item in getattr(self.config, "watchdog_rescue_editable_paths", [])),
+            editable_keys=tuple(str(item) for item in getattr(self.config, "watchdog_rescue_editable_keys", [])),
+            probe=dict(probe),
+            metadata=metadata,
+        )
+
+    def _build_litellm_client(self):
+        if not bool(getattr(self.config, "watchdog_litellm_enabled", False)):
+            return None
+        model = str(getattr(self.config, "watchdog_litellm_model", "") or "")
+        if not model:
+            return None
+        try:
+            import litellm  # type: ignore
+        except ImportError:
+            return None
+
+        engine = self
+        config = self.config
+
+        class _LiteLLMClient:
+            def generate_plan(self, payload: dict[str, object]) -> dict[str, object]:
+                api_key_env = str(getattr(config, "watchdog_litellm_api_key_env", "") or "")
+                api_key = os.environ.get(api_key_env, "") if api_key_env else ""
+                response = litellm.completion(
+                    model=model,
+                    api_base=str(getattr(config, "watchdog_litellm_api_base", "") or "") or None,
+                    api_key=api_key or None,
+                    timeout=int(getattr(config, "watchdog_litellm_timeout_seconds", 60) or 60),
+                    temperature=0,
+                    response_format={"type": "json_object"},
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are the OpenClaw rescue planner. Return JSON only with plan_id, diagnosis, actions, validations, rollback_strategy, risk_level, and rationale. "
+                                "Never emit shell commands or arbitrary execution."
+                            ),
+                        },
+                        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+                    ],
+                )
+                content = ""
+                choices = getattr(response, "choices", None)
+                if choices:
+                    first = choices[0]
+                    message = getattr(first, "message", None)
+                    content = getattr(message, "content", "") if message is not None else ""
+                elif isinstance(response, dict):
+                    try:
+                        content = response["choices"][0]["message"]["content"]
+                    except (KeyError, IndexError, TypeError):
+                        content = ""
+                if isinstance(content, list):
+                    content = "".join(str(item.get("text", "")) if isinstance(item, dict) else str(item) for item in content)
+                if not isinstance(content, str) or not content.strip():
+                    raise ValueError("LiteLLM did not return structured JSON content")
+                payload = json.loads(content)
+                if not isinstance(payload, dict):
+                    raise ValueError("LiteLLM response must be a JSON object")
+                return payload
+
+        return _LiteLLMClient()
+
+    def dispatch_rescue(self, context):
+        from watchdog_v2.learning import LearningStore
+        from watchdog_v2.rescue_agents.claude_code_adapter import ClaudeCodeAdapter
+        from watchdog_v2.rescue_agents.codex_adapter import CodexAdapter
+        from watchdog_v2.rescue_agents.gemini_cli_adapter import GeminiCliAdapter
+        from watchdog_v2.rescue_agents.litellm_agent import LiteLLMSpecialistAgent
+        from watchdog_v2.rescue_agents.opencode_adapter import OpenCodeAdapter
+        from watchdog_v2.rescue_agents.rule_agent import RuleBasedRescueAgent
+        from watchdog_v2.rescue_dispatch import RescueDispatcher
+
+        available = set(context.available_executors)
+        learning_store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
+        adapters_by_name = {
+            "codex": CodexAdapter(
+                available="codex" in available,
+                command=self._rescue_command("codex"),
+                runner=self.run_command,
+                timeout_seconds=int(getattr(self.config, "watchdog_codex_timeout_seconds", 120) or 120),
+                cwd=getattr(self.config, "watchdog_codex_workdir", None),
+            ),
+            "claude-code": ClaudeCodeAdapter(
+                available="claude-code" in available,
+                command=self._rescue_command("claude-code"),
+                runner=self.run_command,
+                timeout_seconds=int(getattr(self.config, "watchdog_codex_timeout_seconds", 120) or 120),
+                cwd=getattr(self.config, "watchdog_codex_workdir", None),
+            ),
+            "gemini-cli": GeminiCliAdapter(
+                available="gemini-cli" in available,
+                command=self._rescue_command("gemini-cli"),
+                runner=self.run_command,
+                timeout_seconds=int(getattr(self.config, "watchdog_codex_timeout_seconds", 120) or 120),
+                cwd=getattr(self.config, "watchdog_codex_workdir", None),
+            ),
+            "opencode": OpenCodeAdapter(
+                available="opencode" in available,
+                command=self._rescue_command("opencode"),
+                runner=self.run_command,
+                timeout_seconds=int(getattr(self.config, "watchdog_opencode_fallback_timeout_seconds", 120) or 120),
+                cwd=getattr(self.config, "watchdog_opencode_fallback_workdir", None),
+            ),
+            "litellm": LiteLLMSpecialistAgent(config=self.config, client=self._build_litellm_client()),
+            "rule-agent": RuleBasedRescueAgent(rule_store=learning_store),
+        }
+        priority = list(getattr(self.config, "watchdog_rescue_executor_priority", [])) or [
+            "codex",
+            "claude-code",
+            "gemini-cli",
+            "opencode",
+            "litellm",
+            "rule-agent",
+        ]
+        adapters = [adapters_by_name[name] for name in priority if name in adapters_by_name]
+        return RescueDispatcher(adapters=adapters).dispatch(context)
+
+    def execute_rescue_plan(self, plan, *, executor: str):
+        from watchdog_v2.rescue_actions import RescueActionExecutor
+        from watchdog_v2.rescue_models import RescueResult
+
+        result = RescueActionExecutor(config=self.config, engine=self).apply_plan(plan)
+        return RescueResult(
+            status=result.status,
+            executor=executor,
+            plan_id=plan.plan_id,
+            rollback_performed=result.rollback_performed,
+            details=dict(result.details),
+        )
+
+    def record_learning_from_recovery(
+        self,
+        *,
+        strategy: str,
+        recovery_kind: str,
+        probe: dict[str, object],
+        context=None,
+        dispatch_result=None,
+        plan_result=None,
+    ) -> dict[str, object]:
+        from watchdog_v2.learning import LearningStore
+
+        store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
+        metadata = context.metadata if context is not None and isinstance(getattr(context, 'metadata', None), dict) else {}
+        failure_signature = str(metadata.get("failure_signature", "") or self._rescue_failure_signature(probe))
+        rule_slug = re.sub(r"[^a-z0-9-]+", "-", failure_signature.lower()).strip("-") or "rescue-rule"
+        plan = getattr(dispatch_result, 'plan', None) if dispatch_result is not None else None
+        final_executor = str(getattr(dispatch_result, 'final_executor', '') or strategy)
+        candidate_rule = None
+        if plan is not None:
+            match = {"failure_signature": failure_signature}
+            if bool(metadata.get("config_invalid", False)):
+                match["config_invalid"] = True
+            candidate_rule = {
+                "rule_id": f"{rule_slug}-{final_executor or 'rescue'}",
+                "match": match,
+                "diagnosis": plan.diagnosis,
+                "actions": [action.to_dict() for action in plan.actions],
+                "validations": list(plan.validations),
+            }
+        risk_level = plan.risk_level if plan is not None else 'low'
+        payload = {
+            "case_id": f"{self.ctx.incident_id or 'incident'}-{final_executor or strategy}-{datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}",
+            "incident_id": self.ctx.incident_id,
+            "failure_signature": failure_signature,
+            "status": "recovered",
+            "executor": final_executor or strategy,
+            "strategy": strategy,
+            "recovery_kind": recovery_kind,
+            "plan_id": plan.plan_id if plan is not None else '',
+            "risk_level": risk_level,
+            "candidate_rule": candidate_rule,
+            "recovered_at": datetime.now().astimezone().isoformat(timespec='seconds'),
+        }
+        case_path = store.record_successful_case(payload)
+        promotion = store.promote_candidates()
+        candidate_rule_status = 'none'
+        if candidate_rule is not None:
+            if promotion.pending_review > 0:
+                candidate_rule_status = 'pending-review'
+            elif promotion.auto_promoted > 0:
+                candidate_rule_status = 'auto-promoted'
+            else:
+                candidate_rule_status = 'candidate-recorded'
+        return {
+            'case_ingest_result': f'recorded:{case_path.name}',
+            'candidate_rule_status': candidate_rule_status,
+        }
+
+    def record_learning_from_rescue(self, *, context, dispatch_result, plan_result) -> dict[str, object]:
+        return self.record_learning_from_recovery(
+            strategy=str(getattr(dispatch_result, 'final_executor', '') or 'rescue'),
+            recovery_kind='rescue',
+            probe=context.probe if context is not None else {},
+            context=context,
+            dispatch_result=dispatch_result,
+            plan_result=plan_result,
+        )
 
     def _service_probe_failures_for(self, probe: dict[str, object], previous_failures: int) -> int:
         process_layer_healthy = bool(probe.get("process_layer_healthy", False))
@@ -1211,8 +1417,6 @@ class WatchdogEngine:
             initial_health_level = "healthy"
         elif minimal_usable_ready:
             initial_health_level = "degraded"
-        elif process_layer_healthy and not service_layer_healthy and not self.config.watchdog_enable_survivability_flow:
-            initial_health_level = "degraded"
         else:
             initial_health_level = "failed"
         self.write_run_state(
@@ -1228,8 +1432,7 @@ class WatchdogEngine:
                     degraded=initial_health_level == "degraded",
                     survival=self.ctx.survival_mode_active,
                 ),
-                "cooldown_remaining_seconds": self.codex_cooldown_remaining(),
-                "conversation_ready": conversation_ready,
+                    "conversation_ready": conversation_ready,
                 "minimal_usable_ready": minimal_usable_ready,
                 "conversation_status": str(probe.get("conversation_status", "down") or "down"),
                 "conversation_probe_summary": str(probe.get("conversation_probe_summary", "") or ""),
@@ -1238,12 +1441,7 @@ class WatchdogEngine:
         )
         return initial_health_level
 
-    def _run_once_survivability(self) -> RunOutcome:
-        from watchdog_v2.flows import survivability_run
-
-        return survivability_run.run(self, self.ctx)
-
     def run_once(self) -> RunOutcome:
-        if self.config.watchdog_enable_survivability_flow:
-            return self._run_once_survivability()
-        return self._run_once_legacy()
+        from watchdog_v2.flows import rescue_run
+
+        return rescue_run.run(self, self.ctx)

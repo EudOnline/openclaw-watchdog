@@ -57,7 +57,7 @@ class ModelsTest(unittest.TestCase):
         self.assertEqual(payload['state'], 'unknown')
         self.assertTrue(payload['dry_run'])
         self.assertEqual(payload['config']['path'], 'state/openclaw.json')
-        self.assertIn('ensure-opencode', payload['flow'])
+        self.assertIn('detect-opencode', payload['flow'])
         self.assertEqual(BootstrapSummary.from_dict(payload).to_dict(), payload)
 
 

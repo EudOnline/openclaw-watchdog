@@ -24,12 +24,12 @@ It still requires a compatible local Python 3.11+ interpreter. The rehearsal hel
 - `rehearsal/scenarios/`: scenario expectations.
 
 Implementation map:
-- `watchdog_v2/engine.py` remains the orchestration entrypoint and now supports a survivability-first recovery flow behind a feature flag.
+- `watchdog_v2/engine.py` remains the orchestration entrypoint for the unified OpenClaw rescue chain.
 - `watchdog_v2/incidents.py` contains incident snapshot/workflow logic delegated from the engine.
 - `watchdog_v2/reporting.py` contains report/message/metrics rendering delegated from the engine.
 - `watchdog_v2/repair.py` contains repair/rollback helpers delegated from the engine, including manifest-based `last-good` selection.
 - `watchdog_v2/health.py` contains service-level probing, conversation-aware probe aggregation, and status shaping delegated from the engine.
-- `watchdog_v2/handoff.py` contains incident evidence bundle plus Codex/OpenCode handoff helpers delegated from the engine.
+- External executors now return structured rescue plans only; host mutation stays inside the local rescue action boundary.
 
 ## Run locally
 
@@ -44,7 +44,6 @@ Run a single scripted scenario:
 ```bash
 bash rehearsal/scripts/run-scenario.sh bootstrap-missing-openclaw
 bash rehearsal/scripts/run-scenario.sh bootstrap-openclaw-missing-plugin
-bash rehearsal/scripts/run-scenario.sh bootstrap-install-openclaw
 bash rehearsal/scripts/run-scenario.sh watchdog-recovery
 bash rehearsal/scripts/run-scenario.sh watchdog-failed-fallback
 bash rehearsal/scripts/run-scenario.sh watchdog-active-no-listener-grace
@@ -79,7 +78,7 @@ Run the rehearsal entrypoint directly:
 
 ```bash
 bash rehearsal/entrypoint.sh bootstrap
-bash rehearsal/entrypoint.sh bootstrap --install-openclaw
+bash rehearsal/entrypoint.sh bootstrap
 bash rehearsal/entrypoint.sh check
 bash rehearsal/entrypoint.sh run-once
 bash rehearsal/entrypoint.sh status
@@ -100,9 +99,8 @@ bash rehearsal/entrypoint.sh incidents list --owner alice --ack yes
 
 The rehearsal scenarios cover:
 
-- `bootstrap-missing-openclaw`: bootstrap reports the missing `openclaw` dependency and exits with installation guidance.
+- `bootstrap-missing-openclaw`: bootstrap stays detect-only, reports that OpenClaw is missing, and lists the rescue inventory without installing anything.
 - `bootstrap-openclaw-missing-plugin`: OpenClaw exists but the required plugin/config wiring is missing, so bootstrap reports the missing setup without trying to mutate the host.
-- `bootstrap-install-openclaw`: bootstrap exercises the explicit `--install-openclaw` path and verifies the repo-local shim installer.
 - `watchdog-recovery`: a straightforward unhealthy service becomes healthy after the normal restart path.
 - `watchdog-failed-fallback`: the service stays unhealthy through restart/repair attempts, so the watchdog records a failure and fallback context.
 - `watchdog-active-no-listener-grace`: the service is active while the listener is still warming up, so the watchdog stays patient instead of immediately restarting.
@@ -112,8 +110,8 @@ The rehearsal scenarios cover:
 - `watchdog-conversation-probe-ready`: both gateway and required channels are conversation-ready, so the conversation probe reports fully healthy.
 - `watchdog-conversation-probe-minimal`: the gateway is degraded but the configured minimal usable path still works, so status/report output marks minimal readiness separately from full readiness.
 - `watchdog-conversation-probe-down`: neither the gateway nor the minimal path is usable, so the conversation probe fails hard and surfaces the blocking reasons.
-- `watchdog-restart-priority-recovery`: the survivability flow prefers a restart first and only escalates if the restart does not restore conversation readiness.
-- `watchdog-rollback-priority-before-doctor`: the survivability flow prefers rolling back to `last-good` before invoking doctor repair when drift or bad config is detected.
+- `watchdog-restart-priority-recovery`: the deterministic rescue path prefers a restart first and only escalates if the restart does not restore conversation readiness.
+- `watchdog-rollback-priority-before-doctor`: the deterministic rescue path prefers rolling back to `last-good` before invoking doctor repair when drift or bad config is detected.
 - `watchdog-doctor-deferred-until-survival-fails`: doctor repair is intentionally deferred until restart, rollback, and survival-mode placeholders all fail.
 - `watchdog-survival-mode-recovery`: restart/rollback do not restore the service, so watchdog applies survival mode and recovers a degraded-but-usable conversation path.
 - `watchdog-config-drift-guard`: a drifted config differs from the last-good protected-path fingerprints, so watchdog records drift context and rolls back before doctor repair.
@@ -143,8 +141,23 @@ The rehearsal scenarios cover:
 - `WATCHDOG_ENABLE_SURVIVAL_MODE` is also kept `false` in the shared env files; the new P1 survival-mode rehearsal enables it only inside the scenario process.
 - `WATCHDOG_ENABLE_CONVERSATION_PROBE` remains on in rehearsal so conversation/minimal-usable state is always available to assertions.
 - `WATCHDOG_GUARD_MANIFEST_FILE` captures drift-guard snapshots and recent before/after validation events for bootstrap, rollback, and survival-mode config rewrites.
-- The real repo code is unchanged in host behavior until the survivability flow flag is enabled.
-- `Codex` stays detect-only unless you manually install the rehearsal shim with `rehearsal/scripts/install-codex-shim.sh` for experiments.
-- `OpenCode` can auto-install in bootstrap because `OPENCODE_INSTALL_COMMAND` points to the local shim installer.
-- `OpenClaw` still requires explicit `--install-openclaw` before the local shim installer runs.
+- The repo now centers on one OpenClaw-specific rescue flow; rehearsal just constrains it with local shims and fixtures.
+- External CLI rescue rehearsal is explicit: each scenario installs only the local shim it needs, and the project no longer relies on automatic software installation.
+- `OpenClaw` must already be installed or otherwise available on PATH before the live rescue chain can act on it.
 - Expected outputs for stable scenarios live in `rehearsal/scenarios/`.
+
+
+## Rescue-chain smoke scenarios
+
+The rehearsal harness now treats these rescue-first scenarios as critical smoke coverage:
+
+- `watchdog-rescue-chain-codex`
+- `watchdog-rescue-chain-claude-code`
+- `watchdog-rescue-chain-gemini-cli`
+- `watchdog-rescue-chain-opencode`
+- `watchdog-rescue-chain-litellm`
+- `watchdog-rescue-chain-rule-agent`
+- `watchdog-candidate-rule-auto-promotion`
+- `watchdog-candidate-rule-review-pending`
+
+They exercise the post-deterministic rescue chain, the `LiteLLM` specialist tier, the offline rule-agent tier, and the learning/promotion loop without installing extra software.

@@ -263,7 +263,6 @@ def live_probe(engine, *, include_doctor: bool, apply_grace: bool = True) -> dic
         else:
             payload["health_level"] = "failed"
 
-    payload["cooldown_remaining_seconds"] = engine.codex_cooldown_remaining()
     payload["survival_mode_active"] = bool(engine.read_run_state().get("survival_mode_active", False))
     payload["current_mode"] = engine.current_mode(
         maintenance=payload["maintenance_mode"],
@@ -360,6 +359,19 @@ def status_payload(engine) -> dict[str, object]:
         ("last_recovery_path", "none"),
         ("last_recovery_action_count", 0),
         ("last_recovery_restored_conversation", False),
+        ("rescue_attempt_count", 0),
+        ("rescue_executor_selected", ""),
+        ("rescue_plan_generated", False),
+        ("rescue_plan_source", ""),
+        ("rescue_plan_id", ""),
+        ("rescue_plan_status", "not-run"),
+        ("rescue_tier", "none"),
+        ("case_ingest_result", "not-run"),
+        ("candidate_rule_status", "none"),
+        ("rescue_attempt_order", []),
+        ("rescue_rejected_executors", []),
+        ("rescue_learning_summary", "not-run / none"),
+        ("rescue_mutation_scope", []),
         ("rollback_candidate_used", ""),
         ("rollback_reason", ""),
         ("config_drift_detected", False),
@@ -398,9 +410,7 @@ def status_payload(engine) -> dict[str, object]:
         degraded=payload.get("health_level") == "degraded",
         survival=bool(payload.get("survival_mode_active", False)),
     )
-    payload["cooldown_remaining_seconds"] = engine.codex_cooldown_remaining()
     payload["run_state"]["current_mode"] = payload["current_mode"]
     payload["run_state"]["health_level"] = payload["health_level"]
-    payload["run_state"]["cooldown_remaining_seconds"] = payload["cooldown_remaining_seconds"]
     payload["run_state"]["current_incident_age_seconds"] = payload["current_incident_age_seconds"]
     return payload

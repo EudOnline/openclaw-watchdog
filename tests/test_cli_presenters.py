@@ -14,7 +14,11 @@ class CliPresentersTest(unittest.TestCase):
                 'conversation_status': 'ready',
                 'health_level': 'healthy',
                 'current_mode': 'normal',
-                'last_recovery_strategy': 'restart',
+                'last_recovery_strategy': 'litellm',
+                'rescue_executor_selected': 'litellm',
+                'candidate_rule_status': 'pending-review',
+                'rescue_attempt_order': ['codex', 'claude-code', 'litellm'],
+                'rescue_rejected_executors': ['codex:unavailable', 'claude-code:no-plan'],
                 'survival_mode_active': False,
                 'service_active': True,
                 'service_probe_summary': 'ok',
@@ -26,6 +30,9 @@ class CliPresentersTest(unittest.TestCase):
 
         self.assertIn('status=healthy', text)
         self.assertIn('conv=ready', text)
+        self.assertIn('litellm', text)
+        self.assertIn('order=codex>claude-code>litellm', text)
+        self.assertIn('reject=codex:unavailable,claude-code:no-plan', text)
         self.assertIn('last=all good', text)
 
     def test_render_report_surfaces_attention_and_recent_incident(self) -> None:
@@ -37,10 +44,22 @@ class CliPresentersTest(unittest.TestCase):
                 'minimal_usable_ready': True,
                 'health_level': 'degraded',
                 'current_mode': 'degraded',
-                'last_recovery_strategy': 'restart',
-                'last_recovery_path': 'restart -> probe',
-                'last_recovery_action_count': 1,
+                'last_recovery_strategy': 'litellm',
+                'last_recovery_path': 'restart -> rollback -> survival -> doctor',
+                'last_recovery_action_count': 4,
                 'last_recovery_restored_conversation': False,
+                'rescue_attempt_count': 5,
+                'rescue_executor_selected': 'litellm',
+                'rescue_plan_generated': True,
+                'rescue_plan_source': 'litellm',
+                'rescue_plan_status': 'applied',
+                'rescue_tier': 'litellm',
+                'case_ingest_result': 'recorded:case-1.json',
+                'candidate_rule_status': 'pending-review',
+                'rescue_attempt_order': ['codex', 'claude-code', 'litellm'],
+                'rescue_rejected_executors': ['codex:unavailable', 'claude-code:no-plan'],
+                'rescue_learning_summary': 'recorded:case-1.json / pending-review',
+                'rescue_mutation_scope': ['restart_service', 'update_openclaw_config'],
                 'rollback_candidate_used': '',
                 'rollback_reason': '',
                 'config_drift_detected': False,
@@ -61,6 +80,12 @@ class CliPresentersTest(unittest.TestCase):
         )
 
         self.assertIn('current_incident_id=incident-7', text)
+        self.assertIn('rescue_executor_selected=litellm', text)
+        self.assertIn('candidate_rule_status=pending-review', text)
+        self.assertIn('rescue_attempt_order=codex -> claude-code -> litellm', text)
+        self.assertIn('rescue_rejected_executors=codex:unavailable, claude-code:no-plan', text)
+        self.assertIn('rescue_learning_summary=recorded:case-1.json / pending-review', text)
+        self.assertIn('rescue_mutation_scope=restart_service, update_openclaw_config', text)
         self.assertIn('operator_attention_needed=true', text)
         self.assertIn('recent_incident_1=incident-7', text)
 
@@ -88,27 +113,30 @@ class CliPresentersTest(unittest.TestCase):
         self.assertIn('queue_1=incident-9', text)
         self.assertIn('attention=unowned', text)
 
-    def test_render_bootstrap_surfaces_flow_and_paths(self) -> None:
+    def test_render_bootstrap_surfaces_detect_only_inventory(self) -> None:
         outcome = type('BootstrapOutcomeStub', (), {
-            'state': 'confirmation-required',
-            'summary': 'OpenClaw missing',
+            'state': 'ready',
+            'summary': 'Bootstrap detection completed',
             'payload': {
-                'opencode': {'installed': True, 'would_install': False, 'config': {'path': 'state/opencode.json', 'configured_model': 'opencode/minimax-m2.5-free', 'changed': True, 'backup_path': ''}, 'watchdog_bin_available': True, 'desired_model': 'opencode/minimax-m2.5-free'},
+                'opencode': {'available': True, 'detected_binary': 'opencode', 'config_ready': True, 'config': {'path': 'state/opencode.json', 'configured_model': 'opencode/minimax-m2.5-free', 'changed': False, 'backup_path': ''}, 'watchdog_bin_available': True, 'desired_model': 'opencode/minimax-m2.5-free'},
                 'codex': {'available': False, 'detected_binary': ''},
-                'openclaw': {'installed': False, 'confirmation_required': True},
+                'openclaw': {'available': False, 'binary': '', 'detect_returncode': 1},
                 'qq_plugin': {'installed': False},
                 'config': {'path': 'state/openclaw.json', 'changed': False, 'backup_path': '', 'placeholders_remaining': []},
                 'feishu_runtime': {'found': False},
-                'files_changed': ['state/opencode.json'],
-                'flow': ['ensure-opencode', 'detect-openclaw'],
+                'files_changed': [],
+                'flow': ['detect-opencode', 'detect-openclaw'],
             },
         })()
 
         text = render_bootstrap(outcome)
 
-        self.assertIn('state=confirmation-required', text)
-        self.assertIn('opencode_config_path=state/opencode.json', text)
-        self.assertIn('bootstrap_flow=ensure-opencode -> detect-openclaw', text)
+        self.assertIn('state=ready', text)
+        self.assertIn('opencode_available=true', text)
+        self.assertIn('openclaw_available=false', text)
+        self.assertIn('bootstrap_flow=detect-opencode -> detect-openclaw', text)
+        self.assertNotIn('confirmation_required=', text)
+        self.assertNotIn('opencode_install_planned=', text)
 
 
 if __name__ == '__main__':

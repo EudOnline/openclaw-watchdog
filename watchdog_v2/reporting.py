@@ -17,6 +17,13 @@ def _string_list(value: object) -> list[str]:
     return [str(item) for item in value if str(item).strip()]
 
 
+def _list_value(payload: dict[str, object], key: str, *, joiner: str, fallback: str = 'none') -> str:
+    value = payload.get(key, [])
+    if isinstance(value, list) and value:
+        return joiner.join(str(item) for item in value if str(item).strip()) or fallback
+    return fallback
+
+
 def _incident_summary(value: object) -> IncidentSummary:
     if isinstance(value, IncidentSummary):
         return value
@@ -34,6 +41,24 @@ def _run_state_snapshot(payload: dict[str, object]) -> RunStateSnapshot:
     return RunStateSnapshot.from_dict(payload)
 
 
+def _rescue_fields(run_state: RunStateSnapshot) -> dict[str, object]:
+    return {
+        'rescue_attempt_count': run_state.rescue_attempt_count,
+        'rescue_executor_selected': run_state.rescue_executor_selected,
+        'rescue_plan_generated': run_state.rescue_plan_generated,
+        'rescue_plan_source': run_state.rescue_plan_source,
+        'rescue_plan_id': run_state.rescue_plan_id,
+        'rescue_plan_status': run_state.rescue_plan_status,
+        'rescue_tier': run_state.rescue_tier,
+        'case_ingest_result': run_state.case_ingest_result,
+        'candidate_rule_status': run_state.candidate_rule_status,
+        'rescue_attempt_order': list(run_state.rescue_attempt_order),
+        'rescue_rejected_executors': list(run_state.rescue_rejected_executors),
+        'rescue_learning_summary': run_state.rescue_learning_summary,
+        'rescue_mutation_scope': list(run_state.rescue_mutation_scope),
+    }
+
+
 def message_report_text(report: dict[str, object]) -> str:
     recent_stats = report.get("recent_event_stats", {})
     counts = recent_stats.get("counts", {}) if isinstance(recent_stats, dict) else {}
@@ -44,6 +69,19 @@ def message_report_text(report: dict[str, object]) -> str:
     lines = [
         f"OpenClaw watchdog：conversation={report.get('conversation_status', 'down')} / status={report.get('status', 'unknown')} / mode={report.get('current_mode', 'unknown')}",
         f"recovery={report.get('last_recovery_strategy', 'none')} | rollback={report.get('rollback_candidate_used', '') or 'none'} | restored={str(bool(report.get('last_recovery_restored_conversation', False))).lower()}",
+        (
+            f"rescue=executor:{report.get('rescue_executor_selected', '') or 'none'}"
+            f" | attempts={int(report.get('rescue_attempt_count', 0) or 0)}"
+            f" | plan={str(bool(report.get('rescue_plan_generated', False))).lower()}/{report.get('rescue_plan_status', 'not-run')}"
+            f" | tier={report.get('rescue_tier', 'none')}"
+            f" | learn={report.get('rescue_learning_summary', '') or report.get('candidate_rule_status', 'none')}"
+        ),
+        (
+            f"rescue_chain=chain={_list_value(report, 'rescue_attempt_order', joiner=' -> ')}"
+            f" | rejected={_list_value(report, 'rescue_rejected_executors', joiner=',')}"
+            f" | mutate={_list_value(report, 'rescue_mutation_scope', joiner=',')}"
+            f" | learning={report.get('rescue_learning_summary', '') or 'not-run / none'}"
+        ),
         f"service_active={str(bool(report.get('service_active', False))).lower()} | probe={report.get('service_probe_summary', 'n/a')} | conv_probe={report.get('conversation_probe_summary', 'n/a')}",
         f"queue：open={queue_summary.get('open_total', 0)} attention={queue_summary.get('attention_total', 0)} handled={queue_summary.get('handled_total', 0)}",
         (
@@ -219,9 +257,6 @@ def prometheus_metrics_text(metrics: dict[str, object]) -> str:
         "# HELP openclaw_watchdog_service_probe_failures Current service probe failure counter.",
         "# TYPE openclaw_watchdog_service_probe_failures gauge",
         f"openclaw_watchdog_service_probe_failures {int(metrics.get('service_probe_failures', 0) or 0)}",
-        "# HELP openclaw_watchdog_cooldown_remaining_seconds Remaining Codex cooldown in seconds.",
-        "# TYPE openclaw_watchdog_cooldown_remaining_seconds gauge",
-        f"openclaw_watchdog_cooldown_remaining_seconds {int(metrics.get('cooldown_remaining_seconds', 0) or 0)}",
         "# HELP openclaw_watchdog_current_incident_open Whether there is an open current incident.",
         "# TYPE openclaw_watchdog_current_incident_open gauge",
         f"openclaw_watchdog_current_incident_open {1 if metrics.get('current_incident_open', False) else 0}",
@@ -324,11 +359,11 @@ def metrics_payload(engine) -> dict[str, object]:
         "survival_mode_last_exit_summary": str(payload.get("survival_mode_last_exit_summary", "") or ""),
         "consecutive_failures": int(payload.get("consecutive_failures", 0) or 0),
         "service_probe_failures": int(payload.get("service_probe_failures", 0) or 0),
-        "cooldown_remaining_seconds": int(payload.get("cooldown_remaining_seconds", 0) or 0),
         "last_recovery_strategy": run_state.last_recovery_strategy,
         "last_recovery_path": run_state.last_recovery_path,
         "last_recovery_action_count": run_state.last_recovery_action_count,
         "last_recovery_restored_conversation": run_state.last_recovery_restored_conversation,
+        **_rescue_fields(run_state),
         "last_good_validated_at": run_state.last_good_validated_at,
         "last_good_generation_id": run_state.last_good_generation_id,
         "last_good_generation_count": run_state.last_good_generation_count,
@@ -429,6 +464,7 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "last_recovery_path": run_state.last_recovery_path,
         "last_recovery_action_count": run_state.last_recovery_action_count,
         "last_recovery_restored_conversation": run_state.last_recovery_restored_conversation,
+        **_rescue_fields(run_state),
         "last_good_validated_at": run_state.last_good_validated_at,
         "last_good_generation_id": run_state.last_good_generation_id,
         "last_good_generation_count": run_state.last_good_generation_count,
@@ -443,7 +479,6 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "guard_last_phase": str(payload.get("guard_last_phase", "") or ""),
         "guard_last_time": str(payload.get("guard_last_time", "") or ""),
         "guard_last_summary": str(payload.get("guard_last_summary", "") or ""),
-        "cooldown_remaining_seconds": payload.get("cooldown_remaining_seconds", 0),
         "maintenance": payload.get("maintenance", {}),
         "env_file": payload.get("env_file", ""),
     }

@@ -57,11 +57,18 @@ class CliSmokeTest(unittest.TestCase):
         )
         self.assertIn('provision', subparsers_action.choices)
 
+    def test_bootstrap_parser_rejects_legacy_install_flag(self) -> None:
+        parser = self._build_parser()
+
+        with self.assertRaises(SystemExit):
+            parser.parse_args(['bootstrap', '--install-openclaw'])
+
     def test_provision_alias_dispatches_bootstrap_flow(self) -> None:
         from watchdog_v2.cli import main
 
+        config = object()
         outcome = type('BootstrapOutcomeStub', (), {'exit_code': 17, 'payload': {'state': 'dry-run'}})()
-        with patch('watchdog_v2.cli.Config.load', return_value=object()) as config_load:
+        with patch('watchdog_v2.cli.Config.load', return_value=config) as config_load:
             with patch('watchdog_v2.cli.Bootstrapper') as bootstrapper:
                 with patch('watchdog_v2.cli.WatchdogEngine') as engine_type:
                     with patch('watchdog_v2.cli._print_json'):
@@ -71,7 +78,7 @@ class CliSmokeTest(unittest.TestCase):
 
         self.assertEqual(exit_code, 17)
         config_load.assert_called_once()
-        bootstrapper.assert_called_once()
+        bootstrapper.assert_called_once_with(config, dry_run=True)
         bootstrapper.return_value.run.assert_called_once_with()
         engine_type.assert_not_called()
 

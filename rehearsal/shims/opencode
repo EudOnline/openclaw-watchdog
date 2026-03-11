@@ -13,27 +13,36 @@ if str(repo_root) not in sys.path:
 from rehearsal.lib.rehearsal_common import append_line, now_stamp, opencode_log_path  # noqa: E402
 
 
+def _response_file() -> Path:
+    return Path(os.environ.get('HOME', '.')) / 'opencode-response.json'
+
+
 def main() -> int:
     args = sys.argv[1:]
     append_line(opencode_log_path(), f"[{now_stamp()}] argv={' '.join(args)}")
-    if not args or args[0] in {"--help", "help"}:
-        print("opencode shim")
+    if not args or args[0] in {'--help', 'help'}:
+        print('opencode shim')
         return 0
-    if args[0] == "run":
-        prompt = " ".join(args[1:]).strip()
-        print("OpenCode rehearsal shim accepted prompt")
+    if args[0] == '--version':
+        print('opencode-shim 0.1.0')
+        return 0
+    if args[0] == 'run':
+        response_file = _response_file()
+        if response_file.exists():
+            response_text = response_file.read_text(encoding='utf-8').strip()
+            if response_text:
+                print(response_text)
+                return 0
+        prompt = ' '.join(args[1:]).strip()
+        print('OpenCode rehearsal shim accepted prompt')
         if prompt:
             print(prompt[:200])
-        time.sleep(float(os.environ.get("OPENCODE_SHIM_SLEEP_SECONDS", "2")))
-        print("OpenCode rehearsal shim completed")
-        return 0
-    if args[0] == "--version":
-        print("opencode-shim 0.1.0")
+        time.sleep(float(os.environ.get('OPENCODE_SHIM_SLEEP_SECONDS', '2')))
+        print('OpenCode rehearsal shim completed')
         return 0
     print(f"opencode shim: unsupported args: {' '.join(args)}", file=sys.stderr)
     return 1
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())
-

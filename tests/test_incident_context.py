@@ -27,7 +27,16 @@ class IncidentContextTest(unittest.TestCase):
                     {'time': '2026-03-10T11:58:00+00:00', 'by': 'bob', 'message': 'rolled back config'},
                 ],
             },
-            run_state={'health_level': 'degraded', 'conversation_status': 'minimal'},
+            run_state={
+                'health_level': 'degraded',
+                'conversation_status': 'minimal',
+                'rescue_executor_selected': 'litellm',
+                'rescue_plan_generated': True,
+                'rescue_plan_source': 'litellm',
+                'rescue_plan_status': 'applied',
+                'rescue_tier': 'litellm',
+                'candidate_rule_status': 'pending-review',
+            },
             active='true',
             main_pid='123',
             listeners='123 456',
@@ -38,8 +47,6 @@ class IncidentContextTest(unittest.TestCase):
             rollback_reason='config invalid',
             last_recovery_strategy='rollback',
             last_recovery_path='restart -> rollback',
-            codex_trigger_result='triggered',
-            opencode_fallback_trigger_result='not-run',
         )
 
         self.assertEqual(entry['incident_id'], 'incident-42')
@@ -50,6 +57,10 @@ class IncidentContextTest(unittest.TestCase):
         self.assertEqual(entry['latest_note'], 'rolled back config')
         self.assertEqual(entry['conversation_status'], 'minimal')
         self.assertEqual(entry['last_recovery_strategy'], 'rollback')
+        self.assertEqual(entry['rescue_executor_selected'], 'litellm')
+        self.assertEqual(entry['candidate_rule_status'], 'pending-review')
+        self.assertNotIn('codex_trigger_result', entry)
+        self.assertNotIn('opencode_fallback_trigger_result', entry)
 
     def test_build_report_incident_context_shapes_attention_from_typed_incidents(self) -> None:
         context = build_report_incident_context(
