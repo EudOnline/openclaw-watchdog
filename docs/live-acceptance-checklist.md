@@ -1,6 +1,6 @@
 # OpenClaw Watchdog live acceptance checklist
 
-This checklist is the operator-facing closure for the P0 survivability read-only acceptance.
+This checklist is the operator-facing closure for the fallback-first watchdog design.
 
 ## Recommended validation order
 
@@ -16,7 +16,6 @@ Live acceptance is the final operator-facing gate, not the first regression chec
 ## One-command acceptance
 
 Before running the full acceptance script on a new host, the operator quick path should already look sane: `status --summary`, `report --message`, and `incidents current --json` should all be readable and internally consistent.
-
 
 ```bash
 ./scripts/openclaw-watchdog-live-acceptance.sh
@@ -53,17 +52,17 @@ The script automatically validates these consistency checks:
 7. `status.last_recovery_path == report.last_recovery_path == metrics.last_recovery_path`
 8. `metrics.prom` contains `openclaw_watchdog_info`
 9. `metrics.prom` contains `openclaw_watchdog_service_active`
-10. `metrics.prom` contains the new survivability gauges (`conversation_ready`, `minimal_usable_ready`, `survival_mode_active`, `last_recovery_action_count`, `config_drift_detected`)
-11. `metrics.prom` contains the operator-context gauges
+10. `metrics.prom` contains the fallback gauges (`conversation_ready`, `minimal_usable_ready`, `survival_mode_active`, `last_recovery_action_count`, `config_drift_detected`)
+11. `metrics.prom` contains the incident-context gauges that still drive operator awareness
 12. `status --summary` contains `probe=`
 13. `status --summary` contains `conversation=`
 14. `status --summary` contains `recovery=`
 15. `incidents current --json` is consistent with `status.current_incident_id`
 16. `report.json` exposes `operator_attention_items` in list form
 17. when there is no current incident, `report.operator_attention_needed == false`
-18. `report.json` exposes the new survivability fields (`conversation_*`, `survival_mode_*`, `last_recovery_*`, `rollback_candidate_used`, `config_drift_detected`, `drift_*`)
-19. `metrics.json` exposes the new survivability, drift-guard, and last-good fields
-20. `metrics.json` still exposes the current-incident operator context fields
+18. `report.json` exposes the fallback-first fields (`conversation_*`, `survival_mode_*`, `last_recovery_*`, `rollback_candidate_used`, `config_drift_detected`, `drift_*`)
+19. `metrics.json` exposes the fallback-first, drift-guard, and last-good fields
+20. `metrics.json` still exposes the current-incident operator fields (`current_incident_owner`, `current_incident_owner_assigned`, `current_incident_acknowledged`, `current_incident_notes_count`)
 
 If any check fails, the script exits non-zero.
 
@@ -71,10 +70,10 @@ If any check fails, the script exits non-zero.
 
 After the script passes, quickly review:
 
-- `status-summary.txt` is concise, readable, and starts with survivability-first signals
+- `status-summary.txt` is concise, readable, and starts with fallback/recovery signals
 - `report-message.txt` clearly answers whether conversation is restored, what recovery path was used, and whether rollback/degradation is still in effect
-- `metrics.json` has current timestamps/counters plus survivability keys such as `conversation_status`, `survival_mode_reason`, `drift_scope`, and `last_good_generation_*`
-- `metrics.prom` is scrape-ready text and includes the new survivability gauges
+- `metrics.json` has current timestamps/counters plus fallback signals such as `conversation_status`, `survival_mode_reason`, `drift_scope`, and `last_good_generation_*`
+- `metrics.prom` is scrape-ready text and includes the fallback gauges
 - `incidents-list.txt` still matches the current healthy/incident window
 - `openclaw-status.txt` may include plugin/banner lines before the status card; this is acceptable as long as the watchdog commands above remain clean
 

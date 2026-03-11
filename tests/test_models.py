@@ -27,6 +27,8 @@ class ModelsTest(unittest.TestCase):
         self.assertEqual(snapshot.rollback_candidate_used, 'gen-2')
         self.assertEqual(snapshot.drift_scope, ['config', 'extensions'])
         self.assertEqual(RunStateSnapshot.from_dict(snapshot.to_dict()), snapshot)
+        with self.assertRaises(AttributeError):
+            snapshot.get('health_level')
 
     def test_incident_summary_defaults_and_round_trip(self) -> None:
         summary = IncidentSummary.from_dict(
@@ -45,6 +47,8 @@ class ModelsTest(unittest.TestCase):
         self.assertTrue(summary.acknowledged)
         self.assertEqual(summary.notes_count, 2)
         self.assertEqual(IncidentSummary.from_dict(summary.to_dict()), summary)
+        with self.assertRaises(AttributeError):
+            summary.get('owner')
 
     def test_bootstrap_summary_builds_serializable_default_payload(self) -> None:
         summary = BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=True)

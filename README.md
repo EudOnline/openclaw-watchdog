@@ -25,9 +25,8 @@ It combines:
 
 - [Release notes](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
 - [Documentation index](docs/README.md)
-- [Compatibility and deprecations](docs/compatibility-and-deprecations.md)
 - [Supported environments](docs/supported-environments.md)
-- [Reporting contract](docs/reporting-contract.md)
+- [Operational reporting outputs](docs/reporting-contract.md)
 - [First deployment guide](docs/first-deployment.md)
 - [Roadmap](docs/roadmap.md)
 - [FAQ](docs/faq.md)
@@ -47,7 +46,7 @@ It combines:
 
 This repository is the standalone public home of **OpenClaw Watchdog**.
 
-The public-facing interface now uses the non-`v2` names throughout the repo. The internal Python package name remains `watchdog_v2` to preserve implementation stability and avoid unnecessary churn in imports, rehearsal tooling, and historical notes.
+The public-facing interface uses the non-`v2` names throughout the repo. The internal Python package name remains `watchdog_v2` because import churn is not worth prioritizing over clear fallback flows, rehearsal coverage, and operator docs.
 
 ## Repository layout
 
@@ -62,12 +61,12 @@ rehearsal/     fixtures, shims, scenarios, and test flows
 
 ## Internal architecture
 
-The refactor keeps the public interface stable while splitting internal responsibilities into smaller seams:
+The codebase is organized around fallback-first seams so recovery logic stays explicit and testable:
 
-- `watchdog_v2/models.py` for typed compatibility models over persisted dict payloads
+- `watchdog_v2/models.py` for typed state models at serialization boundaries
 - `watchdog_v2/presenters/` for human-readable CLI formatting
 - `watchdog_v2/run_context.py` for mutable per-run state
-- `watchdog_v2/flows/` for legacy and survivability orchestration paths
+- `watchdog_v2/flows/` for run orchestration paths
 - `watchdog_v2/bootstrap_steps.py` for ordered bootstrap step execution
 - `watchdog_v2/engine.py` as the runtime facade and dependency hub
 
@@ -184,7 +183,7 @@ systemctl --user status openclaw-watchdog.service
 
 This repo includes a repo-local rehearsal harness for validating flows without using a live production gateway. The recommended validation order is:
 
-1. fast contract/unit tests (`python -m unittest discover -s tests -v`)
+1. fast unit and output-shape tests (`python -m unittest discover -s tests -v`)
 2. direct orchestration tests for flows and bootstrap steps
 3. bounded rehearsal smoke scenarios under `rehearsal/scripts/run-scenario.sh`
 4. live acceptance only after the earlier layers are green
@@ -195,7 +194,6 @@ Start with:
 - `rehearsal/README.md`
 - `docs/live-acceptance-checklist.md`
 - `docs/live-samples.md`
-- `docs/compatibility-and-deprecations.md`
 - `docs/supported-environments.md`
 - `docs/roadmap.md`
 - `docs/faq.md`
@@ -211,18 +209,17 @@ The watchdog is designed around a few principles:
 4. **Keep an operator-visible incident trail**
 5. **Support staged automation instead of blind restart loops**
 
-## Compatibility notes
+## Repository notes
 
 - Canonical CLI wrapper: `scripts/openclaw-watchdog`
 - Canonical env example: `config/openclaw-watchdog.env.example`
 - Canonical systemd units: `systemd/openclaw-watchdog.service` and `systemd/openclaw-watchdog.timer`
 - Internal Python package name remains `watchdog_v2` for implementation stability
-- Deprecated compatibility shims are retained only for migration:
+- Legacy shim scripts remain only as migration aids and are not part of the primary fallback path:
   - `scripts/openclaw-watchdog-v2`
   - `scripts/install-openclaw-watchdog-v2-units.sh`
   - `scripts/openclaw-watchdog-v2-live-acceptance.sh`
 - Historical migration notes remain in `docs/history/MIGRATION-v2.md`
-- See also: [docs/compatibility-and-deprecations.md](docs/compatibility-and-deprecations.md)
 
 ## Security
 

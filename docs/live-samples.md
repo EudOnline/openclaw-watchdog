@@ -84,7 +84,6 @@ attention: none
   "current_incident_owner_assigned": false,
   "current_incident_acknowledged": false,
   "current_incident_notes_count": 0,
-  "current_incident_events_count": 0,
   "last_success_at": "2026-03-09 10:19:57 CST",
   "last_success_timestamp": 1773022797
 }

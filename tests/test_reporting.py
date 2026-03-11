@@ -162,6 +162,7 @@ class ReportingTest(unittest.TestCase):
         report['message_text'] = message_report_text(report)
 
         self.assertTrue(STABLE_REPORT_KEYS.issubset(report.keys()))
+        self.assertNotIn('recent_incident_summaries', report)
 
     def test_metrics_contract_keys_are_present(self) -> None:
         metrics = {
@@ -186,18 +187,23 @@ class ReportingTest(unittest.TestCase):
         }
 
         self.assertTrue(STABLE_METRICS_KEYS.issubset(metrics.keys()))
+        self.assertNotIn('current_incident_events_count', metrics)
+        self.assertNotIn('current_incident_latest_event_type', metrics)
 
     def test_report_payload_enforces_contract_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             report = report_payload(FakeEngine(temp_dir))
 
         self.assertTrue(STABLE_REPORT_KEYS.issubset(report.keys()))
+        self.assertNotIn('recent_incident_summaries', report)
 
     def test_metrics_payload_enforces_contract_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             metrics = metrics_payload(FakeEngine(temp_dir))
 
         self.assertTrue(STABLE_METRICS_KEYS.issubset(metrics.keys()))
+        self.assertNotIn('current_incident_events_count', metrics)
+        self.assertNotIn('current_incident_latest_event_type', metrics)
 
     def test_message_report_text_surfaces_recovery_and_attention(self) -> None:
         report = {
@@ -257,6 +263,7 @@ class ReportingTest(unittest.TestCase):
         self.assertIn('openclaw_watchdog_service_active 1', text)
         self.assertIn('openclaw_watchdog_conversation_ready 1', text)
         self.assertIn('openclaw_watchdog_current_incident_acknowledged 0', text)
+        self.assertNotIn('openclaw_watchdog_current_incident_events_count', text)
 
 
 if __name__ == '__main__':

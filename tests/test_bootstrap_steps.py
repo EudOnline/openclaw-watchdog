@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
-from watchdog_v2.bootstrap_steps import run_bootstrap_pipeline
+from watchdog_v2.bootstrap import BootstrapOutcome, Bootstrapper
+from watchdog_v2.bootstrap_steps import PipelineResult, run_bootstrap_pipeline
 from watchdog_v2.models import BootstrapSummary
 
 
@@ -140,6 +142,68 @@ class BootstrapStepsTest(unittest.TestCase):
             result.bootstrap_summary.next_steps,
         )
         self.assertIn('Feishu runtime markers were not observed in logs yet', result.bootstrap_summary.warnings)
+
+    def test_bootstrapper_run_passes_bootstrap_summary_into_finish(self) -> None:
+        config = SimpleNamespace(
+            openclaw_config=Path('state/openclaw.json'),
+            watchdog_opencode_fallback_bin='opencode',
+            openclaw_install_command='curl -fsSL install-openclaw.sh | bash',
+        )
+
+        class RecordingBootstrapper(Bootstrapper):
+            def __init__(self) -> None:
+                super().__init__(config, allow_install=False, dry_run=False)
+                self.received_summary = None
+
+            def finish(self, bootstrap_summary, *, state: str, summary: str, exit_code: int) -> BootstrapOutcome:
+                self.received_summary = bootstrap_summary
+                return BootstrapOutcome(exit_code=exit_code, state=state, summary=summary, payload={})
+
+        bootstrap_summary = BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False)
+        bootstrap_summary.opencode['changed'] = True
+        bootstrapper = RecordingBootstrapper()
+
+        with patch(
+            'watchdog_v2.bootstrap.bootstrap_step_ops.run_bootstrap_pipeline',
+            return_value=PipelineResult(
+                bootstrap_summary=bootstrap_summary,
+                state='bootstrapped',
+                message='ok',
+                exit_code=0,
+            ),
+        ):
+            bootstrapper.run()
+
+        self.assertIsInstance(bootstrapper.received_summary, BootstrapSummary)
+
+    def test_bootstrapper_finish_accepts_bootstrap_summary_without_round_trip(self) -> None:
+        config = SimpleNamespace(
+            openclaw_config=Path('state/openclaw.json'),
+            watchdog_opencode_fallback_bin='opencode',
+            openclaw_install_command='curl -fsSL install-openclaw.sh | bash',
+        )
+        bootstrapper = Bootstrapper(config, allow_install=False, dry_run=False)
+        bootstrap_summary = BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False)
+        bootstrap_summary.opencode = {
+            'config': {
+                'path': 'state/opencode.json',
+                'changed': True,
+                'backup_path': 'state/opencode.backup.json',
+            }
+        }
+        bootstrap_summary.config = {
+            'path': 'state/openclaw.json',
+            'changed': True,
+            'backup_path': 'state/openclaw.backup.json',
+        }
+
+        outcome = bootstrapper.finish(bootstrap_summary, state='bootstrapped', summary='ok', exit_code=0)
+
+        self.assertEqual(outcome.payload['files_changed'], ['state/opencode.json', 'state/openclaw.json'])
+        self.assertEqual(outcome.payload['backup_files'], ['state/opencode.backup.json', 'state/openclaw.backup.json'])
+        self.assertEqual(outcome.payload['state'], 'bootstrapped')
+        self.assertEqual(outcome.payload['summary'], 'ok')
+        self.assertEqual(outcome.payload['exit_code'], 0)
 
 
 if __name__ == '__main__':

@@ -24,31 +24,17 @@ def _incident_summary(incident: object) -> IncidentSummary:
     return IncidentSummary()
 
 
-def compact_recent_incident_summaries(recent_incidents: list[dict[str, object]] | list[IncidentSummary], *, limit: int) -> list[str]:
-    compact_incidents: list[str] = []
-    window = recent_incidents[-max(1, limit):]
-    for incident in window:
-        summary = _incident_summary(incident)
-        latest_note_suffix = f' | note={summary.latest_note}' if summary.latest_note else ''
-        attention_suffix = f' | attention={summary.attention_summary or "none"}'
-        compact_incidents.append(
-            f"{summary.incident_id or 'none'} | {summary.state or 'unknown'} | {summary.health_level or 'unknown'} | "
-            f"owner={summary.owner or 'none'} | ack={str(bool(summary.acknowledged)).lower()} | notes={summary.notes_count} | "
-            f"{summary.summary}{latest_note_suffix}{attention_suffix}"
-        )
-    return compact_incidents
-
-
 def build_report_incident_context(
     *,
     current_incident_id: object,
     current_incident_state: object,
-    current_incident: dict[str, object] | None,
-    recent_incidents: list[dict[str, object]] | None,
+    current_incident: IncidentSummary | dict[str, object] | None,
+    recent_incidents: list[IncidentSummary] | list[dict[str, object]] | None,
     incident_limit: int,
 ) -> dict[str, object]:
-    incident_payload = _incident_summary(current_incident if isinstance(current_incident, dict) else {})
-    incidents = [_incident_summary(incident).to_dict() for incident in (recent_incidents if isinstance(recent_incidents, list) else [])]
+    incident_payload = _incident_summary(current_incident)
+    summaries = [_incident_summary(incident) for incident in (recent_incidents if isinstance(recent_incidents, list) else [])]
+    incidents = [summary.to_dict() for summary in summaries[-max(1, incident_limit):]]
     context = {
         'current_incident_id': current_incident_id or '',
         'current_incident_state': current_incident_state or '',
@@ -56,7 +42,6 @@ def build_report_incident_context(
         'current_incident_acknowledged': incident_payload.acknowledged,
         'current_incident_notes_count': incident_payload.notes_count,
         'recent_incidents': incidents,
-        'recent_incident_summaries': compact_recent_incident_summaries(incidents, limit=incident_limit),
     }
     context['operator_attention_items'] = report_attention_items(context)
     context['operator_attention_needed'] = bool(context['operator_attention_items'])

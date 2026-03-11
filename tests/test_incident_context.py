@@ -1,6 +1,7 @@
 import unittest
 
 from watchdog_v2.incident_context import build_incident_index_entry, build_report_incident_context
+from watchdog_v2.models import IncidentSummary
 
 
 class IncidentContextTest(unittest.TestCase):
@@ -50,34 +51,42 @@ class IncidentContextTest(unittest.TestCase):
         self.assertEqual(entry['conversation_status'], 'minimal')
         self.assertEqual(entry['last_recovery_strategy'], 'rollback')
 
-    def test_build_report_incident_context_shapes_attention_and_compact_recent_incidents(self) -> None:
+    def test_build_report_incident_context_shapes_attention_from_typed_incidents(self) -> None:
         context = build_report_incident_context(
             current_incident_id='incident-42',
             current_incident_state='open',
-            current_incident={'owner': '', 'acknowledged': False, 'notes_count': 0},
+            current_incident=IncidentSummary(
+                incident_id='incident-42',
+                state='open',
+                health_level='failed',
+                owner='',
+                acknowledged=False,
+                notes_count=0,
+                summary='current outage',
+                attention_summary='unowned,unacknowledged,no-notes',
+            ),
             recent_incidents=[
-                {
-                    'incident_id': 'incident-41',
-                    'state': 'resolved',
-                    'health_level': 'failed',
-                    'owner': 'alice',
-                    'acknowledged': True,
-                    'notes_count': 2,
-                    'summary': 'previous outage',
-                    'latest_note': 'resolved',
-                    'attention_summary': 'none',
-                },
-                {
-                    'incident_id': 'incident-42',
-                    'state': 'open',
-                    'health_level': 'failed',
-                    'owner': '',
-                    'acknowledged': False,
-                    'notes_count': 0,
-                    'summary': 'current outage',
-                    'latest_note': '',
-                    'attention_summary': 'unowned,unacknowledged,no-notes',
-                },
+                IncidentSummary(
+                    incident_id='incident-41',
+                    state='resolved',
+                    health_level='failed',
+                    owner='alice',
+                    acknowledged=True,
+                    notes_count=2,
+                    summary='previous outage',
+                    latest_note='resolved',
+                    attention_summary='none',
+                ),
+                IncidentSummary(
+                    incident_id='incident-42',
+                    state='open',
+                    health_level='failed',
+                    owner='',
+                    acknowledged=False,
+                    notes_count=0,
+                    summary='current outage',
+                    attention_summary='unowned,unacknowledged,no-notes',
+                ),
             ],
             incident_limit=5,
         )
@@ -90,9 +99,10 @@ class IncidentContextTest(unittest.TestCase):
             ['current incident is unowned', 'current incident is unacknowledged', 'current incident has no operator notes'],
         )
         self.assertTrue(context['operator_attention_needed'])
-        self.assertEqual(len(context['recent_incident_summaries']), 2)
-        self.assertIn('incident-42 | open | failed', context['recent_incident_summaries'][1])
-        self.assertIn('attention=unowned,unacknowledged,no-notes', context['recent_incident_summaries'][1])
+        self.assertEqual(len(context['recent_incidents']), 2)
+        self.assertEqual(context['recent_incidents'][1]['incident_id'], 'incident-42')
+        self.assertEqual(context['recent_incidents'][1]['attention_summary'], 'unowned,unacknowledged,no-notes')
+        self.assertNotIn('recent_incident_summaries', context)
 
 
 if __name__ == '__main__':
