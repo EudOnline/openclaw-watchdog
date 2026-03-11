@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 
 from watchdog_v2 import incident_context as incident_context_ops
+from watchdog_v2.models import IncidentSummary, ProbeSnapshot, RunStateSnapshot
 
 
 def report_attention_items(report: dict[str, object]) -> list[str]:
@@ -14,6 +15,14 @@ def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item) for item in value if str(item).strip()]
+
+
+def _incident_summary(value: object) -> IncidentSummary:
+    if isinstance(value, IncidentSummary):
+        return value
+    if isinstance(value, dict):
+        return IncidentSummary.from_dict(value)
+    return IncidentSummary()
 
 
 def message_report_text(report: dict[str, object]) -> str:
@@ -83,15 +92,13 @@ def message_report_text(report: dict[str, object]) -> str:
     if isinstance(recent_incidents, list) and recent_incidents:
         lines.append("recent_incidents:")
         for incident in recent_incidents[-3:]:
-            if not isinstance(incident, dict):
-                continue
-            latest_note = incident.get('latest_note', '') or ''
-            latest_note_suffix = f" | note={latest_note}" if latest_note else ""
-            attention_suffix = f" | attention={incident.get('attention_summary', 'none') or 'none'}"
+            summary = _incident_summary(incident)
+            latest_note_suffix = f" | note={summary.latest_note}" if summary.latest_note else ""
+            attention_suffix = f" | attention={summary.attention_summary or 'none'}"
             lines.append(
-                f"- {incident.get('incident_id', 'none')} | {incident.get('state', 'unknown')} | {incident.get('health_level', 'unknown')} | "
-                f"owner={incident.get('owner', '') or 'none'} | ack={str(bool(incident.get('acknowledged', False))).lower()} | notes={incident.get('notes_count', 0)} | "
-                f"{incident.get('summary', '')}{latest_note_suffix}{attention_suffix}"
+                f"- {summary.incident_id or 'none'} | {summary.state or 'unknown'} | {summary.health_level or 'unknown'} | "
+                f"owner={summary.owner or 'none'} | ack={str(bool(summary.acknowledged)).lower()} | notes={summary.notes_count} | "
+                f"{summary.summary}{latest_note_suffix}{attention_suffix}"
             )
     else:
         lines.append("recent_incidents: none")
@@ -268,25 +275,26 @@ def write_metrics_snapshot(engine, metrics: dict[str, object]) -> None:
 
 def metrics_payload(engine) -> dict[str, object]:
     payload = engine.status_payload()
-    run_state = payload.get("run_state", {}) if isinstance(payload.get("run_state"), dict) else {}
+    probe = ProbeSnapshot.from_dict(payload)
+    run_state = RunStateSnapshot.from_dict(payload.get("run_state", {}) if isinstance(payload.get("run_state"), dict) else {})
     recent_stats = payload.get("recent_event_stats", {}) if isinstance(payload.get("recent_event_stats"), dict) else {}
     counts = recent_stats.get("counts", {}) if isinstance(recent_stats.get("counts"), dict) else {}
     current_incident_state = str(payload.get("current_incident_state", "") or "")
-    current_incident = engine.current_incident_payload() if str(payload.get("current_incident_id", "") or "") else {}
+    current_incident = _incident_summary(engine.current_incident_payload() if str(payload.get("current_incident_id", "") or "") else {})
     metrics = {
         "generated_at": engine.now_iso(),
         "env_file": payload.get("env_file", ""),
         "status": payload.get("last_status", "unknown"),
         "health_level": payload.get("health_level", "unknown"),
         "current_mode": payload.get("current_mode", "unknown"),
-        "service_active": bool(payload.get("service_active", False)),
-        "process_layer_healthy": bool(payload.get("process_layer_healthy", False)),
-        "service_layer_healthy": bool(payload.get("service_layer_healthy", False)),
-        "conversation_ready": bool(payload.get("conversation_ready", False)),
-        "minimal_usable_ready": bool(payload.get("minimal_usable_ready", False)),
-        "conversation_status": str(payload.get("conversation_status", "down") or "down"),
-        "service_probe_summary": payload.get("service_probe_summary", "n/a"),
-        "conversation_probe_summary": payload.get("conversation_probe_summary", "n/a"),
+        "service_active": probe.service_active,
+        "process_layer_healthy": probe.process_layer_healthy,
+        "service_layer_healthy": probe.service_layer_healthy,
+        "conversation_ready": probe.conversation_ready,
+        "minimal_usable_ready": probe.minimal_usable_ready,
+        "conversation_status": probe.conversation_status,
+        "service_probe_summary": probe.service_probe_summary,
+        "conversation_probe_summary": probe.conversation_probe_summary,
         "maintenance_enabled": bool((payload.get("maintenance") or {}).get("enabled", False)),
         "survival_mode_active": bool(payload.get("survival_mode_active", False)),
         "survival_mode_reason": str(payload.get("survival_mode_reason", "") or ""),
@@ -311,19 +319,19 @@ def metrics_payload(engine) -> dict[str, object]:
         "consecutive_failures": int(payload.get("consecutive_failures", 0) or 0),
         "service_probe_failures": int(run_state.get("service_probe_failures", 0) or 0),
         "cooldown_remaining_seconds": int(payload.get("cooldown_remaining_seconds", 0) or 0),
-        "last_recovery_strategy": str(run_state.get("last_recovery_strategy", "none") or "none"),
-        "last_recovery_path": str(run_state.get("last_recovery_path", "none") or "none"),
-        "last_recovery_action_count": int(run_state.get("last_recovery_action_count", 0) or 0),
-        "last_recovery_restored_conversation": bool(run_state.get("last_recovery_restored_conversation", False)),
+        "last_recovery_strategy": run_state.last_recovery_strategy,
+        "last_recovery_path": run_state.last_recovery_path,
+        "last_recovery_action_count": run_state.last_recovery_action_count,
+        "last_recovery_restored_conversation": run_state.last_recovery_restored_conversation,
         "last_good_validated_at": str(run_state.get("last_good_validated_at", "") or ""),
         "last_good_generation_id": str(run_state.get("last_good_generation_id", "") or ""),
         "last_good_generation_count": int(run_state.get("last_good_generation_count", 0) or 0),
-        "rollback_candidate_used": str(run_state.get("rollback_candidate_used", "") or ""),
-        "rollback_reason": str(run_state.get("rollback_reason", "") or ""),
-        "config_drift_detected": bool(run_state.get("config_drift_detected", False)),
-        "drift_scope": list(run_state.get("drift_scope", [])) if isinstance(run_state.get("drift_scope", []), list) else [],
-        "drift_since_last_good": str(run_state.get("drift_since_last_good", "") or ""),
-        "drift_summary": str(run_state.get("drift_summary", "") or ""),
+        "rollback_candidate_used": run_state.rollback_candidate_used,
+        "rollback_reason": run_state.rollback_reason,
+        "config_drift_detected": run_state.config_drift_detected,
+        "drift_scope": list(run_state.drift_scope),
+        "drift_since_last_good": run_state.drift_since_last_good,
+        "drift_summary": run_state.drift_summary,
         "guard_manifest_file": str(run_state.get("guard_manifest_file", payload.get("guard_manifest_file", "")) or payload.get("guard_manifest_file", "")),
         "guard_last_operation": str(run_state.get("guard_last_operation", payload.get("guard_last_operation", "")) or payload.get("guard_last_operation", "")),
         "guard_last_phase": str(run_state.get("guard_last_phase", payload.get("guard_last_phase", "")) or payload.get("guard_last_phase", "")),
@@ -333,10 +341,10 @@ def metrics_payload(engine) -> dict[str, object]:
         "current_incident_id": payload.get("current_incident_id", ""),
         "current_incident_state": current_incident_state,
         "current_incident_age_seconds": int(payload.get("current_incident_age_seconds", 0) or 0),
-        "current_incident_owner": str(current_incident.get("owner", "") or ""),
-        "current_incident_owner_assigned": bool(str(current_incident.get("owner", "") or "").strip()),
-        "current_incident_acknowledged": bool(current_incident.get("acknowledged", False)),
-        "current_incident_notes_count": int(current_incident.get("notes_count", 0) or 0),
+        "current_incident_owner": current_incident.owner,
+        "current_incident_owner_assigned": bool(current_incident.owner.strip()),
+        "current_incident_acknowledged": current_incident.acknowledged,
+        "current_incident_notes_count": current_incident.notes_count,
         "current_incident_events_count": int(current_incident.get("events_count", 0) or 0),
         "current_incident_latest_event_type": str(current_incident.get("latest_event_type", "") or ""),
         "recent_event_stats": recent_stats,
@@ -360,6 +368,8 @@ def metrics_payload(engine) -> dict[str, object]:
 
 def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
     payload = engine.status_payload()
+    probe = ProbeSnapshot.from_dict(payload)
+    run_state = RunStateSnapshot.from_dict(payload)
     current_incident = engine.current_incident_payload() if str(payload.get("current_incident_id", "") or "") else {}
     recent_incidents = engine.list_incident_snapshots(limit=max(1, incident_limit))
     incident_context = incident_context_ops.build_report_incident_context(
@@ -376,12 +386,12 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "status": status,
         "health_level": effective_health_level,
         "current_mode": payload.get("current_mode", "unknown"),
-        "service_active": payload.get("service_active", False),
-        "conversation_ready": bool(payload.get("conversation_ready", False)),
-        "minimal_usable_ready": bool(payload.get("minimal_usable_ready", False)),
-        "conversation_status": str(payload.get("conversation_status", "down") or "down"),
-        "service_probe_summary": payload.get("service_probe_summary", "n/a"),
-        "conversation_probe_summary": payload.get("conversation_probe_summary", "n/a"),
+        "service_active": probe.service_active,
+        "conversation_ready": probe.conversation_ready,
+        "minimal_usable_ready": probe.minimal_usable_ready,
+        "conversation_status": probe.conversation_status,
+        "service_probe_summary": probe.service_probe_summary,
+        "conversation_probe_summary": probe.conversation_probe_summary,
         "last_event": payload.get("last_event", {}),
         "recent_event_stats": payload.get("recent_event_stats", {}),
         "incident_queue_summary": payload.get("incident_queue_summary", {}),
@@ -412,19 +422,19 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "survival_mode_last_exit_reason": str(payload.get("survival_mode_last_exit_reason", "") or ""),
         "survival_mode_last_exit_kind": str(payload.get("survival_mode_last_exit_kind", "") or ""),
         "survival_mode_last_exit_summary": str(payload.get("survival_mode_last_exit_summary", "") or ""),
-        "last_recovery_strategy": str(payload.get("last_recovery_strategy", "none") or "none"),
-        "last_recovery_path": str(payload.get("last_recovery_path", "none") or "none"),
-        "last_recovery_action_count": int(payload.get("last_recovery_action_count", 0) or 0),
-        "last_recovery_restored_conversation": bool(payload.get("last_recovery_restored_conversation", False)),
-        "last_good_validated_at": str(payload.get("last_good_validated_at", "") or ""),
-        "last_good_generation_id": str(payload.get("last_good_generation_id", "") or ""),
-        "last_good_generation_count": int(payload.get("last_good_generation_count", 0) or 0),
-        "rollback_candidate_used": str(payload.get("rollback_candidate_used", "") or ""),
-        "rollback_reason": str(payload.get("rollback_reason", "") or ""),
-        "config_drift_detected": bool(payload.get("config_drift_detected", False)),
-        "drift_scope": list(payload.get("drift_scope", [])) if isinstance(payload.get("drift_scope", []), list) else [],
-        "drift_since_last_good": str(payload.get("drift_since_last_good", "") or ""),
-        "drift_summary": str(payload.get("drift_summary", "") or ""),
+        "last_recovery_strategy": run_state.last_recovery_strategy,
+        "last_recovery_path": run_state.last_recovery_path,
+        "last_recovery_action_count": run_state.last_recovery_action_count,
+        "last_recovery_restored_conversation": run_state.last_recovery_restored_conversation,
+        "last_good_validated_at": run_state.last_good_validated_at,
+        "last_good_generation_id": run_state.last_good_generation_id,
+        "last_good_generation_count": run_state.last_good_generation_count,
+        "rollback_candidate_used": run_state.rollback_candidate_used,
+        "rollback_reason": run_state.rollback_reason,
+        "config_drift_detected": run_state.config_drift_detected,
+        "drift_scope": list(run_state.drift_scope),
+        "drift_since_last_good": run_state.drift_since_last_good,
+        "drift_summary": run_state.drift_summary,
         "guard_manifest_file": str(payload.get("guard_manifest_file", "") or ""),
         "guard_last_operation": str(payload.get("guard_last_operation", "") or ""),
         "guard_last_phase": str(payload.get("guard_last_phase", "") or ""),

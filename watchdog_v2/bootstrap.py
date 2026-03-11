@@ -9,8 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from watchdog_v2 import bootstrap_steps as bootstrap_step_ops
 from watchdog_v2 import repair as repair_ops
 from watchdog_v2.config import Config
+from watchdog_v2.models import BootstrapSummary
 
 QQ_PLUGIN_INSTALL_COMMAND = "openclaw plugins install @sliverp/qqbot@latest"
 QQ_PLUGIN_PACKAGE = "@sliverp/qqbot@latest"
@@ -65,174 +67,20 @@ class Bootstrapper:
         self.dry_run = dry_run
 
     def run(self) -> BootstrapOutcome:
-        payload: dict[str, Any] = {
-            "state": "unknown",
-            "summary": "",
-            "dry_run": self.dry_run,
-            "default_channels": ["qqbot", "feishu"],
-            "flow": [
-                "ensure-opencode",
-                "ensure-opencode-free-model",
-                "detect-codex",
-                "detect-openclaw",
-                "ensure-openclaw-if-confirmed",
-                "ensure-qq-plugin",
-                "ensure-openclaw-channel-config",
-                "scan-feishu-runtime-markers",
-            ],
-            "opencode": {"config": {}},
-            "codex": {},
-            "openclaw": {},
-            "qq_plugin": {"package": QQ_PLUGIN_PACKAGE, "command": QQ_PLUGIN_INSTALL_COMMAND},
-            "config": {"path": str(self.config.openclaw_config)},
-            "feishu_runtime": {},
-            "next_steps": [],
-        }
-
-        opencode_payload = self.ensure_opencode()
-        payload["opencode"] = opencode_payload
-
-        codex_payload = self.detect_codex()
-        payload["codex"] = codex_payload
-
-        if opencode_payload.get("status") == "failed":
-            payload["next_steps"].append("Fix the OpenCode install/config problem and rerun bootstrap.")
-            warnings: list[str] = []
-            self.add_tooling_warnings(payload, warnings)
-            if warnings:
-                payload["warnings"] = warnings
-            return self.finish(
-                payload,
-                state="failed",
-                summary=opencode_payload.get("summary", "OpenCode bootstrap failed."),
-                exit_code=1,
-            )
-
-        installed, detected_path, detect_result = self.detect_openclaw()
-        payload["openclaw"] = {
-            "installed": installed,
-            "binary": detected_path,
-            "confirmation_required": False,
-            "install_allowed": self.allow_install,
-            "install_command": self.config.openclaw_install_command,
-            "detect_returncode": detect_result.returncode,
-        }
-
-        if not installed and not self.allow_install:
-            payload["openclaw"]["confirmation_required"] = True
-            payload["next_steps"] = [
-                "Set OPENCLAW_INSTALL_COMMAND in the env file or shell environment.",
-                "Rerun bootstrap with --install-openclaw once you want the install command to execute.",
-            ]
-            warnings = []
-            self.add_tooling_warnings(payload, warnings)
-            if warnings:
-                payload["warnings"] = warnings
-            return self.finish(
-                payload,
-                state="confirmation-required",
-                summary=self.openclaw_confirmation_summary(opencode_payload),
-                exit_code=10,
-            )
-
-        install_details = self.ensure_openclaw(installed)
-        payload["openclaw"].update(install_details)
-        effective_openclaw = bool(payload["openclaw"].get("installed", False) or payload["openclaw"].get("would_install", False))
-        if not effective_openclaw:
-            payload["next_steps"].append("Fix the OpenClaw installation issue and rerun bootstrap.")
-            warnings = []
-            self.add_tooling_warnings(payload, warnings)
-            if warnings:
-                payload["warnings"] = warnings
-            return self.finish(
-                payload,
-                state="failed",
-                summary=payload["openclaw"].get("summary", "OpenClaw installation failed."),
-                exit_code=1,
-            )
-
-        qq_payload = self.ensure_qq_plugin()
-        payload["qq_plugin"].update(qq_payload)
-
-        config_payload = self.ensure_default_channel_config()
-        payload["config"].update(config_payload)
-
-        feishu_payload = self.detect_feishu_runtime_markers()
-        payload["feishu_runtime"] = feishu_payload
-
-        disabled_channels = [
-            name
-            for name, details in payload["config"].get("channels", {}).items()
-            if isinstance(details, dict) and not details.get("enabled", False)
-        ]
-        if disabled_channels:
-            payload["config"]["disabled_channels"] = disabled_channels
-
-        failures: list[str] = []
-        if payload["qq_plugin"].get("status") == "failed":
-            failures.append("QQ plugin install failed")
-        if payload["config"].get("status") == "failed":
-            failures.append("config scaffold failed")
-
-        warnings: list[str] = []
-        self.add_tooling_warnings(payload, warnings)
-
-        if payload["config"].get("placeholders_remaining"):
-            warnings.append("fill placeholder credentials before enabling live traffic")
-            payload["next_steps"].append(
-                "Fill the placeholder credentials, review enabled flags for qqbot/feishu, then restart the gateway manually."
-            )
-        elif disabled_channels:
-            warnings.append(f"review enabled flags for: {', '.join(disabled_channels)}")
-            payload["next_steps"].append(
-                f"Review and enable these channels if desired: {', '.join(disabled_channels)}, then restart the gateway manually."
-            )
-        else:
-            payload["next_steps"].append("Restart the OpenClaw gateway manually so plugin and channel changes are picked up.")
-
-        if payload["feishu_runtime"].get("checked") and not payload["feishu_runtime"].get("found"):
-            warnings.append("Feishu runtime markers were not observed in logs yet")
-
-        changed = any(
-            [
-                bool(payload["opencode"].get("changed")),
-                bool(payload["openclaw"].get("changed")),
-                bool(payload["qq_plugin"].get("changed")),
-                bool(payload["config"].get("changed")),
-            ]
-        )
-
-        if failures:
-            state = "failed"
-            summary = "; ".join(failures)
-            exit_code = 1
-        elif self.dry_run:
-            state = "dry-run"
-            summary = "Bootstrap dry-run completed for OpenCode fallback, Codex detection, OpenClaw provisioning, QQ plugin handling, and default channel scaffolding."
-            exit_code = 0
-        elif changed:
-            state = "bootstrapped"
-            summary = (
-                "Bootstrap completed with OpenCode fallback provisioning, Codex detection, OpenClaw provisioning checks, "
-                "QQ plugin handling, and default channel scaffolding."
-            )
-            exit_code = 0
-        else:
-            state = "already-ready"
-            summary = "OpenCode fallback, QQ plugin, and default channel scaffolding are already in place; Codex availability has been reported."
-            exit_code = 0
-
-        if warnings:
-            payload["warnings"] = warnings
-        return self.finish(payload, state=state, summary=summary, exit_code=exit_code)
+        bootstrap_summary = BootstrapSummary.initial(config_path=str(self.config.openclaw_config), dry_run=self.dry_run)
+        result = bootstrap_step_ops.run_bootstrap_pipeline(self, bootstrap_summary)
+        payload = result.bootstrap_summary.to_dict()
+        return self.finish(payload, state=result.state, summary=result.message, exit_code=result.exit_code)
 
     def finish(self, payload: dict[str, Any], *, state: str, summary: str, exit_code: int) -> BootstrapOutcome:
-        payload["state"] = state
-        payload["summary"] = summary
-        payload["exit_code"] = exit_code
-        payload["files_changed"] = self.collect_changed_files(payload)
-        payload["backup_files"] = self.collect_backup_files(payload)
-        return BootstrapOutcome(exit_code=exit_code, state=state, summary=summary, payload=payload)
+        bootstrap_summary = BootstrapSummary.from_dict(payload)
+        bootstrap_summary.state = state
+        bootstrap_summary.summary = summary
+        bootstrap_summary.exit_code = exit_code
+        bootstrap_summary.files_changed = self.collect_changed_files(payload)
+        bootstrap_summary.backup_files = self.collect_backup_files(payload)
+        final_payload = bootstrap_summary.to_dict()
+        return BootstrapOutcome(exit_code=exit_code, state=state, summary=summary, payload=final_payload)
 
     def collect_changed_files(self, payload: dict[str, Any]) -> list[str]:
         files: list[str] = []

@@ -60,12 +60,25 @@ config/        sanitized example env files
 rehearsal/     fixtures, shims, scenarios, and test flows
 ```
 
+## Internal architecture
+
+The refactor keeps the public interface stable while splitting internal responsibilities into smaller seams:
+
+- `watchdog_v2/models.py` for typed compatibility models over persisted dict payloads
+- `watchdog_v2/presenters/` for human-readable CLI formatting
+- `watchdog_v2/run_context.py` for mutable per-run state
+- `watchdog_v2/flows/` for legacy and survivability orchestration paths
+- `watchdog_v2/bootstrap_steps.py` for ordered bootstrap step execution
+- `watchdog_v2/engine.py` as the runtime facade and dependency hub
+
+For the fuller package map and validation story, see `docs/internal-architecture.md`.
+
 ## Requirements
 
 For the supported environment matrix and release expectations, see `docs/supported-environments.md`.
 
 - Python 3.11+
-- `scripts/openclaw-watchdog` checks for a compatible interpreter before importing the package and prints a clear error if only older Python versions are installed
+- `scripts/openclaw-watchdog` checks for a compatible interpreter before importing the package and prefers `python3.11`, `python3.12`, `python3.13`, or a compatible `python3`
 - OpenClaw installed on the target machine
 - Linux with `systemd --user` if you want the provided timer units
 - Standard host tools used by the watchdog or rehearsal flows, depending on features enabled:
@@ -93,7 +106,7 @@ scripts/openclaw-watchdog detect
 scripts/openclaw-watchdog check --env config/openclaw-watchdog.env
 ```
 
-If the wrapper reports that no compatible interpreter was found, install Python 3.11+ first and rerun the same command. For the first live rollout, follow `docs/first-deployment.md` before enabling the timer.
+If the wrapper reports that no compatible interpreter was found, install Python 3.11+ first and rerun the same command. The wrapper accepts any compatible `python3.11+` interpreter name it can discover, including `python3.11`, `python3.12`, `python3.13`, or a compatible `python3`. For the first live rollout, follow `docs/first-deployment.md` before enabling the timer.
 
 ### Option 2: Python module entrypoint
 
@@ -169,7 +182,12 @@ systemctl --user status openclaw-watchdog.service
 
 ## Rehearsal and validation
 
-This repo includes a repo-local rehearsal harness for validating flows without using a live production gateway.
+This repo includes a repo-local rehearsal harness for validating flows without using a live production gateway. The recommended validation order is:
+
+1. fast contract/unit tests (`python -m unittest discover -s tests -v`)
+2. direct orchestration tests for flows and bootstrap steps
+3. bounded rehearsal smoke scenarios under `rehearsal/scripts/run-scenario.sh`
+4. live acceptance only after the earlier layers are green
 
 Start with:
 

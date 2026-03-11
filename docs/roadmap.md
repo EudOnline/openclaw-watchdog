@@ -1,33 +1,25 @@
 # Roadmap
 
-This roadmap focuses on practical operator value: better recovery behavior, clearer validation paths, and a cleaner public project surface.
+This roadmap now assumes the current internal seams are in place: typed models, presenters, flow modules, a run context, and a step-based bootstrap pipeline. Future work should build on those seams instead of collapsing logic back into `watchdog_v2/engine.py` or `watchdog_v2/cli.py`.
 
-## v0.2.0 — usability and polish
+## Near-term follow-up
 
-- Refine the public README front page further
-- Reduce remaining migration friction around deprecated shim scripts
-- Improve docs around installation, validation, and expected host layout
-- Add stronger examples for systemd deployment and operator workflows
+- deepen direct flow coverage for restart, rollback, and escalation branches
+- expand rehearsal smoke coverage only for scenarios that represent real operator risk
+- keep the reporting / metrics contract stable while tightening internal types further
+- continue improving deployment docs and host onboarding guidance
 
-## v0.3.0 — validation and packaging
+## Validation policy
 
-- Add host auto-detection and preflight onboarding for safer first deployment
-- Expand rehearsal coverage for common recovery paths
-- Add a more explicit test/validation matrix
-- Improve packaging ergonomics for source-based installation
-- Consider lightweight release artifacts if maintenance cost stays reasonable
+Every substantial change should keep these layers green:
 
-A likely shape for this work is: detect host -> suggest config -> preflight -> observe-only rollout -> promote to active repair.
-
-## Future directions
-
-- Stronger drift-guard and rollback guidance
-- Better release engineering and changelog discipline
-- More operator-focused examples for recovery, metrics, and incident triage
-- Clearer separation between core watchdog behavior and optional helper workflows
+1. unit + contract tests under `tests/`
+2. direct orchestration tests for flows / bootstrap steps
+3. bounded rehearsal smoke scenarios
+4. live acceptance on a real host when behavior or docs change materially
 
 ## Non-goals for now
 
-- Shipping a complex hosted service around the watchdog
-- Turning the project into a full incident-management platform
-- Renaming the internal `watchdog_v2` Python package unless the migration value clearly outweighs the churn
+- renaming the internal `watchdog_v2` package
+- introducing a framework or dependency injection container
+- turning the watchdog into a hosted incident-management product

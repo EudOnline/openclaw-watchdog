@@ -75,6 +75,8 @@ When changing code, docs, or examples that touch compatibility:
 4. record compatibility-impacting changes in `CHANGELOG.md`;
 5. call out unsupported or best-effort paths clearly in PR descriptions.
 
+Internal refactors are encouraged when they reduce maintenance risk, but they should preserve the documented CLI entrypoints, stable report/metrics outputs, and rehearsal scenario intent unless an explicit migration note says otherwise.
+
 ## Practical guidance
 
 - New operators should follow `docs/first-deployment.md` and assume the Linux + `systemd --user` path unless the docs explicitly say otherwise.

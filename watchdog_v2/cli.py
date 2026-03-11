@@ -8,6 +8,10 @@ from watchdog_v2.bootstrap import BootstrapOutcome, Bootstrapper
 from watchdog_v2.config import Config, default_env_file
 from watchdog_v2.detect import detect_payload, print_detect, write_suggested_env
 from watchdog_v2.engine import WatchdogEngine
+from watchdog_v2.presenters.bootstrap import render_bootstrap
+from watchdog_v2.presenters.incidents import render_incident_queue
+from watchdog_v2.presenters.report import render_report
+from watchdog_v2.presenters.status import render_status_summary
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -148,117 +152,11 @@ def _print_check(payload: dict[str, object]) -> None:
 
 
 def _print_status_summary(payload: dict[str, object]) -> None:
-    last_event = payload.get("last_event", {})
-    recent_stats = payload.get("recent_event_stats", {})
-    counts = recent_stats.get("counts", {}) if isinstance(recent_stats, dict) else {}
-    recent_incidents = payload.get("recent_incidents", [])
-    incident_tail = "none"
-    if isinstance(recent_incidents, list) and recent_incidents:
-        last_incident = recent_incidents[-1]
-        if isinstance(last_incident, dict):
-            incident_tail = str(last_incident.get("incident_id", "none"))
-    survival_summary = "off"
-    if bool(payload.get("survival_mode_active", False)):
-        survival_summary = (
-            "active"
-            f"(sticky={str(bool(payload.get('survival_mode_sticky', False))).lower()},"
-            f"exit_ready={str(bool(payload.get('survival_mode_exit_ready', False))).lower()},"
-            f"stable={int(payload.get('survival_mode_stable_ready_runs', 0) or 0)}/{int(payload.get('survival_mode_stable_required_runs', 0) or 0)})"
-        )
-    elif str(payload.get("survival_mode_last_exit_kind", "") or ""):
-        survival_summary = f"last-exit={payload.get('survival_mode_last_exit_kind', '') or 'unknown'}"
-    print(
-        " | ".join(
-            [
-                f"status={payload.get('last_status', 'unknown')}",
-                f"conv={payload.get('conversation_status', 'down')}",
-                f"health={payload.get('health_level', 'unknown')}",
-                f"mode={payload.get('current_mode', 'unknown')}",
-                f"recovery={payload.get('last_recovery_strategy', 'none')}",
-                f"survival={survival_summary}",
-                f"service={str(bool(payload.get('service_active', False))).lower()}",
-                f"probe={payload.get('service_probe_summary', 'n/a')}",
-                f"recent=healthy:{counts.get('healthy', 0)},degraded:{counts.get('degraded', 0)},recovered:{counts.get('recovered', 0)},failed:{counts.get('failed', 0)}",
-                f"incident_tail={incident_tail}",
-                f"last={last_event.get('human_summary', last_event.get('summary', 'none'))}",
-            ]
-        )
-    )
+    print(render_status_summary(payload))
 
 
 def _print_report(payload: dict[str, object]) -> None:
-    last_event = payload.get("last_event", {})
-    recent_stats = payload.get("recent_event_stats", {})
-    counts = recent_stats.get("counts", {}) if isinstance(recent_stats, dict) else {}
-    recent_incidents = payload.get("recent_incidents", [])
-    print(f"status={payload.get('status', 'unknown')}")
-    print(f"conversation_status={payload.get('conversation_status', 'down')}")
-    print(f"conversation_ready={str(bool(payload.get('conversation_ready', False))).lower()}")
-    print(f"minimal_usable_ready={str(bool(payload.get('minimal_usable_ready', False))).lower()}")
-    print(f"health_level={payload.get('health_level', 'unknown')}")
-    print(f"current_mode={payload.get('current_mode', 'unknown')}")
-    print(f"last_recovery_strategy={payload.get('last_recovery_strategy', 'none')}")
-    print(f"last_recovery_path={payload.get('last_recovery_path', 'none')}")
-    print(f"last_recovery_action_count={payload.get('last_recovery_action_count', 0)}")
-    print(f"last_recovery_restored_conversation={str(bool(payload.get('last_recovery_restored_conversation', False))).lower()}")
-    print(f"rollback_candidate_used={payload.get('rollback_candidate_used', '') or 'none'}")
-    print(f"rollback_reason={payload.get('rollback_reason', '') or 'none'}")
-    print(f"config_drift_detected={str(bool(payload.get('config_drift_detected', False))).lower()}")
-    print(f"drift_scope={','.join(payload.get('drift_scope', [])) if isinstance(payload.get('drift_scope', []), list) and payload.get('drift_scope', []) else 'none'}")
-    print(f"drift_since_last_good={payload.get('drift_since_last_good', '') or 'none'}")
-    print(f"survival_mode_active={str(bool(payload.get('survival_mode_active', False))).lower()}")
-    print(f"survival_mode_reason={payload.get('survival_mode_reason', '') or 'none'}")
-    print(f"survival_mode_since={payload.get('survival_mode_since', '') or 'none'}")
-    print(f"survival_mode_summary={payload.get('survival_mode_summary', '') or 'none'}")
-    print(f"survival_mode_actions={'; '.join(payload.get('survival_mode_actions', [])) if isinstance(payload.get('survival_mode_actions', []), list) and payload.get('survival_mode_actions', []) else 'none'}")
-    print(f"survival_mode_disabled_features={','.join(payload.get('survival_mode_disabled_features', [])) if isinstance(payload.get('survival_mode_disabled_features', []), list) and payload.get('survival_mode_disabled_features', []) else 'none'}")
-    print(f"survival_mode_config_file={payload.get('survival_mode_config_file', '') or 'none'}")
-    print(f"survival_mode_sticky={str(bool(payload.get('survival_mode_sticky', False))).lower()}")
-    print(f"survival_mode_sticky_reason={payload.get('survival_mode_sticky_reason', '') or 'none'}")
-    print(f"survival_mode_exit_ready={str(bool(payload.get('survival_mode_exit_ready', False))).lower()}")
-    print(f"survival_mode_exit_policy={payload.get('survival_mode_exit_policy', '') or 'none'}")
-    print(f"survival_mode_exit_blockers={'; '.join(payload.get('survival_mode_exit_blockers', [])) if isinstance(payload.get('survival_mode_exit_blockers', []), list) and payload.get('survival_mode_exit_blockers', []) else 'none'}")
-    print(f"survival_mode_stable_ready_runs={payload.get('survival_mode_stable_ready_runs', 0)}")
-    print(f"survival_mode_stable_required_runs={payload.get('survival_mode_stable_required_runs', 0)}")
-    print(f"survival_mode_manual_clear_required={str(bool(payload.get('survival_mode_manual_clear_required', False))).lower()}")
-    print(f"survival_mode_config_changed_away={str(bool(payload.get('survival_mode_config_changed_away', False))).lower()}")
-    print(f"survival_mode_last_exit_at={payload.get('survival_mode_last_exit_at', '') or 'none'}")
-    print(f"survival_mode_last_exit_reason={payload.get('survival_mode_last_exit_reason', '') or 'none'}")
-    print(f"survival_mode_last_exit_kind={payload.get('survival_mode_last_exit_kind', '') or 'none'}")
-    print(f"survival_mode_last_exit_summary={payload.get('survival_mode_last_exit_summary', '') or 'none'}")
-    print(f"last_good_validated_at={payload.get('last_good_validated_at', '') or 'none'}")
-    print(f"service_active={str(bool(payload.get('service_active', False))).lower()}")
-    print(f"service_probe_summary={payload.get('service_probe_summary', 'n/a')}")
-    print(f"conversation_probe_summary={payload.get('conversation_probe_summary', 'n/a')}")
-    print(f"current_incident_id={payload.get('current_incident_id', '') or 'none'}")
-    print(f"current_incident_state={payload.get('current_incident_state', '') or 'none'}")
-    print(f"cooldown_remaining_seconds={payload.get('cooldown_remaining_seconds', 0)}")
-    print(f"last_event_severity={last_event.get('severity', 'none')}")
-    print(f"last_event_human_summary={last_event.get('human_summary', last_event.get('summary', 'none'))}")
-    print(f"recent_counts=healthy:{counts.get('healthy', 0)},degraded:{counts.get('degraded', 0)},recovered:{counts.get('recovered', 0)},failed:{counts.get('failed', 0)}")
-    queue_summary = payload.get('incident_queue_summary', {}) if isinstance(payload.get('incident_queue_summary', {}), dict) else {}
-    print(f"queue_open_total={queue_summary.get('open_total', 0)}")
-    print(f"queue_attention_total={queue_summary.get('attention_total', 0)}")
-    print(f"queue_handled_total={queue_summary.get('handled_total', 0)}")
-    print(f"recent_incidents_count={len(recent_incidents) if isinstance(recent_incidents, list) else 0}")
-    print(f"operator_attention_needed={str(bool(payload.get('operator_attention_needed', False))).lower()}")
-    print(f"operator_attention_count={payload.get('operator_attention_count', 0)}")
-    attention_items = payload.get('operator_attention_items', [])
-    if isinstance(attention_items, list):
-        for idx, item in enumerate(attention_items, start=1):
-            print(f"attention_{idx}={item}")
-    if isinstance(recent_incidents, list):
-        for idx, incident in enumerate(recent_incidents[-5:], start=1):
-            if not isinstance(incident, dict):
-                continue
-            latest_note = incident.get('latest_note', '') or ''
-            latest_note_suffix = f" | note={latest_note}" if latest_note else ""
-            print(
-                f"incident_{idx}={incident.get('time', 'unknown')} | {incident.get('incident_id', 'none')} | "
-                f"{incident.get('state', 'unknown')} | {incident.get('health_level', 'unknown')} | "
-                f"owner={incident.get('owner', '') or 'none'} | ack={str(bool(incident.get('acknowledged', False))).lower()} | notes={incident.get('notes_count', 0)} | "
-                f"attention={incident.get('attention_summary', 'none') or 'none'} | {incident.get('summary', '')}{latest_note_suffix}"
-            )
+    print(render_report(payload))
 
 
 def _print_metrics(payload: dict[str, object]) -> None:
@@ -504,26 +402,7 @@ def _print_incident_detail(payload: dict[str, object], *, notes_all: bool = Fals
 
 
 def _print_incident_queue(payload: dict[str, object]) -> None:
-    summary = payload.get('summary', {}) if isinstance(payload.get('summary', {}), dict) else {}
-    incidents = payload.get('incidents', [])
-    print(f"open_total={summary.get('open_total', 0)}")
-    print(f"attention_total={summary.get('attention_total', 0)}")
-    print(f"handled_total={summary.get('handled_total', 0)}")
-    print(f"owned_total={summary.get('owned_total', 0)}")
-    print(f"acknowledged_total={summary.get('acknowledged_total', 0)}")
-    print(f"with_notes_total={summary.get('with_notes_total', 0)}")
-    print(f"queue_count={len(incidents) if isinstance(incidents, list) else 0}")
-    if isinstance(incidents, list):
-        for idx, incident in enumerate(incidents, start=1):
-            if not isinstance(incident, dict):
-                continue
-            latest_note = incident.get('latest_note', '') or ''
-            latest_note_suffix = f" | note={latest_note}" if latest_note else ""
-            print(
-                f"queue_{idx}={incident.get('incident_id', 'none')} | {incident.get('state', 'unknown')} | {incident.get('health_level', 'unknown')} | "
-                f"owner={incident.get('owner', '') or 'none'} | ack={str(bool(incident.get('acknowledged', False))).lower()} | notes={incident.get('notes_count', 0)} | "
-                f"attention={incident.get('attention_summary', 'none') or 'none'} | {incident.get('summary', '')}{latest_note_suffix}"
-            )
+    print(render_incident_queue(payload))
 
 
 def _print_incident_timeline(payload: dict[str, object]) -> None:
@@ -554,38 +433,7 @@ def _print_maintenance(payload: dict[str, object]) -> None:
 
 
 def _print_bootstrap(outcome: BootstrapOutcome) -> None:
-    payload = outcome.payload
-    opencode = payload.get("opencode", {})
-    opencode_config = opencode.get("config", {})
-    codex = payload.get("codex", {})
-    openclaw = payload.get("openclaw", {})
-    qq_plugin = payload.get("qq_plugin", {})
-    config = payload.get("config", {})
-    feishu_runtime = payload.get("feishu_runtime", {})
-    placeholders = config.get("placeholders_remaining") or []
-    files_changed = payload.get("files_changed") or []
-    flow = payload.get("flow") or []
-    print(f"state={outcome.state}")
-    print(f"summary={outcome.summary}")
-    print(f"opencode_installed={str(bool(opencode.get('installed'))).lower()}")
-    print(f"opencode_install_planned={str(bool(opencode.get('would_install'))).lower()}")
-    print(f"opencode_config_path={opencode_config.get('path', 'none')}")
-    print(f"opencode_model={opencode_config.get('configured_model') or opencode.get('desired_model') or 'none'}")
-    print(f"opencode_config_changed={str(bool(opencode_config.get('changed'))).lower()}")
-    print(f"opencode_backup_path={opencode_config.get('backup_path') or 'none'}")
-    print(f"opencode_watchdog_bin_ready={str(bool(opencode.get('watchdog_bin_available'))).lower()}")
-    print(f"codex_available={str(bool(codex.get('available'))).lower()}")
-    print(f"codex_binary={codex.get('detected_binary') or 'none'}")
-    print(f"openclaw_installed={str(bool(openclaw.get('installed'))).lower()}")
-    print(f"confirmation_required={str(bool(openclaw.get('confirmation_required'))).lower()}")
-    print(f"qq_plugin_installed={str(bool(qq_plugin.get('installed'))).lower()}")
-    print(f"config_path={config.get('path', 'none')}")
-    print(f"config_changed={str(bool(config.get('changed'))).lower()}")
-    print(f"backup_path={config.get('backup_path') or 'none'}")
-    print(f"feishu_markers_found={str(bool(feishu_runtime.get('found'))).lower()}")
-    print(f"placeholders_remaining={','.join(placeholders) if placeholders else 'none'}")
-    print(f"files_changed={','.join(files_changed) if files_changed else 'none'}")
-    print(f"bootstrap_flow={' -> '.join(flow) if flow else 'none'}")
+    print(render_bootstrap(outcome))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -594,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
     env_file = args.env if args.env and args.env.exists() else args.env
     config = Config.load(env_file)
 
-    if args.command == "bootstrap":
+    if args.command in {"bootstrap", "provision"}:
         outcome = Bootstrapper(
             config,
             allow_install=args.install_openclaw,

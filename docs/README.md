@@ -6,6 +6,7 @@ This directory is split into two layers:
 
 These are the documents new users and operators should start with:
 
+- [internal-architecture.md](internal-architecture.md)
 - [compatibility-and-deprecations.md](compatibility-and-deprecations.md)
 - [supported-environments.md](supported-environments.md)
 - [first-deployment.md](first-deployment.md)
@@ -30,5 +31,6 @@ These documents are retained for migration and implementation context:
 4. Read [first-deployment.md](first-deployment.md) for the safest initial rollout path
 5. Read [faq.md](faq.md) if you want the quick orientation version
 6. Use [live-acceptance-checklist.md](live-acceptance-checklist.md) and [live-samples.md](live-samples.md) for validation work
-7. Read [rehearsal/README.md](../rehearsal/README.md) if you want the repo-local rehearsal flow
-8. Only consult `history/` if you need migration or roadmap background
+7. Read [internal-architecture.md](internal-architecture.md) if you are changing internals or tests
+8. Read [rehearsal/README.md](../rehearsal/README.md) if you want the repo-local rehearsal flow
+9. Only consult `history/` if you need migration or roadmap background

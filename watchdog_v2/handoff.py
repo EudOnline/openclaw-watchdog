@@ -30,16 +30,17 @@ def ensure_incident_context(engine) -> None:
         (engine.config.watchdog_incidents_dir / incident_id).mkdir(parents=True, exist_ok=True)
         engine.current_incident_marker.write_text(f"{incident_id}\n", encoding="utf-8")
         prune_incident_archives(engine)
-    engine.incident_id = incident_id
-    engine.incident_dir = engine.config.watchdog_incidents_dir / incident_id
-    engine.codex_prompt_file = engine.incident_dir / "codex-prompt.md"
-    engine.codex_handoff_file = engine.incident_dir / "run-codex.sh"
-    engine.codex_runner_file = engine.incident_dir / "codex-runner.sh"
-    engine.codex_run_log_file = engine.incident_dir / "codex-run.log"
-    engine.codex_autorun_ready = True
-    engine.opencode_fallback_handoff_file = engine.incident_dir / "run-opencode-fallback.sh"
-    engine.opencode_fallback_runner_file = engine.incident_dir / "opencode-fallback-runner.sh"
-    engine.opencode_fallback_run_log_file = engine.incident_dir / "opencode-fallback.log"
+    ctx = engine.ctx
+    ctx.incident_id = incident_id
+    ctx.incident_dir = engine.config.watchdog_incidents_dir / incident_id
+    ctx.codex_prompt_file = ctx.incident_dir / "codex-prompt.md"
+    ctx.codex_handoff_file = ctx.incident_dir / "run-codex.sh"
+    ctx.codex_runner_file = ctx.incident_dir / "codex-runner.sh"
+    ctx.codex_run_log_file = ctx.incident_dir / "codex-run.log"
+    ctx.codex_autorun_ready = True
+    ctx.opencode_fallback_handoff_file = ctx.incident_dir / "run-opencode-fallback.sh"
+    ctx.opencode_fallback_runner_file = ctx.incident_dir / "opencode-fallback-runner.sh"
+    ctx.opencode_fallback_run_log_file = ctx.incident_dir / "opencode-fallback.log"
     engine.update_incident_state("open", "incident created")
 
 

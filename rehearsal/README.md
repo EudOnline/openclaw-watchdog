@@ -2,6 +2,8 @@
 
 This harness exercises the OpenClaw Watchdog source tree in a deterministic, repo-local rehearsal environment.
 
+It still requires a compatible local Python 3.11+ interpreter. The rehearsal helper scripts prepare repo-local command shims for whichever supported `python3.11+` executable names are available on the host.
+
 ## What it gives you
 
 - A rehearsal flow that runs directly from this repo checkout.
@@ -13,7 +15,8 @@ This harness exercises the OpenClaw Watchdog source tree in a deterministic, rep
 ## Layout
 
 - `rehearsal/env/openclaw-watchdog.rehearsal.env`: safe in-repo env file for bootstrap/watchdog runs.
-- `rehearsal/bin/`: host-command shims used by the watchdog engine.
+- `rehearsal/bin/`: stable repo-local host-command shims used by the watchdog engine.
+- `rehearsal/runtime/system-bin/`: ephemeral host-command links prepared per run for commands discovered on the current machine.
 - `rehearsal/shims/`: fake `openclaw`, `opencode`, and `codex` binaries installed into `rehearsal/runtime/bin`.
 - `rehearsal/scripts/reset-runtime.sh`: wipe and recreate deterministic runtime state.
 - `rehearsal/scripts/apply-scenario.sh`: prepare a named scenario.

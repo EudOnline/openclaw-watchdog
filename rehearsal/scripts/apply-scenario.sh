@@ -7,15 +7,17 @@ SCENARIO="${1:-bootstrap-missing-openclaw}"
 cd "$REPO_ROOT"
 export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export HOME="$REPO_ROOT/rehearsal/runtime/home"
-bash rehearsal/scripts/prepare-system-bin.sh >/dev/null
-export PATH="$REPO_ROOT/rehearsal/bin:$REPO_ROOT/rehearsal/runtime/bin:$REPO_ROOT/rehearsal/system-bin"
+/bin/bash rehearsal/scripts/prepare-system-bin.sh >/dev/null
+export PATH="$REPO_ROOT/rehearsal/bin:$REPO_ROOT/rehearsal/runtime/bin:$REPO_ROOT/rehearsal/runtime/system-bin"
 
 set -a
 source rehearsal/env/openclaw-watchdog.rehearsal.env
 source rehearsal/env/openclaw-backup.rehearsal.env
 set +a
 
-rehearsal/scripts/reset-runtime.sh --quiet
+/bin/bash rehearsal/scripts/reset-runtime.sh --quiet
+/bin/bash rehearsal/scripts/prepare-system-bin.sh >/dev/null
+export PATH="$REPO_ROOT/rehearsal/bin:$REPO_ROOT/rehearsal/runtime/bin:$REPO_ROOT/rehearsal/runtime/system-bin"
 
 write_state() {
   cat > rehearsal/runtime/shim-state.json

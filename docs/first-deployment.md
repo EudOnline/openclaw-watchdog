@@ -10,7 +10,7 @@ Move from source checkout to a validated watchdog deployment without immediately
 
 ### 1. Clone and prepare the repo
 
-Make sure the host has Python 3.11+ available. The `scripts/openclaw-watchdog` wrapper checks this before it imports the package and exits with a clear requirement message if only older Python versions are installed.
+Make sure the host has Python 3.11+ available. The `scripts/openclaw-watchdog` wrapper checks this before it imports the package and accepts any compatible interpreter it can discover under names such as `python3.11`, `python3.12`, `python3.13`, or a compatible `python3`.
 
 ```bash
 git clone https://github.com/EudOnline/openclaw-watchdog ~/openclaw-watchdog
