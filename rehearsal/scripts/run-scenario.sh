@@ -9,7 +9,7 @@ cd "$REPO_ROOT"
 export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export HOME="$REPO_ROOT/rehearsal/runtime/home"
 bash rehearsal/scripts/prepare-system-bin.sh >/dev/null
-export PATH="$REPO_ROOT/rehearsal/bin:$REPO_ROOT/rehearsal/runtime/bin:$REPO_ROOT/rehearsal/system-bin"
+export PATH="$REPO_ROOT/rehearsal/bin:$REPO_ROOT/rehearsal/runtime/bin:$REPO_ROOT/rehearsal/runtime/system-bin"
 
 set -a
 source "$ENV_FILE"

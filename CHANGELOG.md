@@ -5,6 +5,13 @@ All notable changes to this public repository will be documented here.
 ## Unreleased
 
 ### Changed
+- split CLI text rendering into `watchdog_v2/presenters/` so parser/dispatch stay separate from human-readable formatting
+- extract mutable per-run engine state into `watchdog_v2/run_context.py` and bridge legacy `engine.<field>` access through `engine.ctx`
+- move legacy and survivability `run-once` orchestration into `watchdog_v2/flows/` while keeping public behavior stable
+- split bootstrap orchestration into ordered helpers under `watchdog_v2/bootstrap_steps.py`
+- expand CI to verify Python 3.11 and 3.13 while keeping rehearsal smoke scenarios on the baseline lane
+
+- freeze the public refactor boundary around canonical CLI entrypoints, stable report/metrics keys, and rehearsal scenario intent before deeper internal cleanup
 - expand CI quality gates to run Python 3.11 CLI smoke coverage plus higher-signal rehearsal scenarios
 - formalize the supported environment baseline around Python 3.11+, Linux + `systemd --user`, and release-gated repo-local rehearsal expectations
 - continue thinning `watchdog_v2/engine.py` by extracting event shaping and incident/report context helpers

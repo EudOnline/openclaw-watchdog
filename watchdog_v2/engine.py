@@ -11,7 +11,7 @@ import signal
 import tempfile
 import textwrap
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -26,6 +26,7 @@ from watchdog_v2 import survival as survival_ops
 from watchdog_v2.config import Config, parse_env_file
 from watchdog_v2.runtime import CommandResult, run_capture_to_file, run_command
 from watchdog_v2 import state_store
+from watchdog_v2.run_context import RUN_CONTEXT_FIELDS, RunContext
 
 
 @dataclass
@@ -38,7 +39,6 @@ class RunOutcome:
 class WatchdogEngine:
     def __init__(self, config: Config):
         self.config = config
-        self.run_ts = datetime.now().astimezone().strftime("%F %T %Z")
         self.last_status_file = self.config.watchdog_state_dir / "last-status"
         self.run_state_file = self.config.watchdog_run_state_file
         self.incident_backup_marker = self.config.watchdog_state_dir / "incident-backup-done"
@@ -46,63 +46,21 @@ class WatchdogEngine:
         self.tmpdir_obj: tempfile.TemporaryDirectory[str] | None = None
         self.tmpdir: Path | None = None
         self.lock_handle = None
-        self.rollback_summary = ""
-        self.rollback_occurred = False
-        self.rollback_summary_archive_file = ""
-        self.rollback_broken_config_file = ""
-        self.rollback_candidate_used = ""
-        self.rollback_reason = ""
-        self.config_drift_detected = False
-        self.pre_repair_backup_result = "not-run"
-        self.consecutive_failures = 0
-        self.recovery_steps: list[str] = []
-        self.last_recovery_strategy = "none"
-        self.last_recovery_action_count = 0
-        self.last_recovery_restored_conversation = False
-        self.last_good_validated_at = ""
-        self.last_good_generation_id = ""
-        self.last_good_generation_count = 0
-        self.survival_mode_active = False
-        self.survival_mode_reason = ""
-        self.survival_mode_since = ""
-        self.survival_mode_summary = ""
-        self.survival_mode_actions: list[str] = []
-        self.survival_mode_disabled_features: list[str] = []
-        self.survival_mode_config_file = ""
-        self.survival_mode_sticky = False
-        self.survival_mode_sticky_reason = ""
-        self.survival_mode_exit_ready = False
-        self.survival_mode_exit_policy = "none"
-        self.survival_mode_exit_blockers: list[str] = []
-        self.survival_mode_stable_ready_runs = 0
-        self.survival_mode_stable_required_runs = self.config.watchdog_survival_stable_ready_runs
-        self.survival_mode_manual_clear_required = False
-        self.survival_mode_config_changed_away = False
-        self.survival_mode_last_exit_at = ""
-        self.survival_mode_last_exit_reason = ""
-        self.survival_mode_last_exit_kind = ""
-        self.survival_mode_last_exit_summary = ""
-        self.drift_scope: list[str] = []
-        self.drift_since_last_good = ""
-        self.drift_summary = ""
-        self.latest_probe: dict[str, object] = {}
-        self.incident_id = ""
-        self.incident_dir: Path | None = None
-        self.codex_prompt_file: Path | None = None
-        self.codex_handoff_file: Path | None = None
-        self.codex_runner_file: Path | None = None
-        self.codex_run_log_file: Path | None = None
-        self.codex_run_pid = ""
-        self.codex_trigger_result = "not-run"
-        self.codex_autorun_ready = False
-        self.last_run_started_at = datetime.now().astimezone()
-        self.last_run_finished_at = self.last_run_started_at
-        self.opencode_fallback_handoff_file: Path | None = None
-        self.opencode_fallback_runner_file: Path | None = None
-        self.opencode_fallback_run_log_file: Path | None = None
-        self.opencode_fallback_run_pid = ""
-        self.opencode_fallback_trigger_result = "not-run"
+        self.ctx = RunContext.initial(stable_required_runs=self.config.watchdog_survival_stable_ready_runs)
         self._prepare_state_dirs()
+
+    def __getattr__(self, name: str):
+        ctx = self.__dict__.get('ctx')
+        if ctx is not None and name in RUN_CONTEXT_FIELDS:
+            return getattr(ctx, name)
+        raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
+
+    def __setattr__(self, name: str, value) -> None:
+        ctx = self.__dict__.get('ctx')
+        if name != 'ctx' and ctx is not None and name in RUN_CONTEXT_FIELDS:
+            setattr(ctx, name, value)
+            return
+        super().__setattr__(name, value)
 
     def __enter__(self) -> "WatchdogEngine":
         self.tmpdir_obj = tempfile.TemporaryDirectory(prefix="openclaw-watchdog-")
@@ -1242,204 +1200,9 @@ class WatchdogEngine:
         return self.maintenance_status_payload()
 
     def _run_once_legacy(self) -> RunOutcome:
-        start_ts = datetime.now().astimezone()
-        self.last_run_started_at = start_ts
-        self.run_ts = start_ts.strftime("%F %T %Z")
-        self.write_run_state({"last_run_started_at": start_ts.isoformat(timespec="seconds")})
-        self.log("INFO", "watchdog tick start")
+        from watchdog_v2.flows import legacy_run
 
-        try:
-            probe = self.live_probe(include_doctor=True, apply_grace=True)
-            doctor_output = str(probe.get("doctor_output", ""))
-            config_invalid = bool(probe.get("config_invalid", False))
-            process_layer_healthy = bool(probe.get("process_layer_healthy", False))
-            service_layer_healthy = bool(probe.get("service_layer_healthy", True))
-            active = "true" if probe.get("service_active") else "false"
-            main_pid = str(probe.get("service_main_pid", "0"))
-            listeners = [str(item) for item in probe.get("listener_pids", [])]
-            listeners_str = " ".join(listeners) if listeners else "none"
-            self.log(
-                "INFO",
-                f"precheck active={active} main_pid={main_pid or '0'} listeners={listeners_str} "
-                f"doctor_rc={probe.get('doctor_rc', 0)} service_probe={probe.get('service_probe_summary', 'n/a')}",
-            )
-
-            run_state = self.read_run_state()
-            previous_service_probe_failures = int(run_state.get("service_probe_failures", 0) or 0)
-            if self.config.watchdog_enable_service_level_probe and process_layer_healthy and not service_layer_healthy:
-                service_probe_failures = previous_service_probe_failures + 1
-            else:
-                service_probe_failures = 0
-            service_probe_threshold_met = (
-                self.config.watchdog_enable_service_level_probe
-                and process_layer_healthy
-                and not service_layer_healthy
-                and service_probe_failures >= self.config.watchdog_service_level_failure_threshold
-            )
-            initial_health_level = "healthy"
-            if config_invalid or not process_layer_healthy:
-                initial_health_level = "failed"
-            elif process_layer_healthy and not service_layer_healthy:
-                initial_health_level = "degraded"
-            self.write_run_state(
-                {
-                    "service_probe_failures": service_probe_failures,
-                    "last_service_probe_at": str(probe.get("service_probe_checked_at", self.now_iso())),
-                    "last_service_probe_result": "healthy" if service_layer_healthy else "degraded",
-                    "last_service_probe_summary": str(probe.get("service_probe_summary", "")),
-                    "last_service_probe_rc": int(probe.get("service_probe_rc", 0) or 0),
-                    "health_level": initial_health_level,
-                    "current_mode": self.current_mode(
-                        maintenance=self.config.watchdog_maintenance_file.exists(),
-                        degraded=initial_health_level == "degraded",
-                    ),
-                    "cooldown_remaining_seconds": self.codex_cooldown_remaining(),
-                }
-            )
-
-            need_remediation = config_invalid or not process_layer_healthy or service_probe_threshold_met
-            if need_remediation:
-                self.run_pre_repair_backup()
-
-            if config_invalid:
-                self.log("WARN", "detected invalid OpenClaw config")
-                if self.restore_last_good():
-                    self.restart_service()
-                    probe = self.live_probe(include_doctor=True, apply_grace=True)
-                    doctor_output = str(probe.get("doctor_output", doctor_output))
-                    config_invalid = bool(probe.get("config_invalid", False))
-                    process_layer_healthy = bool(probe.get("process_layer_healthy", False))
-                    service_layer_healthy = bool(probe.get("service_layer_healthy", True))
-                    active = "true" if probe.get("service_active") else "false"
-                    main_pid = str(probe.get("service_main_pid", "0"))
-                    listeners = [str(item) for item in probe.get("listener_pids", [])]
-                    listeners_str = " ".join(listeners) if listeners else "none"
-                    if self.config.watchdog_enable_service_level_probe and process_layer_healthy and not service_layer_healthy:
-                        service_probe_failures += 1
-                        self.write_run_state(
-                            {
-                                "service_probe_failures": service_probe_failures,
-                                "last_service_probe_at": str(probe.get("service_probe_checked_at", self.now_iso())),
-                                "last_service_probe_result": "healthy" if service_layer_healthy else "degraded",
-                                "last_service_probe_summary": str(probe.get("service_probe_summary", "")),
-                                "last_service_probe_rc": int(probe.get("service_probe_rc", 0) or 0),
-                            }
-                        )
-                else:
-                    self.increment_failure_count()
-                    self.collect_incident_bundle("配置无效，且没有 last-good 备份可恢复", doctor_output, active, main_pid, listeners_str)
-                    self.trigger_codex_autorun()
-                    self.write_incident_operator_summary(
-                        summary="配置无效，且没有 last-good 备份可恢复",
-                        active=active,
-                        main_pid=main_pid,
-                        listeners=listeners_str,
-                    )
-                    summary = (
-                        f"配置无效，且没有 last-good；incident={self.incident_dir or 'none'}；"
-                        f"codex_handoff={self.codex_handoff_file or 'none'}；codex_result={self.codex_trigger_result or 'not-run'}"
-                    )
-                    self.set_state("failed", summary)
-                    return RunOutcome(exit_code=1, state="failed", summary=summary)
-
-            if process_layer_healthy and service_layer_healthy:
-                self.backup_last_good()
-                self.write_run_state({"service_probe_failures": 0})
-                summary = "service active and listener matches service process tree"
-                self.set_state("healthy", summary)
-                self.log("INFO", "watchdog tick healthy")
-                return RunOutcome(exit_code=0, state="healthy", summary=summary)
-
-            if process_layer_healthy and not service_layer_healthy and not service_probe_threshold_met:
-                summary = (
-                    f"service layer degraded: {probe.get('service_probe_summary', 'status probe failed')} "
-                    f"({service_probe_failures}/{self.config.watchdog_service_level_failure_threshold})"
-                )
-                self.set_state("degraded", summary)
-                self.log("WARN", f"watchdog degraded without remediation: {summary}")
-                return RunOutcome(exit_code=0, state="degraded", summary=summary)
-
-            if active != "true" and self.listener_count() > 0:
-                self.kill_stray_listeners(main_pid)
-
-            self.run_doctor_repair()
-            self.restart_service()
-
-            final_probe = self.live_probe(include_doctor=False, apply_grace=True)
-            final_process_layer_healthy = bool(final_probe.get("process_layer_healthy", False))
-            final_service_layer_healthy = bool(final_probe.get("service_layer_healthy", True))
-            if final_process_layer_healthy and final_service_layer_healthy:
-                self.backup_last_good()
-                self.write_run_state(
-                    {
-                        "service_probe_failures": 0,
-                        "last_service_probe_at": str(final_probe.get("service_probe_checked_at", self.now_iso())),
-                        "last_service_probe_result": "healthy",
-                        "last_service_probe_summary": str(final_probe.get("service_probe_summary", "")),
-                        "last_service_probe_rc": int(final_probe.get("service_probe_rc", 0) or 0),
-                    }
-                )
-                summary = "watchdog restarted gateway successfully"
-                self.set_state("recovered", summary)
-                self.log("INFO", "watchdog recovered service")
-                return RunOutcome(exit_code=0, state="recovered", summary=summary)
-
-            final_active = "true" if final_probe.get("service_active") else "false"
-            final_pid = str(final_probe.get("service_main_pid", "0"))
-            final_listeners = [str(item) for item in final_probe.get("listener_pids", [])]
-            final_listeners_str = " ".join(final_listeners) if final_listeners else "none"
-            final_summary = (
-                f"active={final_active} main_pid={final_pid or '0'} listeners={final_listeners_str} "
-                f"service_probe={final_probe.get('service_probe_summary', 'n/a')}"
-            )
-
-            self.increment_failure_count()
-            self.write_run_state(
-                {
-                    "service_probe_failures": service_probe_failures if final_process_layer_healthy and not final_service_layer_healthy else 0,
-                    "last_service_probe_at": str(final_probe.get("service_probe_checked_at", self.now_iso())),
-                    "last_service_probe_result": "healthy" if final_service_layer_healthy else "degraded",
-                    "last_service_probe_summary": str(final_probe.get("service_probe_summary", "")),
-                    "last_service_probe_rc": int(final_probe.get("service_probe_rc", 0) or 0),
-                    "health_level": "failed",
-                    "current_mode": self.current_mode(maintenance=self.config.watchdog_maintenance_file.exists()),
-                    "cooldown_remaining_seconds": self.codex_cooldown_remaining(),
-                }
-            )
-            self.collect_incident_bundle(
-                f"deterministic remediation failed: {final_summary}",
-                doctor_output,
-                final_active,
-                final_pid,
-                final_listeners_str,
-            )
-            self.trigger_codex_autorun()
-            self.write_incident_operator_summary(
-                summary=f"deterministic remediation failed: {final_summary}",
-                active=final_active,
-                main_pid=final_pid,
-                listeners=final_listeners_str,
-            )
-            summary = (
-                f"{final_summary}；incident={self.incident_dir or 'none'}；"
-                f"codex_handoff={self.codex_handoff_file or 'none'}；codex_result={self.codex_trigger_result or 'not-run'}"
-            )
-            self.set_state("failed", summary)
-            self.log(
-                "ERROR",
-                f"watchdog failed to recover: {final_summary} incident={self.incident_dir or 'none'} codex={self.codex_trigger_result or 'not-run'}",
-            )
-            return RunOutcome(exit_code=1, state="failed", summary=summary)
-        finally:
-            finish_ts = datetime.now().astimezone()
-            self.last_run_finished_at = finish_ts
-            duration_ms = max(0, int((finish_ts - start_ts).total_seconds() * 1000))
-            self.write_run_state(
-                {
-                    "last_run_finished_at": finish_ts.isoformat(timespec="seconds"),
-                    "last_run_duration_ms": duration_ms,
-                }
-            )
+        return legacy_run.run(self, self.ctx)
 
     def _service_probe_failures_for(self, probe: dict[str, object], previous_failures: int) -> int:
         process_layer_healthy = bool(probe.get("process_layer_healthy", False))
@@ -1489,286 +1252,9 @@ class WatchdogEngine:
         return initial_health_level
 
     def _run_once_survivability(self) -> RunOutcome:
-        start_ts = datetime.now().astimezone()
-        self.last_run_started_at = start_ts
-        self.run_ts = start_ts.strftime("%F %T %Z")
-        self.write_run_state({"last_run_started_at": start_ts.isoformat(timespec="seconds")})
-        self.log("INFO", "watchdog tick start (survivability flow)")
-        self.reset_recovery_tracking()
-        last_good = self.last_good_status()
-        self.last_good_validated_at = str(last_good.get("last_good_validated_at", "") or "")
-        self.last_good_generation_id = str(last_good.get("last_good_generation_id", "") or "")
-        self.last_good_generation_count = int(last_good.get("last_good_generation_count", 0) or 0)
+        from watchdog_v2.flows import survivability_run
 
-        try:
-            probe = self.live_probe(include_doctor=True, apply_grace=True)
-            self.latest_probe = dict(probe)
-            doctor_output = str(probe.get("doctor_output", ""))
-            config_invalid = bool(probe.get("config_invalid", False))
-            self.sync_survival_mode(probe=probe, config_invalid=config_invalid)
-            process_layer_healthy = bool(probe.get("process_layer_healthy", False))
-            service_layer_healthy = bool(probe.get("service_layer_healthy", True))
-            conversation_ready = bool(probe.get("conversation_ready", False))
-            minimal_usable_ready = bool(probe.get("minimal_usable_ready", False))
-            active = "true" if probe.get("service_active") else "false"
-            main_pid = str(probe.get("service_main_pid", "0"))
-            listeners = [str(item) for item in probe.get("listener_pids", [])]
-            listeners_str = " ".join(listeners) if listeners else "none"
-            self.log(
-                "INFO",
-                f"survivability precheck active={active} main_pid={main_pid or '0'} listeners={listeners_str} "
-                f"doctor_rc={probe.get('doctor_rc', 0)} service_probe={probe.get('service_probe_summary', 'n/a')} "
-                f"conversation={probe.get('conversation_status', 'down')}",
-            )
-
-            run_state = self.read_run_state()
-            previous_service_probe_failures = int(run_state.get("service_probe_failures", 0) or 0)
-            service_probe_failures = self._service_probe_failures_for(probe, previous_service_probe_failures)
-            service_probe_threshold_met = (
-                self.config.watchdog_enable_service_level_probe
-                and process_layer_healthy
-                and not service_layer_healthy
-                and service_probe_failures >= self.config.watchdog_service_level_failure_threshold
-            )
-            self._write_probe_run_state(probe, config_invalid=config_invalid, service_probe_failures=service_probe_failures)
-
-            if process_layer_healthy and conversation_ready and not config_invalid:
-                self.finalize_recovery_tracking(strategy="steady-state", restored_conversation=True)
-                if not self.survival_mode_active:
-                    self.backup_last_good(validation=probe)
-                summary = "conversation ready and gateway listener healthy"
-                self.set_state("healthy", summary)
-                self.log("INFO", "watchdog tick healthy (survivability flow)")
-                return RunOutcome(exit_code=0, state="healthy", summary=summary)
-
-            if process_layer_healthy and minimal_usable_ready and not config_invalid and not service_probe_threshold_met:
-                self.finalize_recovery_tracking(strategy="minimal-usable", restored_conversation=True)
-                summary = f"minimal usable conversation only: {probe.get('conversation_probe_summary', 'n/a')}"
-                self.set_state("degraded", summary)
-                self.log("WARN", f"watchdog degraded without remediation: {summary}")
-                return RunOutcome(exit_code=0, state="degraded", summary=summary)
-
-            self.record_recovery_step(
-                "diagnose",
-                "diagnosed",
-                "config-invalid"
-                if config_invalid
-                else "process-down"
-                if not process_layer_healthy
-                else "service-threshold"
-                if service_probe_threshold_met
-                else str(probe.get("conversation_status", "down") or "down"),
-            )
-            drift = self.drift_context()
-            self.config_drift_detected = bool(drift.get("detected", False))
-            self.drift_scope = [str(item) for item in drift.get("scope", []) if str(item).strip()]
-            self.drift_since_last_good = str(drift.get("since_last_good", "") or "")
-            self.drift_summary = str(drift.get("summary", "") or "")
-
-            self.run_pre_repair_backup()
-
-            if config_invalid:
-                self.record_recovery_step("restart", "skipped", "config-invalid")
-            else:
-                if active != "true" and self.listener_count() > 0:
-                    self.kill_stray_listeners(main_pid)
-                restart_ok = self.restart_service()
-                self.record_recovery_step("restart", "success" if restart_ok else "failed", "systemctl")
-                if restart_ok:
-                    restart_probe = self.live_probe(include_doctor=True, apply_grace=True)
-                    self.latest_probe = dict(restart_probe)
-                    doctor_output = str(restart_probe.get("doctor_output", doctor_output))
-                    config_invalid = bool(restart_probe.get("config_invalid", False))
-                    service_probe_failures = self._service_probe_failures_for(restart_probe, service_probe_failures)
-                    self._write_probe_run_state(restart_probe, config_invalid=config_invalid, service_probe_failures=service_probe_failures)
-                    if bool(restart_probe.get("minimal_usable_ready", False)):
-                        self.finalize_recovery_tracking(strategy="restart", restored_conversation=True)
-                        if bool(restart_probe.get("conversation_ready", False)):
-                            self.backup_last_good(validation=restart_probe)
-                        summary = (
-                            "restart restored conversation readiness"
-                            if bool(restart_probe.get("conversation_ready", False))
-                            else "restart restored minimal usable conversation"
-                        )
-                        self.set_state("recovered", summary)
-                        self.log("INFO", f"watchdog recovered via restart: {summary}")
-                        return RunOutcome(exit_code=0, state="recovered", summary=summary)
-
-            if self.config.watchdog_last_good_config.exists() or self.config.watchdog_last_good_manifest_file.exists():
-                rollback_reason = (
-                    "config-invalid"
-                    if config_invalid
-                    else "config-drift"
-                    if self.config_drift_detected
-                    else "restart-did-not-restore-conversation"
-                )
-                rollback_ok = self.restore_last_good(reason=rollback_reason)
-                self.record_recovery_step(
-                    "rollback",
-                    "success" if rollback_ok else "failed",
-                    self.rollback_candidate_used or rollback_reason,
-                )
-                if rollback_ok:
-                    rollback_restart_ok = self.restart_service()
-                    self.record_recovery_step("rollback-restart", "success" if rollback_restart_ok else "failed", "systemctl")
-                    if rollback_restart_ok:
-                        rollback_probe = self.live_probe(include_doctor=True, apply_grace=True)
-                        self.latest_probe = dict(rollback_probe)
-                        doctor_output = str(rollback_probe.get("doctor_output", doctor_output))
-                        config_invalid = bool(rollback_probe.get("config_invalid", False))
-                        service_probe_failures = self._service_probe_failures_for(rollback_probe, service_probe_failures)
-                        self._write_probe_run_state(rollback_probe, config_invalid=config_invalid, service_probe_failures=service_probe_failures)
-                        if bool(rollback_probe.get("minimal_usable_ready", False)):
-                            self.finalize_recovery_tracking(strategy="rollback", restored_conversation=True)
-                            if bool(rollback_probe.get("conversation_ready", False)):
-                                self.backup_last_good(validation=rollback_probe)
-                            summary = (
-                                f"rollback restored conversation readiness (candidate={self.rollback_candidate_used or 'unknown'})"
-                                if bool(rollback_probe.get("conversation_ready", False))
-                                else f"rollback restored minimal usable conversation (candidate={self.rollback_candidate_used or 'unknown'})"
-                            )
-                            self.set_state("recovered", summary)
-                            self.log("INFO", f"watchdog recovered via rollback: {summary}")
-                            return RunOutcome(exit_code=0, state="recovered", summary=summary)
-            else:
-                self.record_recovery_step("rollback", "skipped", "no-last-good")
-
-            survival_reason = (
-                "config-invalid"
-                if config_invalid
-                else "config-drift"
-                if self.config_drift_detected
-                else str(probe.get("conversation_status", "down") or "down")
-            )
-            survival_result = self.enter_survival_mode(reason=survival_reason)
-            if bool(survival_result.get("applied", False)):
-                self.record_recovery_step("survival", "success", survival_reason)
-                survival_restart_ok = self.restart_service()
-                self.record_recovery_step("survival-restart", "success" if survival_restart_ok else "failed", "systemctl")
-                if survival_restart_ok:
-                    survival_probe = self.live_probe(include_doctor=True, apply_grace=True)
-                    self.latest_probe = dict(survival_probe)
-                    doctor_output = str(survival_probe.get("doctor_output", doctor_output))
-                    config_invalid = bool(survival_probe.get("config_invalid", False))
-                    service_probe_failures = self._service_probe_failures_for(survival_probe, service_probe_failures)
-                    self._write_probe_run_state(survival_probe, config_invalid=config_invalid, service_probe_failures=service_probe_failures)
-                    if bool(survival_probe.get("minimal_usable_ready", False)):
-                        self.finalize_recovery_tracking(strategy="survival", restored_conversation=True)
-                        summary = (
-                            "survival mode restored conversation readiness"
-                            if bool(survival_probe.get("conversation_ready", False))
-                            else "survival mode restored minimal usable conversation"
-                        )
-                        self.set_state("recovered", summary, health_level_override="degraded")
-                        self.log("WARN", f"watchdog recovered via survival mode: {summary}")
-                        return RunOutcome(exit_code=0, state="recovered", summary=summary)
-            else:
-                self.record_recovery_step("survival", "skipped", str(survival_result.get("detail", "not-applicable") or "not-applicable"))
-
-            if self.config.watchdog_enable_doctor_repair:
-                self.run_doctor_repair()
-                self.record_recovery_step("doctor", "success", "repair-ran")
-                doctor_restart_ok = self.restart_service()
-                self.record_recovery_step("doctor-restart", "success" if doctor_restart_ok else "failed", "systemctl")
-                if doctor_restart_ok:
-                    doctor_probe = self.live_probe(include_doctor=True, apply_grace=True)
-                    self.latest_probe = dict(doctor_probe)
-                    doctor_output = str(doctor_probe.get("doctor_output", doctor_output))
-                    config_invalid = bool(doctor_probe.get("config_invalid", False))
-                    service_probe_failures = self._service_probe_failures_for(doctor_probe, service_probe_failures)
-                    self._write_probe_run_state(doctor_probe, config_invalid=config_invalid, service_probe_failures=service_probe_failures)
-                    if bool(doctor_probe.get("minimal_usable_ready", False)):
-                        self.finalize_recovery_tracking(strategy="doctor", restored_conversation=True)
-                        if bool(doctor_probe.get("conversation_ready", False)):
-                            self.backup_last_good(validation=doctor_probe)
-                        summary = (
-                            "doctor repair restored conversation readiness"
-                            if bool(doctor_probe.get("conversation_ready", False))
-                            else "doctor repair restored minimal usable conversation"
-                        )
-                        self.set_state("recovered", summary)
-                        self.log("INFO", f"watchdog recovered via doctor repair: {summary}")
-                        return RunOutcome(exit_code=0, state="recovered", summary=summary)
-            else:
-                self.record_recovery_step("doctor", "skipped", "disabled")
-
-            final_probe = dict(self.latest_probe) if self.latest_probe else self.live_probe(include_doctor=False, apply_grace=True)
-            final_process_layer_healthy = bool(final_probe.get("process_layer_healthy", False))
-            final_service_layer_healthy = bool(final_probe.get("service_layer_healthy", True))
-            final_active = "true" if final_probe.get("service_active") else "false"
-            final_pid = str(final_probe.get("service_main_pid", "0"))
-            final_listeners = [str(item) for item in final_probe.get("listener_pids", [])]
-            final_listeners_str = " ".join(final_listeners) if final_listeners else "none"
-            final_summary = (
-                f"conversation={final_probe.get('conversation_status', 'down')} active={final_active} main_pid={final_pid or '0'} "
-                f"listeners={final_listeners_str} service_probe={final_probe.get('service_probe_summary', 'n/a')} "
-                f"recovery_path={self.recovery_path_text()}"
-            )
-
-            self.finalize_recovery_tracking(strategy="escalated", restored_conversation=False)
-            self.increment_failure_count()
-            self.write_run_state(
-                {
-                    "service_probe_failures": service_probe_failures if final_process_layer_healthy and not final_service_layer_healthy else 0,
-                    "last_service_probe_at": str(final_probe.get("service_probe_checked_at", self.now_iso())),
-                    "last_service_probe_result": "healthy" if final_service_layer_healthy else "degraded",
-                    "last_service_probe_summary": str(final_probe.get("service_probe_summary", "")),
-                    "last_service_probe_rc": int(final_probe.get("service_probe_rc", 0) or 0),
-                    "health_level": "failed",
-                    "current_mode": self.current_mode(maintenance=self.config.watchdog_maintenance_file.exists(), survival=self.survival_mode_active),
-                    "cooldown_remaining_seconds": self.codex_cooldown_remaining(),
-                    "conversation_ready": bool(final_probe.get("conversation_ready", False)),
-                    "minimal_usable_ready": bool(final_probe.get("minimal_usable_ready", False)),
-                    "conversation_status": str(final_probe.get("conversation_status", "down") or "down"),
-                    "conversation_probe_summary": str(final_probe.get("conversation_probe_summary", "") or ""),
-                    "last_recovery_strategy": self.last_recovery_strategy,
-                    "last_recovery_path": self.recovery_path_text(),
-                    "last_recovery_action_count": self.last_recovery_action_count,
-                    "last_recovery_restored_conversation": self.last_recovery_restored_conversation,
-                    "rollback_candidate_used": self.rollback_candidate_used,
-                    "rollback_reason": self.rollback_reason,
-                    "config_drift_detected": self.config_drift_detected,
-                    "drift_scope": list(self.drift_scope),
-                    "drift_since_last_good": self.drift_since_last_good,
-                    "drift_summary": self.drift_summary,
-                    **survival_ops.run_state_fields(self),
-                    **self.guard_status(),
-                }
-            )
-            self.collect_incident_bundle(
-                f"survivability remediation failed: {final_summary}",
-                doctor_output,
-                final_active,
-                final_pid,
-                final_listeners_str,
-            )
-            self.trigger_codex_autorun()
-            self.write_incident_operator_summary(
-                summary=f"survivability remediation failed: {final_summary}",
-                active=final_active,
-                main_pid=final_pid,
-                listeners=final_listeners_str,
-            )
-            summary = (
-                f"{final_summary}；incident={self.incident_dir or 'none'}；"
-                f"codex_handoff={self.codex_handoff_file or 'none'}；codex_result={self.codex_trigger_result or 'not-run'}"
-            )
-            self.set_state("failed", summary)
-            self.log(
-                "ERROR",
-                f"watchdog failed to recover: {final_summary} incident={self.incident_dir or 'none'} codex={self.codex_trigger_result or 'not-run'}",
-            )
-            return RunOutcome(exit_code=1, state="failed", summary=summary)
-        finally:
-            finish_ts = datetime.now().astimezone()
-            self.last_run_finished_at = finish_ts
-            duration_ms = max(0, int((finish_ts - start_ts).total_seconds() * 1000))
-            self.write_run_state(
-                {
-                    "last_run_finished_at": finish_ts.isoformat(timespec="seconds"),
-                    "last_run_duration_ms": duration_ms,
-                }
-            )
+        return survivability_run.run(self, self.ctx)
 
     def run_once(self) -> RunOutcome:
         if self.config.watchdog_enable_survivability_flow:

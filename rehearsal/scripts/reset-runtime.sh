@@ -8,9 +8,10 @@ if [[ "${1:-}" == "--quiet" ]]; then
   QUIET="true"
 fi
 
-rm -rf "$REPO_ROOT/rehearsal/runtime"
-mkdir -p \
+/bin/rm -rf "$REPO_ROOT/rehearsal/runtime"
+/bin/mkdir -p \
   "$REPO_ROOT/rehearsal/runtime/bin" \
+  "$REPO_ROOT/rehearsal/runtime/system-bin" \
   "$REPO_ROOT/rehearsal/runtime/home/.openclaw" \
   "$REPO_ROOT/rehearsal/runtime/home/.config/opencode" \
   "$REPO_ROOT/rehearsal/runtime/logs" \
@@ -19,7 +20,7 @@ mkdir -p \
   "$REPO_ROOT/rehearsal/runtime/watchdog/incidents" \
   "$REPO_ROOT/rehearsal/runtime/scenario-output"
 
-cat > "$REPO_ROOT/rehearsal/runtime/shim-state.json" <<'EOF'
+/bin/cat > "$REPO_ROOT/rehearsal/runtime/shim-state.json" <<'EOF'
 {
   "doctor_fail_message": "",
   "doctor_ok_message": "Doctor OK",
@@ -44,4 +45,3 @@ EOF
 if [[ "$QUIET" != "true" ]]; then
   echo "Reset rehearsal runtime under rehearsal/runtime"
 fi
-

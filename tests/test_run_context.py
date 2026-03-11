@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+import unittest
+
+from watchdog_v2.engine import WatchdogEngine
+from watchdog_v2.run_context import RunContext
+from watchdog_v2 import survival as survival_ops
+
+
+class RunContextTest(unittest.TestCase):
+    def test_initial_context_captures_runtime_defaults(self) -> None:
+        ctx = RunContext.initial(stable_required_runs=3)
+
+        self.assertNotEqual(ctx.run_ts, '')
+        self.assertEqual(ctx.survival_mode_stable_required_runs, 3)
+        self.assertEqual(ctx.pre_repair_backup_result, 'not-run')
+        self.assertIsNotNone(ctx.last_run_started_at)
+        self.assertIsNotNone(ctx.last_run_finished_at)
+
+    def test_engine_runtime_attributes_delegate_to_ctx(self) -> None:
+        engine = WatchdogEngine.__new__(WatchdogEngine)
+        object.__setattr__(engine, 'ctx', RunContext.initial(stable_required_runs=2))
+
+        engine.last_recovery_strategy = 'restart'
+        engine.rollback_candidate_used = 'gen-2'
+        engine.incident_id = 'incident-7'
+
+        self.assertEqual(engine.ctx.last_recovery_strategy, 'restart')
+        self.assertEqual(engine.ctx.rollback_candidate_used, 'gen-2')
+        self.assertEqual(engine.ctx.incident_id, 'incident-7')
+        self.assertEqual(engine.last_recovery_strategy, 'restart')
+        self.assertEqual(engine.rollback_candidate_used, 'gen-2')
+        self.assertEqual(engine.incident_id, 'incident-7')
+
+    def test_survival_state_applies_into_ctx(self) -> None:
+        engine = SimpleNamespace(
+            config=SimpleNamespace(
+                watchdog_survival_stable_ready_runs=2,
+                watchdog_survival_config_file=Path('state/survival.json'),
+            ),
+            ctx=RunContext.initial(stable_required_runs=2),
+        )
+
+        survival_ops._apply_state_to_engine(
+            engine,
+            {
+                'active': True,
+                'reason': 'config-invalid',
+                'entered_at': '2026-03-11T10:00:00+08:00',
+                'summary': 'minimal channels enabled',
+                'actions': ['disabled optional channel feishu'],
+                'disabled_features': ['channel:feishu'],
+                'config_path': 'state/survival.json',
+                'sticky': True,
+                'sticky_reason': 'waiting for stable full-ready window 0/2',
+                'exit_ready': False,
+                'exit_policy': 'manual-clear-or-reconfig',
+                'exit_blockers': ['minimal conversation not yet usable'],
+                'stable_ready_runs': 0,
+                'stable_required_runs': 2,
+                'manual_clear_required': False,
+                'config_changed_away': False,
+                'last_exit_at': '',
+                'last_exit_reason': '',
+                'last_exit_kind': '',
+                'last_exit_summary': '',
+            },
+        )
+
+        self.assertTrue(engine.ctx.survival_mode_active)
+        self.assertEqual(engine.ctx.survival_mode_reason, 'config-invalid')
+        self.assertEqual(engine.ctx.survival_mode_actions, ['disabled optional channel feishu'])
+        self.assertEqual(engine.ctx.survival_mode_exit_blockers, ['minimal conversation not yet usable'])
+        self.assertEqual(survival_ops.run_state_fields(engine)['survival_mode_reason'], 'config-invalid')
+
+
+if __name__ == '__main__':
+    unittest.main()

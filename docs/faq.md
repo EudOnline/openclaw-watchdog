@@ -16,7 +16,7 @@ The `-v2` scripts remain only as migration shims.
 
 ## Why does `scripts/openclaw-watchdog --help` ask for Python 3.11+?
 
-The project requires Python 3.11 or newer. The wrapper script now checks the interpreter before importing `watchdog_v2`, so on hosts that only have older Python versions you should see a short requirement message instead of a traceback.
+The project requires Python 3.11 or newer. The wrapper script now checks the interpreter before importing `watchdog_v2`, so on hosts that only have older Python versions you should see a short requirement message instead of a traceback. It prefers discovered `python3.11`, `python3.12`, `python3.13`, or a compatible `python3`.
 
 You can either install Python 3.11+ or run the module explicitly with a compatible interpreter, for example `python3.11 -m watchdog_v2 --help`.
 

@@ -132,6 +132,14 @@ class FakeEngine:
 
 
 class ReportingTest(unittest.TestCase):
+    def test_reporting_contract_document_lists_stable_keys(self) -> None:
+        contract_doc = (Path(__file__).resolve().parents[1] / 'docs' / 'reporting-contract.md').read_text(encoding='utf-8')
+
+        for key in sorted(STABLE_REPORT_KEYS):
+            self.assertIn(f'- `{key}`', contract_doc)
+        for key in sorted(STABLE_METRICS_KEYS):
+            self.assertIn(f'- `{key}`', contract_doc)
+
     def test_report_contract_keys_are_present(self) -> None:
         report = {
             'status': 'degraded',

@@ -21,6 +21,8 @@ Within a minor release line:
 - renamed or removed keys should be called out in `CHANGELOG.md` and `docs/compatibility-and-deprecations.md`;
 - Prometheus metric names should remain stable unless there is a compelling correctness reason to change them.
 
+Internal refactors are expected over time, but they should preserve these machine-readable contracts unless a documented compatibility change is intentional.
+
 ## Stable report keys
 
 These top-level `report --json` fields are treated as stable operator/integration fields:

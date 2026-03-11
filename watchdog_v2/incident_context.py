@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from watchdog_v2.models import IncidentSummary, RunStateSnapshot
+
 
 def report_attention_items(report: dict[str, object]) -> list[str]:
     items: list[str] = []
@@ -14,19 +16,25 @@ def report_attention_items(report: dict[str, object]) -> list[str]:
     return items
 
 
-def compact_recent_incident_summaries(recent_incidents: list[dict[str, object]], *, limit: int) -> list[str]:
+def _incident_summary(incident: object) -> IncidentSummary:
+    if isinstance(incident, IncidentSummary):
+        return incident
+    if isinstance(incident, dict):
+        return IncidentSummary.from_dict(incident)
+    return IncidentSummary()
+
+
+def compact_recent_incident_summaries(recent_incidents: list[dict[str, object]] | list[IncidentSummary], *, limit: int) -> list[str]:
     compact_incidents: list[str] = []
     window = recent_incidents[-max(1, limit):]
     for incident in window:
-        if not isinstance(incident, dict):
-            continue
-        latest_note = incident.get('latest_note', '') or ''
-        latest_note_suffix = f' | note={latest_note}' if latest_note else ''
-        attention_suffix = f" | attention={incident.get('attention_summary', 'none') or 'none'}"
+        summary = _incident_summary(incident)
+        latest_note_suffix = f' | note={summary.latest_note}' if summary.latest_note else ''
+        attention_suffix = f' | attention={summary.attention_summary or "none"}'
         compact_incidents.append(
-            f"{incident.get('incident_id', 'none')} | {incident.get('state', 'unknown')} | {incident.get('health_level', 'unknown')} | "
-            f"owner={incident.get('owner', '') or 'none'} | ack={str(bool(incident.get('acknowledged', False))).lower()} | notes={incident.get('notes_count', 0)} | "
-            f"{incident.get('summary', '')}{latest_note_suffix}{attention_suffix}"
+            f"{summary.incident_id or 'none'} | {summary.state or 'unknown'} | {summary.health_level or 'unknown'} | "
+            f"owner={summary.owner or 'none'} | ack={str(bool(summary.acknowledged)).lower()} | notes={summary.notes_count} | "
+            f"{summary.summary}{latest_note_suffix}{attention_suffix}"
         )
     return compact_incidents
 
@@ -39,14 +47,14 @@ def build_report_incident_context(
     recent_incidents: list[dict[str, object]] | None,
     incident_limit: int,
 ) -> dict[str, object]:
-    incident_payload = current_incident if isinstance(current_incident, dict) else {}
-    incidents = recent_incidents if isinstance(recent_incidents, list) else []
+    incident_payload = _incident_summary(current_incident if isinstance(current_incident, dict) else {})
+    incidents = [_incident_summary(incident).to_dict() for incident in (recent_incidents if isinstance(recent_incidents, list) else [])]
     context = {
         'current_incident_id': current_incident_id or '',
         'current_incident_state': current_incident_state or '',
-        'current_incident_owner': str(incident_payload.get('owner', '') or ''),
-        'current_incident_acknowledged': bool(incident_payload.get('acknowledged', False)),
-        'current_incident_notes_count': int(incident_payload.get('notes_count', 0) or 0),
+        'current_incident_owner': incident_payload.owner,
+        'current_incident_acknowledged': incident_payload.acknowledged,
+        'current_incident_notes_count': incident_payload.notes_count,
         'recent_incidents': incidents,
         'recent_incident_summaries': compact_recent_incident_summaries(incidents, limit=incident_limit),
     }
@@ -80,7 +88,7 @@ def build_incident_index_entry(
 ) -> dict[str, object]:
     state = state_payload if isinstance(state_payload, dict) else {}
     workflow = workflow_payload if isinstance(workflow_payload, dict) else {}
-    current_run_state = run_state if isinstance(run_state, dict) else {}
+    current_run_state = RunStateSnapshot.from_dict(run_state)
     notes = workflow.get('notes', []) if isinstance(workflow.get('notes', []), list) else []
     latest_note = notes[-1] if notes else {}
     return {
@@ -91,7 +99,7 @@ def build_incident_index_entry(
         'created_at': str(state.get('created_at', '') or ''),
         'resolved_at': str(state.get('resolved_at', '') or ''),
         'resolution_summary': str(state.get('resolution_summary', '') or ''),
-        'health_level': str(current_run_state.get('health_level', 'unknown') or 'unknown'),
+        'health_level': current_run_state.health_level,
         'active': active,
         'main_pid': main_pid,
         'listeners': listeners,
@@ -101,7 +109,7 @@ def build_incident_index_entry(
         'rollback_summary_archive_file': rollback_summary_archive_file,
         'rollback_candidate_used': rollback_candidate_used,
         'rollback_reason': rollback_reason,
-        'conversation_status': str(current_run_state.get('conversation_status', 'down') or 'down'),
+        'conversation_status': current_run_state.conversation_status,
         'last_recovery_strategy': last_recovery_strategy,
         'last_recovery_path': last_recovery_path,
         'codex_trigger_result': codex_trigger_result,

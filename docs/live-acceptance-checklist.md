@@ -2,6 +2,17 @@
 
 This checklist is the operator-facing closure for the P0 survivability read-only acceptance.
 
+## Recommended validation order
+
+Before running live acceptance on a host, keep this sequence:
+
+1. `python -m unittest discover -s tests -v`
+2. direct flow/bootstrap tests for any code you changed
+3. bounded rehearsal smoke scenarios from `rehearsal/scripts/run-scenario.sh`
+4. this live acceptance checklist on a real host
+
+Live acceptance is the final operator-facing gate, not the first regression check.
+
 ## One-command acceptance
 
 Before running the full acceptance script on a new host, the operator quick path should already look sane: `status --summary`, `report --message`, and `incidents current --json` should all be readable and internally consistent.
