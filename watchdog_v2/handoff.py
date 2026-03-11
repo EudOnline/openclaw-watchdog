@@ -50,7 +50,7 @@ def copy_if_exists(engine, src: Path, dest: Path) -> None:
 
 
 def render_codex_prompt(engine, summary: str) -> None:
-    if engine.incident_dir is None or engine.codex_prompt_file is None:
+    if engine.ctx.incident_dir is None or engine.ctx.codex_prompt_file is None:
         return
     prompt = textwrap.dedent(
         f"""\
@@ -64,12 +64,12 @@ def render_codex_prompt(engine, summary: str) -> None:
         4. Two consecutive watchdog runs would consider the system healthy
 
         ## Incident context
-        - Incident ID: {engine.incident_id}
-        - Incident directory: {engine.incident_dir}
-        - Time: {engine.run_ts}
+        - Incident ID: {engine.ctx.incident_id}
+        - Incident directory: {engine.ctx.incident_dir}
+        - Time: {engine.ctx.run_ts}
         - Summary: {summary}
-        - Pre-repair backup result: {engine.pre_repair_backup_result}
-        - Rollback occurred: {'true' if engine.rollback_occurred else 'false'}
+        - Pre-repair backup result: {engine.ctx.pre_repair_backup_result}
+        - Rollback occurred: {'true' if engine.ctx.rollback_occurred else 'false'}
         - Suggested model hint: {engine.config.watchdog_codex_model_hint}
 
         ## Evidence files
@@ -115,7 +115,7 @@ def render_codex_prompt(engine, summary: str) -> None:
         6. Document exactly what changed and why
         """
     )
-    engine.codex_prompt_file.write_text(prompt, encoding="utf-8")
+    engine.ctx.codex_prompt_file.write_text(prompt, encoding="utf-8")
 
     codex_runner = textwrap.dedent(
         f"""\
@@ -127,27 +127,27 @@ def render_codex_prompt(engine, summary: str) -> None:
         else
           command -v {shlex.quote(engine.config.watchdog_codex_bin)} >/dev/null 2>&1 || {{ echo {shlex.quote(engine.config.watchdog_codex_bin)}' CLI not found in PATH'; exit 127; }}
         fi
-        PROMPT_FILE={shlex.quote(str(engine.codex_prompt_file))}
-        LOG_FILE={shlex.quote(str(engine.codex_run_log_file))}
-        LAST_MESSAGE_FILE={shlex.quote(str(engine.incident_dir / 'codex-last-message.txt'))}
+        PROMPT_FILE={shlex.quote(str(engine.ctx.codex_prompt_file))}
+        LOG_FILE={shlex.quote(str(engine.ctx.codex_run_log_file))}
+        LAST_MESSAGE_FILE={shlex.quote(str(engine.ctx.incident_dir / 'codex-last-message.txt'))}
         CMD=({shlex.quote(engine.config.watchdog_codex_bin)} exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox -C {shlex.quote(str(engine.config.watchdog_codex_workdir))} -o "$LAST_MESSAGE_FILE" "$(cat \"$PROMPT_FILE\")")
         CMD_STR="$(printf '%q ' \"${{CMD[@]}}\")"
         exec timeout {engine.config.watchdog_codex_timeout_seconds} script -qefc "$CMD_STR" "$LOG_FILE"
         """
     )
-    engine.codex_runner_file.write_text(codex_runner, encoding="utf-8")
-    engine.codex_runner_file.chmod(0o755)
+    engine.ctx.codex_runner_file.write_text(codex_runner, encoding="utf-8")
+    engine.ctx.codex_runner_file.chmod(0o755)
 
     codex_handoff = textwrap.dedent(
         f"""\
         #!/usr/bin/env bash
         set -euo pipefail
-        nohup {shlex.quote(str(engine.codex_runner_file))} >/dev/null 2>&1 &
+        nohup {shlex.quote(str(engine.ctx.codex_runner_file))} >/dev/null 2>&1 &
         echo $!
         """
     )
-    engine.codex_handoff_file.write_text(codex_handoff, encoding="utf-8")
-    engine.codex_handoff_file.chmod(0o755)
+    engine.ctx.codex_handoff_file.write_text(codex_handoff, encoding="utf-8")
+    engine.ctx.codex_handoff_file.chmod(0o755)
 
     opencode_runner = textwrap.dedent(
         f"""\
@@ -159,26 +159,26 @@ def render_codex_prompt(engine, summary: str) -> None:
         else
           command -v {shlex.quote(engine.config.watchdog_opencode_fallback_bin)} >/dev/null 2>&1 || {{ echo {shlex.quote(engine.config.watchdog_opencode_fallback_bin)}' CLI not found in PATH'; exit 127; }}
         fi
-        PROMPT_FILE={shlex.quote(str(engine.codex_prompt_file))}
-        LOG_FILE={shlex.quote(str(engine.opencode_fallback_run_log_file))}
+        PROMPT_FILE={shlex.quote(str(engine.ctx.codex_prompt_file))}
+        LOG_FILE={shlex.quote(str(engine.ctx.opencode_fallback_run_log_file))}
         CMD=({shlex.quote(engine.config.watchdog_opencode_fallback_bin)} run "$(cat \"$PROMPT_FILE\")")
         CMD_STR="$(printf '%q ' \"${{CMD[@]}}\")"
         exec timeout {engine.config.watchdog_opencode_fallback_timeout_seconds} script -qefc "$CMD_STR" "$LOG_FILE"
         """
     )
-    engine.opencode_fallback_runner_file.write_text(opencode_runner, encoding="utf-8")
-    engine.opencode_fallback_runner_file.chmod(0o755)
+    engine.ctx.opencode_fallback_runner_file.write_text(opencode_runner, encoding="utf-8")
+    engine.ctx.opencode_fallback_runner_file.chmod(0o755)
 
     opencode_handoff = textwrap.dedent(
         f"""\
         #!/usr/bin/env bash
         set -euo pipefail
-        nohup {shlex.quote(str(engine.opencode_fallback_runner_file))} >/dev/null 2>&1 &
+        nohup {shlex.quote(str(engine.ctx.opencode_fallback_runner_file))} >/dev/null 2>&1 &
         echo $!
         """
     )
-    engine.opencode_fallback_handoff_file.write_text(opencode_handoff, encoding="utf-8")
-    engine.opencode_fallback_handoff_file.chmod(0o755)
+    engine.ctx.opencode_fallback_handoff_file.write_text(opencode_handoff, encoding="utf-8")
+    engine.ctx.opencode_fallback_handoff_file.chmod(0o755)
 
 
 def pid_is_alive(engine, pid: str) -> bool:
@@ -192,78 +192,78 @@ def pid_is_alive(engine, pid: str) -> bool:
 
 
 def trigger_opencode_fallback(engine, reason: str) -> None:
-    if engine.incident_dir is None or engine.opencode_fallback_handoff_file is None or engine.opencode_fallback_run_log_file is None:
-        engine.opencode_fallback_trigger_result = "incident-missing"
+    if engine.ctx.incident_dir is None or engine.ctx.opencode_fallback_handoff_file is None or engine.ctx.opencode_fallback_run_log_file is None:
+        engine.ctx.opencode_fallback_trigger_result = "incident-missing"
         return
-    pid_file = engine.incident_dir / "opencode-fallback.pid"
-    status_file = engine.incident_dir / "opencode-fallback-trigger-status.txt"
+    pid_file = engine.ctx.incident_dir / "opencode-fallback.pid"
+    status_file = engine.ctx.incident_dir / "opencode-fallback-trigger-status.txt"
     if pid_file.exists():
         existing_pid = pid_file.read_text(encoding="utf-8").strip()
         if pid_is_alive(engine, existing_pid):
-            engine.opencode_fallback_run_pid = existing_pid
-            engine.opencode_fallback_trigger_result = "already-running"
-            engine.write_opencode_fallback_status(status_file, engine.opencode_fallback_trigger_result, f"reason={reason} pid={existing_pid}")
+            engine.ctx.opencode_fallback_run_pid = existing_pid
+            engine.ctx.opencode_fallback_trigger_result = "already-running"
+            engine.write_opencode_fallback_status(status_file, engine.ctx.opencode_fallback_trigger_result, f"reason={reason} pid={existing_pid}")
             return
     if not engine.opencode_fallback_bin_available():
-        engine.opencode_fallback_trigger_result = "opencode-missing"
+        engine.ctx.opencode_fallback_trigger_result = "opencode-missing"
         engine.write_opencode_fallback_status(
             status_file,
-            engine.opencode_fallback_trigger_result,
+            engine.ctx.opencode_fallback_trigger_result,
             f"reason={reason} bin={engine.config.watchdog_opencode_fallback_bin}",
         )
         engine.log("WARN", f"opencode fallback unavailable: missing binary {engine.config.watchdog_opencode_fallback_bin}")
         return
-    result = engine.run_command([str(engine.opencode_fallback_handoff_file)], timeout=10, merge_stderr=True)
+    result = engine.run_command([str(engine.ctx.opencode_fallback_handoff_file)], timeout=10, merge_stderr=True)
     launched_pid = re.sub(r"\D", "", (result.output.splitlines()[-1] if result.output.strip() else ""))
     if pid_is_alive(engine, launched_pid):
-        engine.opencode_fallback_run_pid = launched_pid
-        engine.opencode_fallback_trigger_result = "launched"
+        engine.ctx.opencode_fallback_run_pid = launched_pid
+        engine.ctx.opencode_fallback_trigger_result = "launched"
         pid_file.write_text(f"{launched_pid}\n", encoding="utf-8")
         engine.write_opencode_fallback_status(
             status_file,
-            engine.opencode_fallback_trigger_result,
-            f"reason={reason} pid={launched_pid} log={engine.opencode_fallback_run_log_file}",
+            engine.ctx.opencode_fallback_trigger_result,
+            f"reason={reason} pid={launched_pid} log={engine.ctx.opencode_fallback_run_log_file}",
         )
         engine.log(
             "WARN",
-            f"opencode fallback launched pid={launched_pid} log={engine.opencode_fallback_run_log_file} incident={engine.incident_id} reason={reason}",
+            f"opencode fallback launched pid={launched_pid} log={engine.ctx.opencode_fallback_run_log_file} incident={engine.ctx.incident_id} reason={reason}",
         )
         return
-    engine.opencode_fallback_trigger_result = "launch-failed"
-    engine.write_opencode_fallback_status(status_file, engine.opencode_fallback_trigger_result, f"reason={reason}")
-    engine.log("WARN", f"opencode fallback failed to launch incident={engine.incident_id} reason={reason}")
+    engine.ctx.opencode_fallback_trigger_result = "launch-failed"
+    engine.write_opencode_fallback_status(status_file, engine.ctx.opencode_fallback_trigger_result, f"reason={reason}")
+    engine.log("WARN", f"opencode fallback failed to launch incident={engine.ctx.incident_id} reason={reason}")
 
 
 def trigger_codex_autorun(engine) -> None:
-    if engine.incident_dir is None or engine.codex_handoff_file is None or engine.codex_run_log_file is None:
-        engine.codex_trigger_result = "incident-missing"
+    if engine.ctx.incident_dir is None or engine.ctx.codex_handoff_file is None or engine.ctx.codex_run_log_file is None:
+        engine.ctx.codex_trigger_result = "incident-missing"
         return
-    pid_file = engine.incident_dir / "codex.pid"
-    status_file = engine.incident_dir / "codex-trigger-status.txt"
+    pid_file = engine.ctx.incident_dir / "codex.pid"
+    status_file = engine.ctx.incident_dir / "codex-trigger-status.txt"
     now_ts = int(time.time())
     if not engine.config.watchdog_enable_codex_autorun:
-        engine.codex_trigger_result = "disabled"
-        engine.write_codex_trigger_status(status_file, engine.codex_trigger_result, "codex autorun disabled")
+        engine.ctx.codex_trigger_result = "disabled"
+        engine.write_codex_trigger_status(status_file, engine.ctx.codex_trigger_result, "codex autorun disabled")
         return
     if engine.config.watchdog_maintenance_file.exists():
-        engine.codex_trigger_result = "maintenance-mode"
+        engine.ctx.codex_trigger_result = "maintenance-mode"
         engine.write_codex_trigger_status(
             status_file,
-            engine.codex_trigger_result,
+            engine.ctx.codex_trigger_result,
             f"maintenance_file={engine.config.watchdog_maintenance_file}",
         )
         engine.log("WARN", "codex autorun skipped: maintenance mode enabled")
         return
-    if engine.consecutive_failures < engine.config.watchdog_codex_min_failures:
-        engine.codex_trigger_result = "threshold-not-met"
+    if engine.ctx.consecutive_failures < engine.config.watchdog_codex_min_failures:
+        engine.ctx.codex_trigger_result = "threshold-not-met"
         engine.write_codex_trigger_status(
             status_file,
-            engine.codex_trigger_result,
-            f"failures={engine.consecutive_failures} required={engine.config.watchdog_codex_min_failures}",
+            engine.ctx.codex_trigger_result,
+            f"failures={engine.ctx.consecutive_failures} required={engine.config.watchdog_codex_min_failures}",
         )
         engine.log(
             "WARN",
-            f"codex autorun skipped: failures={engine.consecutive_failures} required={engine.config.watchdog_codex_min_failures}",
+            f"codex autorun skipped: failures={engine.ctx.consecutive_failures} required={engine.config.watchdog_codex_min_failures}",
         )
         return
     last_trigger = 0
@@ -275,50 +275,50 @@ def trigger_codex_autorun(engine) -> None:
     cooldown = engine.config.watchdog_codex_cooldown_seconds
     remaining = cooldown - (now_ts - last_trigger)
     if last_trigger > 0 and remaining > 0:
-        engine.codex_trigger_result = "cooldown-active"
-        engine.write_codex_trigger_status(status_file, engine.codex_trigger_result, f"remaining={remaining}")
+        engine.ctx.codex_trigger_result = "cooldown-active"
+        engine.write_codex_trigger_status(status_file, engine.ctx.codex_trigger_result, f"remaining={remaining}")
         engine.log("WARN", "codex autorun skipped: cooldown active")
         return
     if pid_file.exists():
         existing_pid = pid_file.read_text(encoding="utf-8").strip()
         if pid_is_alive(engine, existing_pid):
-            engine.codex_run_pid = existing_pid
-            engine.codex_trigger_result = "already-running"
-            engine.write_codex_trigger_status(status_file, engine.codex_trigger_result, f"pid={existing_pid}")
+            engine.ctx.codex_run_pid = existing_pid
+            engine.ctx.codex_trigger_result = "already-running"
+            engine.write_codex_trigger_status(status_file, engine.ctx.codex_trigger_result, f"pid={existing_pid}")
             return
     if not engine.codex_bin_available():
         trigger_opencode_fallback(engine, "codex-missing")
-        engine.codex_trigger_result = f"codex-missing->{engine.opencode_fallback_trigger_result}"
+        engine.ctx.codex_trigger_result = f"codex-missing->{engine.ctx.opencode_fallback_trigger_result}"
         engine.write_codex_trigger_status(
             status_file,
-            engine.codex_trigger_result,
-            f"codex_bin={engine.config.watchdog_codex_bin} fallback_result={engine.opencode_fallback_trigger_result}",
+            engine.ctx.codex_trigger_result,
+            f"codex_bin={engine.config.watchdog_codex_bin} fallback_result={engine.ctx.opencode_fallback_trigger_result}",
         )
         engine.log(
             "WARN",
-            f"codex autorun unavailable: missing binary {engine.config.watchdog_codex_bin}; fallback={engine.opencode_fallback_trigger_result}",
+            f"codex autorun unavailable: missing binary {engine.config.watchdog_codex_bin}; fallback={engine.ctx.opencode_fallback_trigger_result}",
         )
         return
-    result = engine.run_command([str(engine.codex_handoff_file)], timeout=10, merge_stderr=True)
+    result = engine.run_command([str(engine.ctx.codex_handoff_file)], timeout=10, merge_stderr=True)
     launched_pid = re.sub(r"\D", "", (result.output.splitlines()[-1] if result.output.strip() else ""))
     if pid_is_alive(engine, launched_pid):
-        engine.codex_run_pid = launched_pid
-        engine.codex_trigger_result = "launched"
+        engine.ctx.codex_run_pid = launched_pid
+        engine.ctx.codex_trigger_result = "launched"
         pid_file.write_text(f"{launched_pid}\n", encoding="utf-8")
         engine.config.watchdog_codex_last_trigger_file.write_text(f"{now_ts}\n", encoding="utf-8")
-        engine.write_codex_trigger_status(status_file, engine.codex_trigger_result, f"pid={launched_pid} log={engine.codex_run_log_file}")
-        engine.log("WARN", f"codex autorun launched pid={launched_pid} log={engine.codex_run_log_file} incident={engine.incident_id}")
+        engine.write_codex_trigger_status(status_file, engine.ctx.codex_trigger_result, f"pid={launched_pid} log={engine.ctx.codex_run_log_file}")
+        engine.log("WARN", f"codex autorun launched pid={launched_pid} log={engine.ctx.codex_run_log_file} incident={engine.ctx.incident_id}")
         return
     trigger_opencode_fallback(engine, "codex-launch-failed")
-    engine.codex_trigger_result = f"launch-failed->{engine.opencode_fallback_trigger_result}"
+    engine.ctx.codex_trigger_result = f"launch-failed->{engine.ctx.opencode_fallback_trigger_result}"
     engine.write_codex_trigger_status(
         status_file,
-        engine.codex_trigger_result,
-        f"codex_bin={engine.config.watchdog_codex_bin} fallback_result={engine.opencode_fallback_trigger_result}",
+        engine.ctx.codex_trigger_result,
+        f"codex_bin={engine.config.watchdog_codex_bin} fallback_result={engine.ctx.opencode_fallback_trigger_result}",
     )
     engine.log(
         "WARN",
-        f"codex autorun failed to launch incident={engine.incident_id}; fallback={engine.opencode_fallback_trigger_result}",
+        f"codex autorun failed to launch incident={engine.ctx.incident_id}; fallback={engine.ctx.opencode_fallback_trigger_result}",
     )
 
 
@@ -331,54 +331,54 @@ def collect_incident_bundle(
     listeners: str,
 ) -> None:
     ensure_incident_context(engine)
-    if engine.incident_dir is None:
+    if engine.ctx.incident_dir is None:
         return
-    engine.incident_dir.mkdir(parents=True, exist_ok=True)
+    engine.ctx.incident_dir.mkdir(parents=True, exist_ok=True)
     engine.update_incident_state("open", summary)
-    (engine.incident_dir / "summary.txt").write_text(f"{summary}\n", encoding="utf-8")
+    (engine.ctx.incident_dir / "summary.txt").write_text(f"{summary}\n", encoding="utf-8")
     engine.write_incident_operator_summary(summary=summary, active=active, main_pid=main_pid, listeners=listeners)
-    (engine.incident_dir / "doctor.out").write_text(doctor_output, encoding="utf-8")
+    (engine.ctx.incident_dir / "doctor.out").write_text(doctor_output, encoding="utf-8")
     incident_meta_payload = {
-        "incident_id": engine.incident_id,
-        "time": engine.run_ts,
+        "incident_id": engine.ctx.incident_id,
+        "time": engine.ctx.run_ts,
         "summary": summary,
         "active": active,
         "main_pid": main_pid,
         "listeners": listeners,
-        "pre_repair_backup_result": engine.pre_repair_backup_result,
-        "rollback_occurred": engine.rollback_occurred,
-        "rollback_summary_archive_file": engine.rollback_summary_archive_file,
-        "rollback_broken_config_file": engine.rollback_broken_config_file,
+        "pre_repair_backup_result": engine.ctx.pre_repair_backup_result,
+        "rollback_occurred": engine.ctx.rollback_occurred,
+        "rollback_summary_archive_file": engine.ctx.rollback_summary_archive_file,
+        "rollback_broken_config_file": engine.ctx.rollback_broken_config_file,
     }
     incident_meta = textwrap.dedent(
         f"""\
-        incident_id={engine.incident_id}
-        time={engine.run_ts}
+        incident_id={engine.ctx.incident_id}
+        time={engine.ctx.run_ts}
         summary={summary}
         active={active}
         main_pid={main_pid}
         listeners={listeners}
-        pre_repair_backup_result={engine.pre_repair_backup_result}
-        rollback_occurred={'true' if engine.rollback_occurred else 'false'}
-        rollback_summary_archive_file={engine.rollback_summary_archive_file}
-        rollback_broken_config_file={engine.rollback_broken_config_file}
+        pre_repair_backup_result={engine.ctx.pre_repair_backup_result}
+        rollback_occurred={'true' if engine.ctx.rollback_occurred else 'false'}
+        rollback_summary_archive_file={engine.ctx.rollback_summary_archive_file}
+        rollback_broken_config_file={engine.ctx.rollback_broken_config_file}
         """
     )
-    (engine.incident_dir / "incident-meta.txt").write_text(incident_meta, encoding="utf-8")
-    (engine.incident_dir / "incident-meta.json").write_text(
+    (engine.ctx.incident_dir / "incident-meta.txt").write_text(incident_meta, encoding="utf-8")
+    (engine.ctx.incident_dir / "incident-meta.json").write_text(
         json.dumps(incident_meta_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    engine.run_capture_to_file(["openclaw", "status", "--json", "--timeout", "5000"], engine.incident_dir / "openclaw-status.json", timeout=15)
-    engine.run_capture_to_file(["openclaw", "gateway", "status"], engine.incident_dir / "gateway-status.txt", timeout=15)
+    engine.run_capture_to_file(["openclaw", "status", "--json", "--timeout", "5000"], engine.ctx.incident_dir / "openclaw-status.json", timeout=15)
+    engine.run_capture_to_file(["openclaw", "gateway", "status"], engine.ctx.incident_dir / "gateway-status.txt", timeout=15)
     engine.run_capture_to_file(
         ["systemctl", "--user", "status", engine.config.openclaw_gateway_service, "--no-pager"],
-        engine.incident_dir / "systemctl-status.txt",
+        engine.ctx.incident_dir / "systemctl-status.txt",
         timeout=20,
     )
     engine.run_capture_to_file(
         ["journalctl", "--user", "-u", engine.config.openclaw_gateway_service, "-n", "200", "--no-pager"],
-        engine.incident_dir / "journal-tail.txt",
+        engine.ctx.incident_dir / "journal-tail.txt",
         timeout=20,
     )
     listeners_result = engine.run_command(["ss", "-tlnp"], timeout=15, merge_stderr=True)
@@ -387,17 +387,17 @@ def collect_incident_bundle(
         for line in listeners_result.output.splitlines()
         if f":{engine.config.openclaw_gateway_port}" in line
     ]
-    (engine.incident_dir / "listeners.txt").write_text(
+    (engine.ctx.incident_dir / "listeners.txt").write_text(
         "\n".join(listener_lines) + ("\n" if listener_lines else ""),
         encoding="utf-8",
     )
     if engine.config.watchdog_log_file.exists():
         tail_lines = engine.config.watchdog_log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-200:]
-        (engine.incident_dir / "watchdog-log-tail.txt").write_text("\n".join(tail_lines) + ("\n" if tail_lines else ""), encoding="utf-8")
-    copy_if_exists(engine, engine.config.openclaw_config, engine.incident_dir / "current-openclaw.json")
-    copy_if_exists(engine, engine.config.watchdog_last_good_config, engine.incident_dir / "last-good-openclaw.json")
-    copy_if_exists(engine, engine.config.watchdog_last_rollback_summary_file, engine.incident_dir / "last-rollback-summary.txt")
-    copy_if_exists(engine, engine.config.watchdog_event_file, engine.incident_dir / "last-event.txt")
-    copy_if_exists(engine, engine.sibling_json_path(engine.config.watchdog_event_file), engine.incident_dir / "last-event.json")
+        (engine.ctx.incident_dir / "watchdog-log-tail.txt").write_text("\n".join(tail_lines) + ("\n" if tail_lines else ""), encoding="utf-8")
+    copy_if_exists(engine, engine.config.openclaw_config, engine.ctx.incident_dir / "current-openclaw.json")
+    copy_if_exists(engine, engine.config.watchdog_last_good_config, engine.ctx.incident_dir / "last-good-openclaw.json")
+    copy_if_exists(engine, engine.config.watchdog_last_rollback_summary_file, engine.ctx.incident_dir / "last-rollback-summary.txt")
+    copy_if_exists(engine, engine.config.watchdog_event_file, engine.ctx.incident_dir / "last-event.txt")
+    copy_if_exists(engine, engine.sibling_json_path(engine.config.watchdog_event_file), engine.ctx.incident_dir / "last-event.json")
     render_codex_prompt(engine, summary)
-    engine.log("WARN", f"incident bundle prepared: id={engine.incident_id} dir={engine.incident_dir} prompt={engine.codex_prompt_file}")
+    engine.log("WARN", f"incident bundle prepared: id={engine.ctx.incident_id} dir={engine.ctx.incident_dir} prompt={engine.ctx.codex_prompt_file}")

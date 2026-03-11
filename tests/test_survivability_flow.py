@@ -5,39 +5,24 @@ from types import SimpleNamespace
 import unittest
 
 from watchdog_v2.flows import survivability_run
-from watchdog_v2.run_context import RUN_CONTEXT_FIELDS, RunContext
+from watchdog_v2.run_context import RunContext
 
 
 class FlowEngineDouble:
     def __init__(self) -> None:
-        object.__setattr__(
-            self,
-            'config',
-            SimpleNamespace(
-                watchdog_enable_service_level_probe=False,
-                watchdog_service_level_failure_threshold=2,
-                watchdog_maintenance_file=Path('state/maintenance.flag'),
-            ),
+        self.config = SimpleNamespace(
+            watchdog_enable_service_level_probe=False,
+            watchdog_service_level_failure_threshold=2,
+            watchdog_maintenance_file=Path('state/maintenance.flag'),
         )
-        object.__setattr__(self, 'ctx', RunContext.initial(stable_required_runs=2))
-        object.__setattr__(self, 'log_records', [])
-        object.__setattr__(self, 'state_records', [])
-        object.__setattr__(self, 'run_state_writes', [])
-        object.__setattr__(self, 'sync_calls', [])
-        object.__setattr__(self, 'recovery_calls', [])
-        object.__setattr__(self, 'backed_up', False)
-        self.survival_mode_active = False
-
-    def __getattr__(self, name: str):
-        if name in RUN_CONTEXT_FIELDS:
-            return getattr(self.ctx, name)
-        raise AttributeError(name)
-
-    def __setattr__(self, name: str, value) -> None:
-        if name != 'ctx' and name in RUN_CONTEXT_FIELDS:
-            setattr(self.ctx, name, value)
-            return
-        object.__setattr__(self, name, value)
+        self.ctx = RunContext.initial(stable_required_runs=2)
+        self.log_records = []
+        self.state_records = []
+        self.run_state_writes = []
+        self.sync_calls = []
+        self.recovery_calls = []
+        self.backed_up = False
+        self.ctx.survival_mode_active = False
 
     def write_run_state(self, payload: dict[str, object]) -> None:
         self.run_state_writes.append(payload)
@@ -46,10 +31,10 @@ class FlowEngineDouble:
         self.log_records.append((level, message))
 
     def reset_recovery_tracking(self) -> None:
-        self.recovery_steps = []
-        self.last_recovery_strategy = 'none'
-        self.last_recovery_action_count = 0
-        self.last_recovery_restored_conversation = False
+        self.ctx.recovery_steps = []
+        self.ctx.last_recovery_strategy = 'none'
+        self.ctx.last_recovery_action_count = 0
+        self.ctx.last_recovery_restored_conversation = False
 
     def last_good_status(self) -> dict[str, object]:
         return {
@@ -91,8 +76,8 @@ class FlowEngineDouble:
 
     def finalize_recovery_tracking(self, *, strategy: str, restored_conversation: bool) -> None:
         self.recovery_calls.append((strategy, restored_conversation))
-        self.last_recovery_strategy = strategy
-        self.last_recovery_restored_conversation = restored_conversation
+        self.ctx.last_recovery_strategy = strategy
+        self.ctx.last_recovery_restored_conversation = restored_conversation
 
     def backup_last_good(self, validation: dict[str, object] | None = None) -> None:
         self.backed_up = True
@@ -114,6 +99,7 @@ class SurvivabilityFlowTest(unittest.TestCase):
         self.assertIn(('steady-state', True), engine.recovery_calls)
         self.assertTrue(engine.backed_up)
         self.assertIn(('healthy', 'conversation ready and gateway listener healthy'), engine.state_records)
+        self.assertEqual(engine.ctx.last_recovery_strategy, 'steady-state')
         self.assertGreaterEqual(len(engine.run_state_writes), 3)
 
 

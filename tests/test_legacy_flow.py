@@ -5,36 +5,21 @@ from types import SimpleNamespace
 import unittest
 
 from watchdog_v2.flows import legacy_run
-from watchdog_v2.run_context import RUN_CONTEXT_FIELDS, RunContext
+from watchdog_v2.run_context import RunContext
 
 
 class FlowEngineDouble:
     def __init__(self) -> None:
-        object.__setattr__(
-            self,
-            'config',
-            SimpleNamespace(
-                watchdog_enable_service_level_probe=False,
-                watchdog_service_level_failure_threshold=2,
-                watchdog_maintenance_file=Path('state/maintenance.flag'),
-            ),
+        self.config = SimpleNamespace(
+            watchdog_enable_service_level_probe=False,
+            watchdog_service_level_failure_threshold=2,
+            watchdog_maintenance_file=Path('state/maintenance.flag'),
         )
-        object.__setattr__(self, 'ctx', RunContext.initial(stable_required_runs=2))
-        object.__setattr__(self, 'log_records', [])
-        object.__setattr__(self, 'state_records', [])
-        object.__setattr__(self, 'run_state_writes', [])
-        object.__setattr__(self, 'backed_up', False)
-
-    def __getattr__(self, name: str):
-        if name in RUN_CONTEXT_FIELDS:
-            return getattr(self.ctx, name)
-        raise AttributeError(name)
-
-    def __setattr__(self, name: str, value) -> None:
-        if name != 'ctx' and name in RUN_CONTEXT_FIELDS:
-            setattr(self.ctx, name, value)
-            return
-        object.__setattr__(self, name, value)
+        self.ctx = RunContext.initial(stable_required_runs=2)
+        self.log_records = []
+        self.state_records = []
+        self.run_state_writes = []
+        self.backed_up = False
 
     def write_run_state(self, payload: dict[str, object]) -> None:
         self.run_state_writes.append(payload)
@@ -87,6 +72,7 @@ class LegacyFlowTest(unittest.TestCase):
         self.assertEqual(outcome.summary, 'service active and listener matches service process tree')
         self.assertTrue(engine.backed_up)
         self.assertIn(('healthy', 'service active and listener matches service process tree'), engine.state_records)
+        self.assertEqual(engine.ctx.last_recovery_strategy, 'none')
         self.assertGreaterEqual(len(engine.run_state_writes), 3)
 
 

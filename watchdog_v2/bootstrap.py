@@ -69,33 +69,39 @@ class Bootstrapper:
     def run(self) -> BootstrapOutcome:
         bootstrap_summary = BootstrapSummary.initial(config_path=str(self.config.openclaw_config), dry_run=self.dry_run)
         result = bootstrap_step_ops.run_bootstrap_pipeline(self, bootstrap_summary)
-        payload = result.bootstrap_summary.to_dict()
-        return self.finish(payload, state=result.state, summary=result.message, exit_code=result.exit_code)
+        return self.finish(result.bootstrap_summary, state=result.state, summary=result.message, exit_code=result.exit_code)
 
-    def finish(self, payload: dict[str, Any], *, state: str, summary: str, exit_code: int) -> BootstrapOutcome:
-        bootstrap_summary = BootstrapSummary.from_dict(payload)
+    def finish(
+        self,
+        bootstrap_summary: BootstrapSummary,
+        *,
+        state: str,
+        summary: str,
+        exit_code: int,
+    ) -> BootstrapOutcome:
         bootstrap_summary.state = state
         bootstrap_summary.summary = summary
         bootstrap_summary.exit_code = exit_code
-        bootstrap_summary.files_changed = self.collect_changed_files(payload)
-        bootstrap_summary.backup_files = self.collect_backup_files(payload)
+        bootstrap_summary.files_changed = self.collect_changed_files(bootstrap_summary)
+        bootstrap_summary.backup_files = self.collect_backup_files(bootstrap_summary)
         final_payload = bootstrap_summary.to_dict()
         return BootstrapOutcome(exit_code=exit_code, state=state, summary=summary, payload=final_payload)
 
-    def collect_changed_files(self, payload: dict[str, Any]) -> list[str]:
+    def collect_changed_files(self, bootstrap_summary: BootstrapSummary) -> list[str]:
         files: list[str] = []
-        opencode_config = payload.get("opencode", {}).get("config", {})
+        opencode_config = bootstrap_summary.opencode.get("config", {}) if isinstance(bootstrap_summary.opencode.get("config", {}), dict) else {}
         if opencode_config.get("changed"):
-            files.append(opencode_config.get("path", ""))
-        openclaw_config = payload.get("config", {})
+            files.append(str(opencode_config.get("path", "") or ""))
+        openclaw_config = bootstrap_summary.config
         if openclaw_config.get("changed"):
-            files.append(openclaw_config.get("path", ""))
+            files.append(str(openclaw_config.get("path", "") or ""))
         return self.unique_nonempty(files)
 
-    def collect_backup_files(self, payload: dict[str, Any]) -> list[str]:
+    def collect_backup_files(self, bootstrap_summary: BootstrapSummary) -> list[str]:
+        opencode_config = bootstrap_summary.opencode.get("config", {}) if isinstance(bootstrap_summary.opencode.get("config", {}), dict) else {}
         backups = [
-            payload.get("opencode", {}).get("config", {}).get("backup_path", ""),
-            payload.get("config", {}).get("backup_path", ""),
+            str(opencode_config.get("backup_path", "") or ""),
+            str(bootstrap_summary.config.get("backup_path", "") or ""),
         ]
         return self.unique_nonempty(backups)
 
@@ -109,24 +115,26 @@ class Bootstrapper:
             ordered.append(value)
         return ordered
 
-    def add_tooling_warnings(self, payload: dict[str, Any], warnings: list[str]) -> None:
-        opencode = payload.get("opencode", {})
-        codex = payload.get("codex", {})
+    def add_tooling_warnings(self, bootstrap_summary: BootstrapSummary, warnings: list[str]) -> None:
+        opencode = bootstrap_summary.opencode
+        codex = bootstrap_summary.codex
 
         if opencode and not opencode.get("watchdog_bin_available", False):
             watchdog_bin = opencode.get("watchdog_bin") or self.config.watchdog_opencode_fallback_bin
             detected_binary = opencode.get("binary") or "opencode"
             warnings.append(f"WATCHDOG_OPENCODE_FALLBACK_BIN does not currently resolve: {watchdog_bin}")
-            payload["next_steps"].append(
+            bootstrap_summary.next_steps.append(
                 f"Update WATCHDOG_OPENCODE_FALLBACK_BIN if needed so watchdog autorun can find OpenCode ({detected_binary})."
             )
 
         if codex and not codex.get("available", False):
             warnings.append("Codex was not detected; OpenCode remains the prepared fallback path")
-            payload["next_steps"].append("Install Codex separately later if you want a primary autorun path in addition to OpenCode.")
+            bootstrap_summary.next_steps.append(
+                "Install Codex separately later if you want a primary autorun path in addition to OpenCode."
+            )
         elif codex and not codex.get("configured_available", False) and codex.get("detected_binary"):
             warnings.append("Codex was detected on PATH but WATCHDOG_CODEX_BIN does not currently resolve")
-            payload["next_steps"].append(
+            bootstrap_summary.next_steps.append(
                 "Update WATCHDOG_CODEX_BIN if you want watchdog autorun to use the detected Codex binary."
             )
 

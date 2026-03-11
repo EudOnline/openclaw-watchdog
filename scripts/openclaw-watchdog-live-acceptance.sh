@@ -18,8 +18,7 @@ run_capture "metrics.json" ./scripts/openclaw-watchdog metrics --json
 run_capture "metrics.prom" ./scripts/openclaw-watchdog metrics --prometheus
 run_capture "incidents-list.txt" ./scripts/openclaw-watchdog incidents list --limit 5
 if ! ./scripts/openclaw-watchdog incidents current --json > "$OUT_DIR/incidents-current.json"; then
-  printf '{}
-' > "$OUT_DIR/incidents-current.json"
+  printf '{}\n' > "$OUT_DIR/incidents-current.json"
 fi
 run_capture "openclaw-status.txt" openclaw status
 
@@ -72,7 +71,11 @@ summary = {
                 'openclaw_watchdog_config_drift_detected ',
             ]
         ),
-        'metrics_prom_has_operator_context': 'openclaw_watchdog_current_incident_owner_assigned ' in metrics_prom and 'openclaw_watchdog_current_incident_acknowledged ' in metrics_prom,
+        'metrics_prom_has_operator_context': (
+            'openclaw_watchdog_current_incident_owner_assigned ' in metrics_prom
+            and 'openclaw_watchdog_current_incident_acknowledged ' in metrics_prom
+            and 'openclaw_watchdog_current_incident_notes_count ' in metrics_prom
+        ),
         'status_summary_has_probe': 'probe=' in status_summary,
         'status_summary_has_conversation': 'conversation=' in status_summary,
         'status_summary_has_recovery': 'recovery=' in status_summary,
@@ -131,18 +134,14 @@ summary = {
                 'current_incident_owner_assigned',
                 'current_incident_acknowledged',
                 'current_incident_notes_count',
-                'current_incident_events_count',
-                'current_incident_latest_event_type',
             ]
         ),
     },
 }
 summary['all_checks_passed'] = all(summary['checks'].values())
-(out / 'acceptance-summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + '
-', encoding='utf-8')
+(out / 'acceptance-summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding='utf-8')
 (out / 'acceptance-summary.txt').write_text(
-    '
-'.join([
+    "\n".join([
         f"status={summary['status']}",
         f"health_level={summary['health_level']}",
         f"current_mode={summary['current_mode']}",
@@ -160,8 +159,7 @@ summary['all_checks_passed'] = all(summary['checks'].values())
         f"current_incident_id={summary['current_incident_id'] or 'none'}",
         f"report_operator_attention_needed={'true' if report.get('operator_attention_needed') else 'false'}",
         f"all_checks_passed={'true' if summary['all_checks_passed'] else 'false'}",
-    ]) + '
-',
+    ]) + "\n",
     encoding='utf-8'
 )
 print(json.dumps(summary, ensure_ascii=False, indent=2))

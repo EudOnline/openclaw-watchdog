@@ -136,8 +136,6 @@ class RunStateSnapshot:
             current_incident_age_seconds=_as_int(raw.get('current_incident_age_seconds', 0)),
         )
 
-    def get(self, key: str, default: object = None) -> object:
-        return getattr(self, key, default)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -208,8 +206,6 @@ class IncidentSummary:
             latest_note_at=_as_str(raw.get('latest_note_at', ''), ''),
         )
 
-    def get(self, key: str, default: object = None) -> object:
-        return getattr(self, key, default)
 
     def to_dict(self) -> dict[str, object]:
         return {

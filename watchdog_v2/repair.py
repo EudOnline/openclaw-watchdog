@@ -542,9 +542,9 @@ def backup_last_good(engine, *, validation: dict[str, object] | None = None) -> 
     manifest = prune_last_good_generations(engine, manifest)
     save_last_good_manifest(engine, manifest)
 
-    engine.last_good_validated_at = validated_at
-    engine.last_good_generation_id = generation_id
-    engine.last_good_generation_count = len(manifest.get("generations", []))
+    engine.ctx.last_good_validated_at = validated_at
+    engine.ctx.last_good_generation_id = generation_id
+    engine.ctx.last_good_generation_count = len(manifest.get("generations", []))
     engine.log(
         "INFO",
         f"updated last-good config snapshot: {engine.config.watchdog_last_good_config} generation={generation_id}",
@@ -604,7 +604,7 @@ def capture_rollback_summary(engine, current: Path, baseline: Path) -> None:
         )
         lines = ["current config is not valid JSON; fallback to text diff summary", *diff[:80]]
     summary_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    engine.rollback_summary = "\n".join(lines[:40]).strip()
+    engine.ctx.rollback_summary = "\n".join(lines[:40]).strip()
     engine.log("WARN", f"rollback summary saved: {summary_file}")
 
 
@@ -629,15 +629,15 @@ def prune_rollback_archives(engine) -> None:
 
 def run_pre_repair_backup(engine) -> None:
     if not engine.config.watchdog_enable_pre_repair_backup:
-        engine.pre_repair_backup_result = "disabled"
+        engine.ctx.pre_repair_backup_result = "disabled"
         return
     if engine.incident_backup_marker.exists():
-        engine.pre_repair_backup_result = "skipped-existing-incident-backup"
+        engine.ctx.pre_repair_backup_result = "skipped-existing-incident-backup"
         return
     if not engine.config.watchdog_backup_script.exists():
-        engine.pre_repair_backup_result = "backup-script-missing"
+        engine.ctx.pre_repair_backup_result = "backup-script-missing"
         engine.log("WARN", f"pre-repair backup skipped: missing script {engine.config.watchdog_backup_script}")
-        engine.incident_backup_marker.write_text(f"{engine.run_ts} backup-script-missing\n", encoding="utf-8")
+        engine.incident_backup_marker.write_text(f"{engine.ctx.run_ts} backup-script-missing\n", encoding="utf-8")
         return
     engine.log("INFO", f"running pre-repair backup via {engine.config.watchdog_backup_script}")
     result = engine.run_command(
@@ -656,12 +656,12 @@ def run_pre_repair_backup(engine) -> None:
         if result.output:
             handle.write(result.output)
     if result.returncode == 0:
-        engine.pre_repair_backup_result = "success"
+        engine.ctx.pre_repair_backup_result = "success"
         engine.log("INFO", "pre-repair backup completed")
     else:
-        engine.pre_repair_backup_result = "failed"
+        engine.ctx.pre_repair_backup_result = "failed"
         engine.log("WARN", "pre-repair backup failed; continuing remediation")
-    engine.incident_backup_marker.write_text(f"{engine.run_ts} {engine.pre_repair_backup_result}\n", encoding="utf-8")
+    engine.incident_backup_marker.write_text(f"{engine.ctx.run_ts} {engine.ctx.pre_repair_backup_result}\n", encoding="utf-8")
 
 
 def restore_last_good(engine, *, reason: str = "") -> bool:
@@ -721,7 +721,7 @@ def restore_last_good(engine, *, reason: str = "") -> bool:
             )
             engine.config.watchdog_last_rollback_summary_file.write_text(message + "\n", encoding="utf-8")
             shutil.copy2(engine.config.watchdog_last_rollback_summary_file, summary_archive)
-            engine.rollback_summary = message.strip()
+            engine.ctx.rollback_summary = message.strip()
 
         engine.config.openclaw_config.parent.mkdir(parents=True, exist_ok=True)
         if candidate_path.resolve() != engine.config.openclaw_config.resolve():
@@ -729,15 +729,15 @@ def restore_last_good(engine, *, reason: str = "") -> bool:
         if candidate_path.resolve() != engine.config.watchdog_last_good_config.resolve():
             shutil.copy2(candidate_path, engine.config.watchdog_last_good_config)
         restored_protected_paths = restore_archived_protected_paths(engine, candidate)
-        engine.rollback_occurred = True
-        engine.rollback_summary_archive_file = str(summary_archive)
-        engine.rollback_broken_config_file = str(broken_copy) if current_config_existed else ""
-        engine.rollback_candidate_used = candidate_id
-        engine.rollback_reason = reason or "last-good-rollback"
-        engine.config_drift_detected = protected_drift_detected
-        engine.last_good_validated_at = str(candidate.get("validated_at", "") or "")
-        engine.last_good_generation_id = candidate_id
-        engine.last_good_generation_count = len(candidates)
+        engine.ctx.rollback_occurred = True
+        engine.ctx.rollback_summary_archive_file = str(summary_archive)
+        engine.ctx.rollback_broken_config_file = str(broken_copy) if current_config_existed else ""
+        engine.ctx.rollback_candidate_used = candidate_id
+        engine.ctx.rollback_reason = reason or "last-good-rollback"
+        engine.ctx.config_drift_detected = protected_drift_detected
+        engine.ctx.last_good_validated_at = str(candidate.get("validated_at", "") or "")
+        engine.ctx.last_good_generation_id = candidate_id
+        engine.ctx.last_good_generation_count = len(candidates)
 
         manifest = load_last_good_manifest(engine)
         manifest["current_generation"] = candidate_id

@@ -4,14 +4,14 @@ This document describes the post-refactor internal structure of OpenClaw Watchdo
 
 ## Design goals
 
-The current layout keeps the public surface stable while making the implementation easier to test and evolve:
+The current layout keeps the operator-facing fallback surface coherent while making the implementation easier to test and evolve:
 
-- keep canonical CLI names, JSON keys, and rehearsal semantics stable
-- move ad-hoc dict handling behind typed compatibility models
+- keep canonical CLI names, required output fields, and rehearsal semantics clear for operators and automation
+- move ad-hoc dict handling behind typed models and explicit serialization boundaries
 - isolate human-readable rendering from command dispatch
 - reduce `watchdog_v2/engine.py` to a runtime facade and dependency container
 - make orchestration readable in dedicated flow modules
-- keep bootstrap behavior stable while splitting it into ordered internal steps
+- keep bootstrap behavior object-first while splitting it into ordered internal steps
 
 ## Package map
 
@@ -25,8 +25,8 @@ The current layout keeps the public surface stable while making the implementati
 
 ### Typed models
 
-- `watchdog_v2/models.py` defines compatibility dataclasses for probe state, run state, incidents, and bootstrap summaries
-- the models keep `from_dict()` / `to_dict()` adapters so existing persisted payloads remain readable
+- `watchdog_v2/models.py` defines typed dataclasses for probe state, run state, incidents, and bootstrap summaries
+- the models keep `from_dict()` / `to_dict()` adapters only at real persistence and CLI boundaries
 - read-heavy consumers such as reporting and incident context now normalize payloads through these dataclasses first
 
 ### Presentation layer
@@ -41,7 +41,7 @@ The current layout keeps the public surface stable while making the implementati
 
 - `watchdog_v2/run_context.py` defines mutable per-run state such as recovery metadata, survival-mode state, incident handoff files, and current timestamps
 - `watchdog_v2/engine.py` keeps long-lived dependencies and filesystem helpers on the engine itself
-- runtime-only fields are bridged through `engine.ctx`, which lets older `engine.<field>` call sites continue working during migration
+- mutable runtime-only fields live under `engine.ctx`; there is no legacy attribute bridge
 
 ### Run flows
 
@@ -60,25 +60,25 @@ The current layout keeps the public surface stable while making the implementati
   - ensure QQ plugin
   - scaffold default channel config
   - scan Feishu runtime markers
-- `watchdog_v2/models.BootstrapSummary` remains the serializable compatibility payload
+- `watchdog_v2/models.BootstrapSummary` remains the serializable bootstrap payload
 
 ## Validation layers
 
 The repository now uses three complementary validation layers:
 
-1. **Unit / contract tests** for models, presenters, reporting, events, and runtime compatibility
+1. **Unit / focused output tests** for models, presenters, reporting, events, and runtime helpers
 2. **Direct orchestration tests** for run context, run flows, and bootstrap steps
 3. **Rehearsal smoke scenarios** for end-to-end operator behavior in a bounded local harness
 
-## Compatibility boundaries
+## Operational boundaries
 
-The refactor explicitly protects these public boundaries:
+The watchdog explicitly protects these operational boundaries:
 
 - canonical CLI names under `scripts/openclaw-watchdog`
-- stable top-level keys in `report --json` and `metrics --json`
-- Prometheus metric names emitted by `metrics --prometheus`
-- rehearsal scenario intent and expected operator flows
+- report / metrics fields that rehearsals, live acceptance, or dashboards actually consume
+- Prometheus metric names emitted by `metrics --prometheus` when they drive alerting or visibility
+- rehearsal scenario intent and expected operator recovery flows
 
 ## Non-goals
 
-These changes intentionally do not introduce a framework, service container, or event bus. The code stays standard-library-first and pragmatic: smaller modules, clearer seams, and compatibility shims only where they reduce migration risk.
+These changes intentionally do not introduce a framework, service container, or event bus. The code stays standard-library-first and pragmatic: smaller modules, clearer seams, and only the output surfaces that help OpenClaw fallback operations.

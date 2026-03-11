@@ -209,8 +209,6 @@ def _print_metrics(payload: dict[str, object]) -> None:
     print(f"current_incident_owner_assigned={str(bool(payload.get('current_incident_owner_assigned', False))).lower()}")
     print(f"current_incident_acknowledged={str(bool(payload.get('current_incident_acknowledged', False))).lower()}")
     print(f"current_incident_notes_count={payload.get('current_incident_notes_count', 0)}")
-    print(f"current_incident_events_count={payload.get('current_incident_events_count', 0)}")
-    print(f"current_incident_latest_event_type={payload.get('current_incident_latest_event_type', '') or 'none'}")
     print(
         "recent_counts="
         f"healthy:{payload.get('recent_healthy_total', 0)},"

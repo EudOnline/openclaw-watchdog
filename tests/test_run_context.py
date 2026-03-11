@@ -19,20 +19,23 @@ class RunContextTest(unittest.TestCase):
         self.assertIsNotNone(ctx.last_run_started_at)
         self.assertIsNotNone(ctx.last_run_finished_at)
 
-    def test_engine_runtime_attributes_delegate_to_ctx(self) -> None:
+    def test_engine_runtime_state_lives_only_under_ctx(self) -> None:
         engine = WatchdogEngine.__new__(WatchdogEngine)
         object.__setattr__(engine, 'ctx', RunContext.initial(stable_required_runs=2))
 
-        engine.last_recovery_strategy = 'restart'
-        engine.rollback_candidate_used = 'gen-2'
-        engine.incident_id = 'incident-7'
+        engine.ctx.last_recovery_strategy = 'restart'
+        engine.ctx.rollback_candidate_used = 'gen-2'
+        engine.ctx.incident_id = 'incident-7'
 
         self.assertEqual(engine.ctx.last_recovery_strategy, 'restart')
         self.assertEqual(engine.ctx.rollback_candidate_used, 'gen-2')
         self.assertEqual(engine.ctx.incident_id, 'incident-7')
-        self.assertEqual(engine.last_recovery_strategy, 'restart')
-        self.assertEqual(engine.rollback_candidate_used, 'gen-2')
-        self.assertEqual(engine.incident_id, 'incident-7')
+        with self.assertRaises(AttributeError):
+            _ = engine.last_recovery_strategy
+        with self.assertRaises(AttributeError):
+            _ = engine.rollback_candidate_used
+        with self.assertRaises(AttributeError):
+            _ = engine.incident_id
 
     def test_survival_state_applies_into_ctx(self) -> None:
         engine = SimpleNamespace(

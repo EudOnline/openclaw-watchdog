@@ -26,7 +26,7 @@ from watchdog_v2 import survival as survival_ops
 from watchdog_v2.config import Config, parse_env_file
 from watchdog_v2.runtime import CommandResult, run_capture_to_file, run_command
 from watchdog_v2 import state_store
-from watchdog_v2.run_context import RUN_CONTEXT_FIELDS, RunContext
+from watchdog_v2.run_context import RunContext
 
 
 @dataclass
@@ -48,19 +48,6 @@ class WatchdogEngine:
         self.lock_handle = None
         self.ctx = RunContext.initial(stable_required_runs=self.config.watchdog_survival_stable_ready_runs)
         self._prepare_state_dirs()
-
-    def __getattr__(self, name: str):
-        ctx = self.__dict__.get('ctx')
-        if ctx is not None and name in RUN_CONTEXT_FIELDS:
-            return getattr(ctx, name)
-        raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
-
-    def __setattr__(self, name: str, value) -> None:
-        ctx = self.__dict__.get('ctx')
-        if name != 'ctx' and ctx is not None and name in RUN_CONTEXT_FIELDS:
-            setattr(ctx, name, value)
-            return
-        super().__setattr__(name, value)
 
     def __enter__(self) -> "WatchdogEngine":
         self.tmpdir_obj = tempfile.TemporaryDirectory(prefix="openclaw-watchdog-")
@@ -149,57 +136,57 @@ class WatchdogEngine:
         )
 
     def append_rollback_summary(self, text: str) -> str:
-        if self.rollback_summary:
-            return f"{text}\n\n回退摘要：\n{self.rollback_summary}"
+        if self.ctx.rollback_summary:
+            return f"{text}\n\n回退摘要：\n{self.ctx.rollback_summary}"
         return text
 
     def reset_recovery_tracking(self) -> None:
-        self.recovery_steps = []
-        self.last_recovery_strategy = "none"
-        self.last_recovery_action_count = 0
-        self.last_recovery_restored_conversation = False
-        self.rollback_candidate_used = ""
-        self.rollback_reason = ""
-        self.config_drift_detected = False
-        self.survival_mode_active = False
-        self.survival_mode_reason = ""
-        self.survival_mode_since = ""
-        self.survival_mode_summary = ""
-        self.survival_mode_actions = []
-        self.survival_mode_disabled_features = []
-        self.survival_mode_config_file = ""
-        self.survival_mode_sticky = False
-        self.survival_mode_sticky_reason = ""
-        self.survival_mode_exit_ready = False
-        self.survival_mode_exit_policy = "none"
-        self.survival_mode_exit_blockers = []
-        self.survival_mode_stable_ready_runs = 0
-        self.survival_mode_stable_required_runs = self.config.watchdog_survival_stable_ready_runs
-        self.survival_mode_manual_clear_required = False
-        self.survival_mode_config_changed_away = False
-        self.survival_mode_last_exit_at = ""
-        self.survival_mode_last_exit_reason = ""
-        self.survival_mode_last_exit_kind = ""
-        self.survival_mode_last_exit_summary = ""
-        self.drift_scope = []
-        self.drift_since_last_good = ""
-        self.drift_summary = ""
-        self.latest_probe = {}
+        self.ctx.recovery_steps = []
+        self.ctx.last_recovery_strategy = "none"
+        self.ctx.last_recovery_action_count = 0
+        self.ctx.last_recovery_restored_conversation = False
+        self.ctx.rollback_candidate_used = ""
+        self.ctx.rollback_reason = ""
+        self.ctx.config_drift_detected = False
+        self.ctx.survival_mode_active = False
+        self.ctx.survival_mode_reason = ""
+        self.ctx.survival_mode_since = ""
+        self.ctx.survival_mode_summary = ""
+        self.ctx.survival_mode_actions = []
+        self.ctx.survival_mode_disabled_features = []
+        self.ctx.survival_mode_config_file = ""
+        self.ctx.survival_mode_sticky = False
+        self.ctx.survival_mode_sticky_reason = ""
+        self.ctx.survival_mode_exit_ready = False
+        self.ctx.survival_mode_exit_policy = "none"
+        self.ctx.survival_mode_exit_blockers = []
+        self.ctx.survival_mode_stable_ready_runs = 0
+        self.ctx.survival_mode_stable_required_runs = self.config.watchdog_survival_stable_ready_runs
+        self.ctx.survival_mode_manual_clear_required = False
+        self.ctx.survival_mode_config_changed_away = False
+        self.ctx.survival_mode_last_exit_at = ""
+        self.ctx.survival_mode_last_exit_reason = ""
+        self.ctx.survival_mode_last_exit_kind = ""
+        self.ctx.survival_mode_last_exit_summary = ""
+        self.ctx.drift_scope = []
+        self.ctx.drift_since_last_good = ""
+        self.ctx.drift_summary = ""
+        self.ctx.latest_probe = {}
 
     def record_recovery_step(self, step: str, outcome: str, detail: str = "") -> None:
         token = f"{step}:{outcome}"
         if detail:
             token = f"{token}({detail})"
-        self.recovery_steps.append(token)
+        self.ctx.recovery_steps.append(token)
         if outcome not in {"skipped", "diagnosed", "not-applicable"}:
-            self.last_recovery_action_count += 1
+            self.ctx.last_recovery_action_count += 1
 
     def recovery_path_text(self) -> str:
-        return " -> ".join(self.recovery_steps) if self.recovery_steps else "none"
+        return " -> ".join(self.ctx.recovery_steps) if self.ctx.recovery_steps else "none"
 
     def finalize_recovery_tracking(self, *, strategy: str, restored_conversation: bool) -> None:
-        self.last_recovery_strategy = strategy or "none"
-        self.last_recovery_restored_conversation = bool(restored_conversation)
+        self.ctx.last_recovery_strategy = strategy or "none"
+        self.ctx.last_recovery_restored_conversation = bool(restored_conversation)
 
     def write_codex_trigger_status(self, file_path: Path, final_result: str, detail: str) -> None:
         file_path.write_text(
@@ -211,8 +198,8 @@ class WatchdogEngine:
                 detail={detail}
                 codex_bin={self.config.watchdog_codex_bin}
                 opencode_fallback_bin={self.config.watchdog_opencode_fallback_bin}
-                incident_id={self.incident_id}
-                incident_dir={self.incident_dir or ''}
+                incident_id={self.ctx.incident_id}
+                incident_dir={self.ctx.incident_dir or ''}
                 """
             ),
             encoding="utf-8",
@@ -226,8 +213,8 @@ class WatchdogEngine:
                 final_result={final_result}
                 detail={detail}
                 opencode_fallback_bin={self.config.watchdog_opencode_fallback_bin}
-                incident_id={self.incident_id}
-                incident_dir={self.incident_dir or ''}
+                incident_id={self.ctx.incident_id}
+                incident_dir={self.ctx.incident_dir or ''}
                 """
             ),
             encoding="utf-8",
@@ -241,8 +228,8 @@ class WatchdogEngine:
             return 0
 
     def write_failure_count(self, count: int) -> None:
-        self.consecutive_failures = max(0, int(count))
-        self.config.watchdog_failure_count_file.write_text(f"{self.consecutive_failures}", encoding="utf-8")
+        self.ctx.consecutive_failures = max(0, int(count))
+        self.config.watchdog_failure_count_file.write_text(f"{self.ctx.consecutive_failures}", encoding="utf-8")
 
     def reset_failure_count(self) -> None:
         self.write_failure_count(0)
@@ -576,23 +563,23 @@ class WatchdogEngine:
     def incident_operator_summary(self, *, summary: str, active: str, main_pid: str, listeners: str) -> str:
         run_state = self.read_run_state()
         lines = [
-            f"incident_id={self.incident_id}",
-            f"time={self.run_ts}",
+            f"incident_id={self.ctx.incident_id}",
+            f"time={self.ctx.run_ts}",
             f"summary={summary}",
             f"health_level={run_state.get('health_level', 'unknown')}",
             f"conversation_status={run_state.get('conversation_status', 'down')}",
             f"active={active}",
             f"main_pid={main_pid}",
             f"listeners={listeners}",
-            f"pre_repair_backup_result={self.pre_repair_backup_result}",
-            f"rollback_occurred={'true' if self.rollback_occurred else 'false'}",
-            f"rollback_summary_archive_file={self.rollback_summary_archive_file or 'none'}",
-            f"rollback_candidate_used={self.rollback_candidate_used or 'none'}",
-            f"rollback_reason={self.rollback_reason or 'none'}",
-            f"last_recovery_strategy={self.last_recovery_strategy}",
+            f"pre_repair_backup_result={self.ctx.pre_repair_backup_result}",
+            f"rollback_occurred={'true' if self.ctx.rollback_occurred else 'false'}",
+            f"rollback_summary_archive_file={self.ctx.rollback_summary_archive_file or 'none'}",
+            f"rollback_candidate_used={self.ctx.rollback_candidate_used or 'none'}",
+            f"rollback_reason={self.ctx.rollback_reason or 'none'}",
+            f"last_recovery_strategy={self.ctx.last_recovery_strategy}",
             f"last_recovery_path={self.recovery_path_text()}",
-            f"codex_trigger_result={self.codex_trigger_result}",
-            f"opencode_fallback_trigger_result={self.opencode_fallback_trigger_result}",
+            f"codex_trigger_result={self.ctx.codex_trigger_result}",
+            f"opencode_fallback_trigger_result={self.ctx.opencode_fallback_trigger_result}",
         ]
         return "\n".join(lines) + "\n"
 
@@ -612,10 +599,10 @@ class WatchdogEngine:
         incident_id: str | None = None,
         incident_dir: Path | None = None,
     ) -> dict[str, object]:
-        target_incident_id = incident_id or self.incident_id
-        target_incident_dir = incident_dir or self.incident_dir
+        target_incident_id = incident_id or self.ctx.incident_id
+        target_incident_dir = incident_dir or self.ctx.incident_dir
         return incident_context_ops.build_incident_index_entry(
-            run_ts=self.run_ts,
+            run_ts=self.ctx.run_ts,
             incident_id=target_incident_id,
             incident_dir=str(target_incident_dir) if target_incident_dir else "",
             summary=summary,
@@ -628,15 +615,15 @@ class WatchdogEngine:
             active=active,
             main_pid=main_pid,
             listeners=listeners,
-            pre_repair_backup_result=pre_repair_backup_result or self.pre_repair_backup_result,
-            rollback_occurred=self.rollback_occurred if rollback_occurred is None else rollback_occurred,
-            rollback_summary_archive_file=rollback_summary_archive_file if rollback_summary_archive_file is not None else self.rollback_summary_archive_file,
-            rollback_candidate_used=self.rollback_candidate_used,
-            rollback_reason=self.rollback_reason,
-            last_recovery_strategy=self.last_recovery_strategy,
+            pre_repair_backup_result=pre_repair_backup_result or self.ctx.pre_repair_backup_result,
+            rollback_occurred=self.ctx.rollback_occurred if rollback_occurred is None else rollback_occurred,
+            rollback_summary_archive_file=rollback_summary_archive_file if rollback_summary_archive_file is not None else self.ctx.rollback_summary_archive_file,
+            rollback_candidate_used=self.ctx.rollback_candidate_used,
+            rollback_reason=self.ctx.rollback_reason,
+            last_recovery_strategy=self.ctx.last_recovery_strategy,
             last_recovery_path=self.recovery_path_text(),
-            codex_trigger_result=codex_trigger_result or self.codex_trigger_result,
-            opencode_fallback_trigger_result=opencode_fallback_trigger_result or self.opencode_fallback_trigger_result,
+            codex_trigger_result=codex_trigger_result or self.ctx.codex_trigger_result,
+            opencode_fallback_trigger_result=opencode_fallback_trigger_result or self.ctx.opencode_fallback_trigger_result,
         )
 
     def update_incident_index(
@@ -664,7 +651,7 @@ class WatchdogEngine:
                     items = [item for item in data if isinstance(item, dict)]
             except json.JSONDecodeError:
                 items = []
-        target_incident_id = incident_id or self.incident_id
+        target_incident_id = incident_id or self.ctx.incident_id
         entry = self.incident_index_entry(
             summary=summary,
             active=active,
@@ -701,14 +688,14 @@ class WatchdogEngine:
         return items
 
     def refresh_current_incident_index(self, *, summary: str | None = None, health_level: str | None = None) -> None:
-        if self.incident_dir is None:
+        if self.ctx.incident_dir is None:
             return
-        operator_payload = self.read_incident_operator_summary_payload(self.incident_dir)
+        operator_payload = self.read_incident_operator_summary_payload(self.ctx.incident_dir)
         existing_index_payload = next(
             (
                 item
                 for item in reversed(self.read_incident_index())
-                if str(item.get("incident_id", "")) == self.incident_id
+                if str(item.get("incident_id", "")) == self.ctx.incident_id
             ),
             {},
         )
@@ -719,13 +706,13 @@ class WatchdogEngine:
             main_pid=str(operator_payload.get("main_pid", existing_index_payload.get("main_pid", "0")) or "0"),
             listeners=str(operator_payload.get("listeners", existing_index_payload.get("listeners", "none")) or "none"),
             health_level=health_level,
-            pre_repair_backup_result=str(existing_index_payload.get("pre_repair_backup_result", self.pre_repair_backup_result) or self.pre_repair_backup_result),
-            rollback_occurred=bool(existing_index_payload.get("rollback_occurred", self.rollback_occurred)),
-            rollback_summary_archive_file=str(existing_index_payload.get("rollback_summary_archive_file", self.rollback_summary_archive_file) or self.rollback_summary_archive_file),
-            codex_trigger_result=str(existing_index_payload.get("codex_trigger_result", self.codex_trigger_result) or self.codex_trigger_result),
+            pre_repair_backup_result=str(existing_index_payload.get("pre_repair_backup_result", self.ctx.pre_repair_backup_result) or self.ctx.pre_repair_backup_result),
+            rollback_occurred=bool(existing_index_payload.get("rollback_occurred", self.ctx.rollback_occurred)),
+            rollback_summary_archive_file=str(existing_index_payload.get("rollback_summary_archive_file", self.ctx.rollback_summary_archive_file) or self.ctx.rollback_summary_archive_file),
+            codex_trigger_result=str(existing_index_payload.get("codex_trigger_result", self.ctx.codex_trigger_result) or self.ctx.codex_trigger_result),
             opencode_fallback_trigger_result=str(
-                existing_index_payload.get("opencode_fallback_trigger_result", self.opencode_fallback_trigger_result)
-                or self.opencode_fallback_trigger_result
+                existing_index_payload.get("opencode_fallback_trigger_result", self.ctx.opencode_fallback_trigger_result)
+                or self.ctx.opencode_fallback_trigger_result
             ),
         )
 
@@ -772,20 +759,20 @@ class WatchdogEngine:
         return incident_ops.add_incident_note(self, incident_id, note_by=note_by, message=message)
 
     def write_incident_operator_summary(self, *, summary: str, active: str, main_pid: str, listeners: str) -> None:
-        if self.incident_dir is None:
+        if self.ctx.incident_dir is None:
             return
-        (self.incident_dir / "operator-summary.txt").write_text(
+        (self.ctx.incident_dir / "operator-summary.txt").write_text(
             self.incident_operator_summary(summary=summary, active=active, main_pid=main_pid, listeners=listeners),
             encoding="utf-8",
         )
         self.update_incident_index(summary=summary, active=active, main_pid=main_pid, listeners=listeners)
 
     def update_incident_state(self, state: str, summary: str, *, resolved: bool = False) -> None:
-        if self.incident_dir is None:
+        if self.ctx.incident_dir is None:
             return
-        incident_state_file = self.incident_state_file(self.incident_dir)
+        incident_state_file = self.incident_state_file(self.ctx.incident_dir)
         payload: dict[str, object] = {
-            "incident_id": self.incident_id,
+            "incident_id": self.ctx.incident_id,
             "state": state,
             "summary": summary,
         }
@@ -826,21 +813,21 @@ class WatchdogEngine:
         incident_dir = self.config.watchdog_incidents_dir / incident_id
         if not incident_dir.exists() or not incident_dir.is_dir():
             return False
-        self.incident_id = incident_id
-        self.incident_dir = incident_dir
+        self.ctx.incident_id = incident_id
+        self.ctx.incident_dir = incident_dir
         self.current_incident_marker.write_text(f"{incident_id}\n", encoding="utf-8")
-        self.codex_prompt_file = self.incident_dir / "codex-prompt.md"
-        self.codex_handoff_file = self.incident_dir / "run-codex.sh"
-        self.codex_runner_file = self.incident_dir / "codex-runner.sh"
-        self.codex_run_log_file = self.incident_dir / "codex-run.log"
-        self.codex_autorun_ready = self.codex_handoff_file.exists()
-        self.opencode_fallback_handoff_file = self.incident_dir / "run-opencode-fallback.sh"
-        self.opencode_fallback_runner_file = self.incident_dir / "opencode-fallback-runner.sh"
-        self.opencode_fallback_run_log_file = self.incident_dir / "opencode-fallback.log"
+        self.ctx.codex_prompt_file = self.ctx.incident_dir / "codex-prompt.md"
+        self.ctx.codex_handoff_file = self.ctx.incident_dir / "run-codex.sh"
+        self.ctx.codex_runner_file = self.ctx.incident_dir / "codex-runner.sh"
+        self.ctx.codex_run_log_file = self.ctx.incident_dir / "codex-run.log"
+        self.ctx.codex_autorun_ready = self.ctx.codex_handoff_file.exists()
+        self.ctx.opencode_fallback_handoff_file = self.ctx.incident_dir / "run-opencode-fallback.sh"
+        self.ctx.opencode_fallback_runner_file = self.ctx.incident_dir / "opencode-fallback-runner.sh"
+        self.ctx.opencode_fallback_run_log_file = self.ctx.incident_dir / "opencode-fallback.log"
         return True
 
     def attach_current_incident_if_any(self) -> bool:
-        if self.incident_dir is not None and self.incident_id:
+        if self.ctx.incident_dir is not None and self.ctx.incident_id:
             return True
         if not self.current_incident_marker.exists():
             return False
@@ -849,20 +836,20 @@ class WatchdogEngine:
 
     def reset_incident_state(self) -> None:
         self.current_incident_marker.unlink(missing_ok=True)
-        self.incident_id = ""
-        self.incident_dir = None
-        self.codex_prompt_file = None
-        self.codex_handoff_file = None
-        self.codex_runner_file = None
-        self.codex_run_log_file = None
-        self.codex_run_pid = ""
-        self.codex_trigger_result = "not-run"
-        self.codex_autorun_ready = False
-        self.opencode_fallback_handoff_file = None
-        self.opencode_fallback_runner_file = None
-        self.opencode_fallback_run_log_file = None
-        self.opencode_fallback_run_pid = ""
-        self.opencode_fallback_trigger_result = "not-run"
+        self.ctx.incident_id = ""
+        self.ctx.incident_dir = None
+        self.ctx.codex_prompt_file = None
+        self.ctx.codex_handoff_file = None
+        self.ctx.codex_runner_file = None
+        self.ctx.codex_run_log_file = None
+        self.ctx.codex_run_pid = ""
+        self.ctx.codex_trigger_result = "not-run"
+        self.ctx.codex_autorun_ready = False
+        self.ctx.opencode_fallback_handoff_file = None
+        self.ctx.opencode_fallback_runner_file = None
+        self.ctx.opencode_fallback_run_log_file = None
+        self.ctx.opencode_fallback_run_pid = ""
+        self.ctx.opencode_fallback_trigger_result = "not-run"
 
     def sibling_json_path(self, path: Path) -> Path:
         if path.suffix:
@@ -872,33 +859,33 @@ class WatchdogEngine:
     def write_event(self, status: str, summary: str) -> None:
         run_state = self.read_run_state()
         event_payload = event_ops.build_event_payload(
-            run_ts=self.run_ts,
+            run_ts=self.ctx.run_ts,
             status=status,
             summary=summary,
             run_state=run_state,
-            rollback_occurred=self.rollback_occurred,
+            rollback_occurred=self.ctx.rollback_occurred,
             rollback_summary_file=str(self.config.watchdog_last_rollback_summary_file),
-            rollback_summary_archive_file=self.rollback_summary_archive_file,
-            rollback_broken_config_file=self.rollback_broken_config_file,
-            pre_repair_backup_result=self.pre_repair_backup_result,
-            consecutive_failures=self.consecutive_failures,
-            incident_id=self.incident_id,
-            incident_dir=str(self.incident_dir) if self.incident_dir else '',
+            rollback_summary_archive_file=self.ctx.rollback_summary_archive_file,
+            rollback_broken_config_file=self.ctx.rollback_broken_config_file,
+            pre_repair_backup_result=self.ctx.pre_repair_backup_result,
+            consecutive_failures=self.ctx.consecutive_failures,
+            incident_id=self.ctx.incident_id,
+            incident_dir=str(self.ctx.incident_dir) if self.ctx.incident_dir else '',
             codex_context={
-                'prompt_file': str(self.codex_prompt_file) if self.codex_prompt_file else '',
-                'handoff_file': str(self.codex_handoff_file) if self.codex_handoff_file else '',
-                'runner_file': str(self.codex_runner_file) if self.codex_runner_file else '',
-                'run_log_file': str(self.codex_run_log_file) if self.codex_run_log_file else '',
-                'run_pid': self.codex_run_pid,
-                'trigger_result': self.codex_trigger_result,
-                'autorun_ready': self.codex_autorun_ready,
+                'prompt_file': str(self.ctx.codex_prompt_file) if self.ctx.codex_prompt_file else '',
+                'handoff_file': str(self.ctx.codex_handoff_file) if self.ctx.codex_handoff_file else '',
+                'runner_file': str(self.ctx.codex_runner_file) if self.ctx.codex_runner_file else '',
+                'run_log_file': str(self.ctx.codex_run_log_file) if self.ctx.codex_run_log_file else '',
+                'run_pid': self.ctx.codex_run_pid,
+                'trigger_result': self.ctx.codex_trigger_result,
+                'autorun_ready': self.ctx.codex_autorun_ready,
             },
             opencode_fallback_context={
-                'handoff_file': str(self.opencode_fallback_handoff_file) if self.opencode_fallback_handoff_file else '',
-                'runner_file': str(self.opencode_fallback_runner_file) if self.opencode_fallback_runner_file else '',
-                'run_log_file': str(self.opencode_fallback_run_log_file) if self.opencode_fallback_run_log_file else '',
-                'run_pid': self.opencode_fallback_run_pid,
-                'trigger_result': self.opencode_fallback_trigger_result,
+                'handoff_file': str(self.ctx.opencode_fallback_handoff_file) if self.ctx.opencode_fallback_handoff_file else '',
+                'runner_file': str(self.ctx.opencode_fallback_runner_file) if self.ctx.opencode_fallback_runner_file else '',
+                'run_log_file': str(self.ctx.opencode_fallback_run_log_file) if self.ctx.opencode_fallback_run_log_file else '',
+                'run_pid': self.ctx.opencode_fallback_run_pid,
+                'trigger_result': self.ctx.opencode_fallback_trigger_result,
             },
         )
         self.config.watchdog_event_file.write_text(event_ops.render_event_text(event_payload), encoding='utf-8')
@@ -924,74 +911,74 @@ class WatchdogEngine:
             "current_mode": self.current_mode(
                 maintenance=self.config.watchdog_maintenance_file.exists(),
                 degraded=new_state == "degraded",
-                survival=self.survival_mode_active,
+                survival=self.ctx.survival_mode_active,
             ),
             "health_level": health_level,
-            "last_backup_result": self.pre_repair_backup_result,
-            "last_rollback_summary_archive_file": self.rollback_summary_archive_file,
-            "rollback_candidate_used": self.rollback_candidate_used,
-            "rollback_reason": self.rollback_reason,
-            "config_drift_detected": self.config_drift_detected,
-            "last_recovery_strategy": self.last_recovery_strategy,
+            "last_backup_result": self.ctx.pre_repair_backup_result,
+            "last_rollback_summary_archive_file": self.ctx.rollback_summary_archive_file,
+            "rollback_candidate_used": self.ctx.rollback_candidate_used,
+            "rollback_reason": self.ctx.rollback_reason,
+            "config_drift_detected": self.ctx.config_drift_detected,
+            "last_recovery_strategy": self.ctx.last_recovery_strategy,
             "last_recovery_path": self.recovery_path_text(),
-            "last_recovery_action_count": self.last_recovery_action_count,
-            "last_recovery_restored_conversation": self.last_recovery_restored_conversation,
+            "last_recovery_action_count": self.ctx.last_recovery_action_count,
+            "last_recovery_restored_conversation": self.ctx.last_recovery_restored_conversation,
             **survival_ops.run_state_fields(self),
-            "last_good_validated_at": self.last_good_validated_at,
-            "last_good_generation_id": self.last_good_generation_id,
-            "last_good_generation_count": self.last_good_generation_count,
-            "drift_scope": list(self.drift_scope),
-            "drift_since_last_good": self.drift_since_last_good,
-            "drift_summary": self.drift_summary,
+            "last_good_validated_at": self.ctx.last_good_validated_at,
+            "last_good_generation_id": self.ctx.last_good_generation_id,
+            "last_good_generation_count": self.ctx.last_good_generation_count,
+            "drift_scope": list(self.ctx.drift_scope),
+            "drift_since_last_good": self.ctx.drift_since_last_good,
+            "drift_summary": self.ctx.drift_summary,
             "cooldown_remaining_seconds": self.codex_cooldown_remaining(),
             **guard_info,
         }
-        if self.latest_probe:
+        if self.ctx.latest_probe:
             run_state_updates.update(
                 {
-                    "conversation_ready": bool(self.latest_probe.get("conversation_ready", False)),
-                    "minimal_usable_ready": bool(self.latest_probe.get("minimal_usable_ready", False)),
-                    "conversation_status": str(self.latest_probe.get("conversation_status", "down") or "down"),
-                    "conversation_probe_summary": str(self.latest_probe.get("conversation_probe_summary", "") or ""),
+                    "conversation_ready": bool(self.ctx.latest_probe.get("conversation_ready", False)),
+                    "minimal_usable_ready": bool(self.ctx.latest_probe.get("minimal_usable_ready", False)),
+                    "conversation_status": str(self.ctx.latest_probe.get("conversation_status", "down") or "down"),
+                    "conversation_probe_summary": str(self.ctx.latest_probe.get("conversation_probe_summary", "") or ""),
                 }
             )
         should_refresh_incident_index = False
         should_clear_incident_context = False
-        if self.pre_repair_backup_result != "not-run":
-            run_state_updates["last_backup_at"] = self.run_ts
-        if self.rollback_occurred:
-            run_state_updates["last_rollback_at"] = self.run_ts
-            run_state_updates["last_rollback_summary_archive_file"] = self.rollback_summary_archive_file
+        if self.ctx.pre_repair_backup_result != "not-run":
+            run_state_updates["last_backup_at"] = self.ctx.run_ts
+        if self.ctx.rollback_occurred:
+            run_state_updates["last_rollback_at"] = self.ctx.run_ts
+            run_state_updates["last_rollback_summary_archive_file"] = self.ctx.rollback_summary_archive_file
         if new_state == "healthy":
             self.reset_failure_count()
             self.incident_backup_marker.unlink(missing_ok=True)
-            self.pre_repair_backup_result = "not-run"
-            if self.incident_dir is not None:
+            self.ctx.pre_repair_backup_result = "not-run"
+            if self.ctx.incident_dir is not None:
                 self.update_incident_state("resolved", summary, resolved=True)
                 should_refresh_incident_index = True
                 should_clear_incident_context = True
-            run_state_updates["last_success_at"] = self.run_ts
+            run_state_updates["last_success_at"] = self.ctx.run_ts
             run_state_updates["current_incident_id"] = ""
             run_state_updates["current_incident_state"] = ""
             run_state_updates["current_incident_age_seconds"] = 0
         elif new_state == "recovered":
             self.reset_failure_count()
-            if self.incident_dir is not None:
+            if self.ctx.incident_dir is not None:
                 self.update_incident_state("resolved", summary, resolved=True)
-                run_state_updates["current_incident_id"] = self.incident_id
+                run_state_updates["current_incident_id"] = self.ctx.incident_id
                 run_state_updates["current_incident_state"] = "resolved"
                 should_refresh_incident_index = True
-            run_state_updates["last_success_at"] = self.run_ts
-            run_state_updates["last_recovered_at"] = self.run_ts
+            run_state_updates["last_success_at"] = self.ctx.run_ts
+            run_state_updates["last_recovered_at"] = self.ctx.run_ts
         elif new_state == "degraded":
-            run_state_updates["last_degraded_at"] = self.run_ts
+            run_state_updates["last_degraded_at"] = self.ctx.run_ts
         elif new_state == "failed":
-            if self.incident_dir is not None:
+            if self.ctx.incident_dir is not None:
                 self.update_incident_state("open", summary)
-                run_state_updates["current_incident_id"] = self.incident_id
+                run_state_updates["current_incident_id"] = self.ctx.incident_id
                 run_state_updates["current_incident_state"] = "open"
                 should_refresh_incident_index = True
-            run_state_updates["last_failed_at"] = self.run_ts
+            run_state_updates["last_failed_at"] = self.ctx.run_ts
         self.write_run_state(run_state_updates)
         if should_refresh_incident_index:
             self.refresh_current_incident_index(summary=summary, health_level=health_level)
@@ -1003,12 +990,12 @@ class WatchdogEngine:
             return
         report_text = self.append_rollback_summary(str(transition_report.get("message_text", "")))
         if new_state == "degraded" and old_state != "degraded" and self.config.watchdog_notify_on_degraded:
-            self.notify(f"⚠️ OpenClaw watchdog 状态变化\n时间：{self.run_ts}\n{report_text}")
+            self.notify(f"⚠️ OpenClaw watchdog 状态变化\n时间：{self.ctx.run_ts}\n{report_text}")
         elif new_state == "recovered" and old_state != "recovered" and self.config.watchdog_notify_on_recovery:
-            self.notify(f"✅ OpenClaw watchdog 状态变化\n时间：{self.run_ts}\n{report_text}")
+            self.notify(f"✅ OpenClaw watchdog 状态变化\n时间：{self.ctx.run_ts}\n{report_text}")
         elif new_state == "failed" and old_state != "failed" and self.config.watchdog_notify_on_failure:
             self.notify(
-                f"❌ OpenClaw watchdog 状态变化\n时间：{self.run_ts}\n{report_text}\n日志：{self.config.watchdog_log_file}"
+                f"❌ OpenClaw watchdog 状态变化\n时间：{self.ctx.run_ts}\n{report_text}\n日志：{self.config.watchdog_log_file}"
             )
 
     def service_active(self) -> bool:
@@ -1212,7 +1199,7 @@ class WatchdogEngine:
         return 0
 
     def _write_probe_run_state(self, probe: dict[str, object], *, config_invalid: bool, service_probe_failures: int) -> str:
-        self.latest_probe = dict(probe)
+        self.ctx.latest_probe = dict(probe)
         process_layer_healthy = bool(probe.get("process_layer_healthy", False))
         service_layer_healthy = bool(probe.get("service_layer_healthy", True))
         conversation_ready = bool(probe.get("conversation_ready", False))
@@ -1239,7 +1226,7 @@ class WatchdogEngine:
                 "current_mode": self.current_mode(
                     maintenance=self.config.watchdog_maintenance_file.exists(),
                     degraded=initial_health_level == "degraded",
-                    survival=self.survival_mode_active,
+                    survival=self.ctx.survival_mode_active,
                 ),
                 "cooldown_remaining_seconds": self.codex_cooldown_remaining(),
                 "conversation_ready": conversation_ready,

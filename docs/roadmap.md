@@ -6,14 +6,14 @@ This roadmap now assumes the current internal seams are in place: typed models, 
 
 - deepen direct flow coverage for restart, rollback, and escalation branches
 - expand rehearsal smoke coverage only for scenarios that represent real operator risk
-- keep the reporting / metrics contract stable while tightening internal types further
+- keep report / metrics operationally useful and remove compatibility-only fields when they no longer serve fallback behavior
 - continue improving deployment docs and host onboarding guidance
 
 ## Validation policy
 
 Every substantial change should keep these layers green:
 
-1. unit + contract tests under `tests/`
+1. unit + focused output tests under `tests/`
 2. direct orchestration tests for flows / bootstrap steps
 3. bounded rehearsal smoke scenarios
 4. live acceptance on a real host when behavior or docs change materially

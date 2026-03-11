@@ -102,6 +102,7 @@ class CliJsonContractTest(unittest.TestCase):
                 'message_text',
             }.issubset(payload)
         )
+        self.assertNotIn('recent_incident_summaries', payload)
 
     def test_metrics_json_keeps_stable_top_level_keys(self) -> None:
         exit_code, output = self._run_cli(['metrics', '--json'])
@@ -129,6 +130,8 @@ class CliJsonContractTest(unittest.TestCase):
                 'recent_failed_total',
             }.issubset(payload)
         )
+        self.assertNotIn('current_incident_events_count', payload)
+        self.assertNotIn('current_incident_latest_event_type', payload)
 
     def test_metrics_prometheus_keeps_stable_metric_names(self) -> None:
         exit_code, output = self._run_cli(['metrics', '--prometheus'])

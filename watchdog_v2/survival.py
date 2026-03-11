@@ -398,6 +398,6 @@ def enter_survival_mode(engine, *, reason: str) -> dict[str, object]:
     _apply_state_to_engine(engine, state)
     engine.log(
         "WARN",
-        f"survival mode activated reason={reason} summary={state.get('summary', '')} actions={'; '.join(engine.survival_mode_actions) or 'none'}",
+        f"survival mode activated reason={reason} summary={state.get('summary', '')} actions={'; '.join(engine.ctx.survival_mode_actions) or 'none'}",
     )
     return {"applied": True, "detail": "applied", "state": state}

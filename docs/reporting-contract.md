@@ -1,10 +1,12 @@
-# Reporting contract
+# Operational reporting outputs
 
-This document defines the compatibility expectations for the machine-readable watchdog outputs.
+This document describes the current machine-readable output surface for the watchdog.
+
+It is intentionally narrower than a broad compatibility promise: these JSON keys and Prometheus metric names matter because rehearsals, dashboards, and operator automation depend on them for OpenClaw fallback visibility. Fields that are redundant, fake, or only preserved for migration should be removed instead of being carried forever.
 
 ## Scope
 
-The contract applies to:
+This guidance applies to:
 
 - `scripts/openclaw-watchdog report --json`
 - `scripts/openclaw-watchdog metrics --json`
@@ -12,20 +14,18 @@ The contract applies to:
 
 Human-readable text such as `report --message` and `status --summary` should stay readable for operators, but they are not treated as strict API surfaces.
 
-## Compatibility level
+## Change discipline
 
-Within a minor release line:
+When changing report or metrics output:
 
-- existing top-level JSON keys should remain present;
-- additive keys are preferred over renames or removals;
-- renamed or removed keys should be called out in `CHANGELOG.md` and `docs/compatibility-and-deprecations.md`;
-- Prometheus metric names should remain stable unless there is a compelling correctness reason to change them.
+1. protect the fields used by rehearsals, live acceptance, dashboards, or active automation;
+2. prefer removing compatibility-only fields over preserving them indefinitely;
+3. update focused regression tests together with the implementation;
+4. update `docs/live-acceptance-checklist.md` and `CHANGELOG.md` when the operational surface changes.
 
-Internal refactors are expected over time, but they should preserve these machine-readable contracts unless a documented compatibility change is intentional.
+## Operational report keys
 
-## Stable report keys
-
-These top-level `report --json` fields are treated as stable operator/integration fields:
+These top-level `report --json` fields are treated as the current operational minimum:
 
 - `status`
 - `health_level`
@@ -45,9 +45,9 @@ These top-level `report --json` fields are treated as stable operator/integratio
 - `recent_incidents`
 - `message_text`
 
-## Stable metrics keys
+## Operational metrics keys
 
-These top-level `metrics --json` fields are treated as stable integration fields:
+These top-level `metrics --json` fields are treated as the current operational minimum:
 
 - `status`
 - `health_level`
@@ -70,7 +70,7 @@ These top-level `metrics --json` fields are treated as stable integration fields
 
 ## Prometheus guidance
 
-The Prometheus exposition should preserve metric names that external dashboards or alerts are likely to scrape, especially:
+The Prometheus exposition should preserve metric names that are likely to be scraped by dashboards or alerts, especially:
 
 - `openclaw_watchdog_info`
 - `openclaw_watchdog_service_active`
@@ -81,11 +81,12 @@ The Prometheus exposition should preserve metric names that external dashboards 
 - `openclaw_watchdog_config_drift_detected`
 - `openclaw_watchdog_current_incident_open`
 
-## Change policy
+## Intentionally unprotected details
 
-When changing report or metrics output:
+The watchdog no longer protects compatibility-only reporting details such as:
 
-1. prefer additive changes;
-2. update or add focused regression tests;
-3. update `docs/live-acceptance-checklist.md` if acceptance expectations change;
-4. record the change in `CHANGELOG.md` if compatibility may be affected.
+- `recent_incident_summaries`
+- `current_incident_events_count`
+- `current_incident_latest_event_type`
+
+If a future field is not tied to fallback behavior, rehearsal assertions, operator workflows, or dashboards, it should be treated the same way.

@@ -25,6 +25,15 @@ def _incident_summary(value: object) -> IncidentSummary:
     return IncidentSummary()
 
 
+def _run_state_snapshot(payload: dict[str, object]) -> RunStateSnapshot:
+    raw_run_state = payload.get("run_state")
+    if isinstance(raw_run_state, RunStateSnapshot):
+        return raw_run_state
+    if isinstance(raw_run_state, dict):
+        return RunStateSnapshot.from_dict(raw_run_state)
+    return RunStateSnapshot.from_dict(payload)
+
+
 def message_report_text(report: dict[str, object]) -> str:
     recent_stats = report.get("recent_event_stats", {})
     counts = recent_stats.get("counts", {}) if isinstance(recent_stats, dict) else {}
@@ -228,9 +237,6 @@ def prometheus_metrics_text(metrics: dict[str, object]) -> str:
         "# HELP openclaw_watchdog_current_incident_notes_count Number of operator notes attached to the current incident.",
         "# TYPE openclaw_watchdog_current_incident_notes_count gauge",
         f"openclaw_watchdog_current_incident_notes_count {int(metrics.get('current_incident_notes_count', 0) or 0)}",
-        "# HELP openclaw_watchdog_current_incident_events_count Number of timeline events attached to the current incident.",
-        "# TYPE openclaw_watchdog_current_incident_events_count gauge",
-        f"openclaw_watchdog_current_incident_events_count {int(metrics.get('current_incident_events_count', 0) or 0)}",
         "# HELP openclaw_watchdog_recent_incidents_total Number of indexed recent incidents included in metrics.",
         "# TYPE openclaw_watchdog_recent_incidents_total gauge",
         f"openclaw_watchdog_recent_incidents_total {int(metrics.get('recent_incidents_count', 0) or 0)}",
@@ -276,7 +282,7 @@ def write_metrics_snapshot(engine, metrics: dict[str, object]) -> None:
 def metrics_payload(engine) -> dict[str, object]:
     payload = engine.status_payload()
     probe = ProbeSnapshot.from_dict(payload)
-    run_state = RunStateSnapshot.from_dict(payload.get("run_state", {}) if isinstance(payload.get("run_state"), dict) else {})
+    run_state = _run_state_snapshot(payload)
     recent_stats = payload.get("recent_event_stats", {}) if isinstance(payload.get("recent_event_stats"), dict) else {}
     counts = recent_stats.get("counts", {}) if isinstance(recent_stats.get("counts"), dict) else {}
     current_incident_state = str(payload.get("current_incident_state", "") or "")
@@ -317,26 +323,26 @@ def metrics_payload(engine) -> dict[str, object]:
         "survival_mode_last_exit_kind": str(payload.get("survival_mode_last_exit_kind", "") or ""),
         "survival_mode_last_exit_summary": str(payload.get("survival_mode_last_exit_summary", "") or ""),
         "consecutive_failures": int(payload.get("consecutive_failures", 0) or 0),
-        "service_probe_failures": int(run_state.get("service_probe_failures", 0) or 0),
+        "service_probe_failures": int(payload.get("service_probe_failures", 0) or 0),
         "cooldown_remaining_seconds": int(payload.get("cooldown_remaining_seconds", 0) or 0),
         "last_recovery_strategy": run_state.last_recovery_strategy,
         "last_recovery_path": run_state.last_recovery_path,
         "last_recovery_action_count": run_state.last_recovery_action_count,
         "last_recovery_restored_conversation": run_state.last_recovery_restored_conversation,
-        "last_good_validated_at": str(run_state.get("last_good_validated_at", "") or ""),
-        "last_good_generation_id": str(run_state.get("last_good_generation_id", "") or ""),
-        "last_good_generation_count": int(run_state.get("last_good_generation_count", 0) or 0),
+        "last_good_validated_at": run_state.last_good_validated_at,
+        "last_good_generation_id": run_state.last_good_generation_id,
+        "last_good_generation_count": run_state.last_good_generation_count,
         "rollback_candidate_used": run_state.rollback_candidate_used,
         "rollback_reason": run_state.rollback_reason,
         "config_drift_detected": run_state.config_drift_detected,
         "drift_scope": list(run_state.drift_scope),
         "drift_since_last_good": run_state.drift_since_last_good,
         "drift_summary": run_state.drift_summary,
-        "guard_manifest_file": str(run_state.get("guard_manifest_file", payload.get("guard_manifest_file", "")) or payload.get("guard_manifest_file", "")),
-        "guard_last_operation": str(run_state.get("guard_last_operation", payload.get("guard_last_operation", "")) or payload.get("guard_last_operation", "")),
-        "guard_last_phase": str(run_state.get("guard_last_phase", payload.get("guard_last_phase", "")) or payload.get("guard_last_phase", "")),
-        "guard_last_time": str(run_state.get("guard_last_time", payload.get("guard_last_time", "")) or payload.get("guard_last_time", "")),
-        "guard_last_summary": str(run_state.get("guard_last_summary", payload.get("guard_last_summary", "")) or payload.get("guard_last_summary", "")),
+        "guard_manifest_file": run_state.guard_manifest_file or str(payload.get("guard_manifest_file", "") or ""),
+        "guard_last_operation": run_state.guard_last_operation or str(payload.get("guard_last_operation", "") or ""),
+        "guard_last_phase": run_state.guard_last_phase or str(payload.get("guard_last_phase", "") or ""),
+        "guard_last_time": run_state.guard_last_time or str(payload.get("guard_last_time", "") or ""),
+        "guard_last_summary": run_state.guard_last_summary or str(payload.get("guard_last_summary", "") or ""),
         "current_incident_open": bool(payload.get("current_incident_id")) and current_incident_state == "open",
         "current_incident_id": payload.get("current_incident_id", ""),
         "current_incident_state": current_incident_state,
@@ -345,18 +351,16 @@ def metrics_payload(engine) -> dict[str, object]:
         "current_incident_owner_assigned": bool(current_incident.owner.strip()),
         "current_incident_acknowledged": current_incident.acknowledged,
         "current_incident_notes_count": current_incident.notes_count,
-        "current_incident_events_count": int(current_incident.get("events_count", 0) or 0),
-        "current_incident_latest_event_type": str(current_incident.get("latest_event_type", "") or ""),
         "recent_event_stats": recent_stats,
         "recent_healthy_total": int(counts.get("healthy", 0) or 0),
         "recent_degraded_total": int(counts.get("degraded", 0) or 0),
         "recent_recovered_total": int(counts.get("recovered", 0) or 0),
         "recent_failed_total": int(counts.get("failed", 0) or 0),
         "recent_incidents_count": len(payload.get("recent_incidents", [])) if isinstance(payload.get("recent_incidents"), list) else 0,
-        "last_run_duration_ms": int(run_state.get("last_run_duration_ms", 0) or 0),
-        "last_success_at": str(run_state.get("last_success_at", "") or ""),
-        "last_failed_at": str(run_state.get("last_failed_at", "") or ""),
-        "last_recovered_at": str(run_state.get("last_recovered_at", "") or ""),
+        "last_run_duration_ms": int(payload.get("last_run_duration_ms", 0) or 0),
+        "last_success_at": str(payload.get("last_success_at", "") or ""),
+        "last_failed_at": str(payload.get("last_failed_at", "") or ""),
+        "last_recovered_at": str(payload.get("last_recovered_at", "") or ""),
     }
     metrics["last_success_timestamp"] = unix_timestamp(metrics.get("last_success_at"))
     metrics["last_failed_timestamp"] = unix_timestamp(metrics.get("last_failed_at"))
@@ -369,7 +373,7 @@ def metrics_payload(engine) -> dict[str, object]:
 def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
     payload = engine.status_payload()
     probe = ProbeSnapshot.from_dict(payload)
-    run_state = RunStateSnapshot.from_dict(payload)
+    run_state = _run_state_snapshot(payload)
     current_incident = engine.current_incident_payload() if str(payload.get("current_incident_id", "") or "") else {}
     recent_incidents = engine.list_incident_snapshots(limit=max(1, incident_limit))
     incident_context = incident_context_ops.build_report_incident_context(
@@ -396,7 +400,6 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "recent_event_stats": payload.get("recent_event_stats", {}),
         "incident_queue_summary": payload.get("incident_queue_summary", {}),
         "recent_incidents": incident_context['recent_incidents'],
-        "recent_incident_summaries": incident_context['recent_incident_summaries'],
         "current_incident_id": incident_context['current_incident_id'],
         "current_incident_state": incident_context['current_incident_state'],
         "current_incident_owner": incident_context['current_incident_owner'],

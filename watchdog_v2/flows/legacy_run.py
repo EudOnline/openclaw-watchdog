@@ -9,8 +9,8 @@ def run(engine, ctx):
     from watchdog_v2.engine import RunOutcome
 
     start_ts = datetime.now().astimezone()
-    engine.last_run_started_at = start_ts
-    engine.run_ts = start_ts.strftime("%F %T %Z")
+    engine.ctx.last_run_started_at = start_ts
+    engine.ctx.run_ts = start_ts.strftime("%F %T %Z")
     engine.write_run_state({"last_run_started_at": start_ts.isoformat(timespec="seconds")})
     engine.log("INFO", "watchdog tick start")
 
@@ -102,8 +102,8 @@ def run(engine, ctx):
                     listeners=listeners_str,
                 )
                 summary = (
-                    f"配置无效，且没有 last-good；incident={engine.incident_dir or 'none'}；"
-                    f"codex_handoff={engine.codex_handoff_file or 'none'}；codex_result={engine.codex_trigger_result or 'not-run'}"
+                    f"配置无效，且没有 last-good；incident={engine.ctx.incident_dir or 'none'}；"
+                    f"codex_handoff={engine.ctx.codex_handoff_file or 'none'}；codex_result={engine.ctx.codex_trigger_result or 'not-run'}"
                 )
                 engine.set_state("failed", summary)
                 return RunOutcome(exit_code=1, state="failed", summary=summary)
@@ -187,18 +187,18 @@ def run(engine, ctx):
             listeners=final_listeners_str,
         )
         summary = (
-            f"{final_summary}；incident={engine.incident_dir or 'none'}；"
-            f"codex_handoff={engine.codex_handoff_file or 'none'}；codex_result={engine.codex_trigger_result or 'not-run'}"
+            f"{final_summary}；incident={engine.ctx.incident_dir or 'none'}；"
+            f"codex_handoff={engine.ctx.codex_handoff_file or 'none'}；codex_result={engine.ctx.codex_trigger_result or 'not-run'}"
         )
         engine.set_state("failed", summary)
         engine.log(
             "ERROR",
-            f"watchdog failed to recover: {final_summary} incident={engine.incident_dir or 'none'} codex={engine.codex_trigger_result or 'not-run'}",
+            f"watchdog failed to recover: {final_summary} incident={engine.ctx.incident_dir or 'none'} codex={engine.ctx.codex_trigger_result or 'not-run'}",
         )
         return RunOutcome(exit_code=1, state="failed", summary=summary)
     finally:
         finish_ts = datetime.now().astimezone()
-        engine.last_run_finished_at = finish_ts
+        engine.ctx.last_run_finished_at = finish_ts
         duration_ms = max(0, int((finish_ts - start_ts).total_seconds() * 1000))
         engine.write_run_state(
             {
