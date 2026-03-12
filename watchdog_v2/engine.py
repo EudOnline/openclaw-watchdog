@@ -19,6 +19,7 @@ from watchdog_v2 import events as event_ops
 from watchdog_v2 import health as health_ops
 from watchdog_v2 import incident_context as incident_context_ops
 from watchdog_v2 import incidents as incident_ops
+from watchdog_v2 import learning_signatures
 from watchdog_v2 import repair as repair_ops
 from watchdog_v2 import reporting as reporting_ops
 from watchdog_v2 import recovery_tracking
@@ -1120,7 +1121,30 @@ class WatchdogEngine:
         from watchdog_v2.rescue_models import RescueContext
 
         failure_signature = self._rescue_failure_signature(probe)
+        normalized_failure_signature = learning_signatures.normalized_failure_signature(
+            {
+                'failure_signature': failure_signature,
+                'config_invalid': bool(probe.get('config_invalid', False)),
+                'process_layer_healthy': bool(probe.get('process_layer_healthy', False)),
+                'service_layer_healthy': bool(probe.get('service_layer_healthy', False)),
+                'minimal_usable_ready': bool(probe.get('minimal_usable_ready', False)),
+                'conversation_ready': bool(probe.get('conversation_ready', False)),
+                'config_drift_detected': bool(probe.get('config_drift_detected', False)),
+                'drift_scope': list(probe.get('drift_scope', [])) if isinstance(probe.get('drift_scope', []), list) else [],
+            }
+        )
         store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
+        recent_case_criteria = {
+            'failure_signature': failure_signature,
+            'normalized_failure_signature': normalized_failure_signature,
+            'config_invalid': bool(probe.get('config_invalid', False)),
+            'process_layer_healthy': bool(probe.get('process_layer_healthy', False)),
+            'service_layer_healthy': bool(probe.get('service_layer_healthy', False)),
+            'minimal_usable_ready': bool(probe.get('minimal_usable_ready', False)),
+            'conversation_ready': bool(probe.get('conversation_ready', False)),
+            'config_drift_detected': bool(probe.get('config_drift_detected', False)),
+            'drift_scope': list(probe.get('drift_scope', [])) if isinstance(probe.get('drift_scope', []), list) else [],
+        }
         recent_cases = [
             {
                 'case_id': str(case.get('case_id', '') or ''),
@@ -1128,7 +1152,7 @@ class WatchdogEngine:
                 'strategy': str(case.get('strategy', '') or ''),
                 'status': str(case.get('status', '') or ''),
             }
-            for case in store.similar_cases({'failure_signature': failure_signature})[-3:]
+            for case in store.similar_cases(recent_case_criteria)[-3:]
         ]
         known_rules = [
             {
@@ -1141,6 +1165,7 @@ class WatchdogEngine:
         metadata = {
             "config_invalid": bool(probe.get("config_invalid", False)),
             "failure_signature": failure_signature,
+            "normalized_failure_signature": normalized_failure_signature,
             "conversation_status": str(probe.get("conversation_status", "down") or "down"),
             "process_layer_healthy": bool(probe.get("process_layer_healthy", False)),
             "service_layer_healthy": bool(probe.get("service_layer_healthy", False)),
@@ -1303,12 +1328,27 @@ class WatchdogEngine:
         store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
         metadata = context.metadata if context is not None and isinstance(getattr(context, 'metadata', None), dict) else {}
         failure_signature = str(metadata.get("failure_signature", "") or self._rescue_failure_signature(probe))
-        rule_slug = re.sub(r"[^a-z0-9-]+", "-", failure_signature.lower()).strip("-") or "rescue-rule"
+        normalized_failure_signature = str(
+            metadata.get('normalized_failure_signature', '')
+            or learning_signatures.normalized_failure_signature(
+                {
+                    'failure_signature': failure_signature,
+                    'config_invalid': bool(metadata.get('config_invalid', False) or probe.get('config_invalid', False)),
+                    'process_layer_healthy': bool(metadata.get('process_layer_healthy', probe.get('process_layer_healthy', False))),
+                    'service_layer_healthy': bool(metadata.get('service_layer_healthy', probe.get('service_layer_healthy', False))),
+                    'minimal_usable_ready': bool(metadata.get('minimal_usable_ready', probe.get('minimal_usable_ready', False))),
+                    'conversation_ready': bool(metadata.get('conversation_ready', probe.get('conversation_ready', False))),
+                    'config_drift_detected': bool(metadata.get('config_drift_detected', False) or probe.get('config_drift_detected', False)),
+                    'drift_scope': list(metadata.get('drift_scope', [])) if isinstance(metadata.get('drift_scope', []), list) else [],
+                }
+            )
+        )
+        rule_slug = re.sub(r"[^a-z0-9-]+", "-", normalized_failure_signature.lower()).strip("-") or "rescue-rule"
         plan = getattr(dispatch_result, 'plan', None) if dispatch_result is not None else None
         final_executor = str(getattr(dispatch_result, 'final_executor', '') or strategy)
         candidate_rule = None
         if plan is not None:
-            match = {"failure_signature": failure_signature}
+            match = {"normalized_failure_signature": normalized_failure_signature}
             if bool(metadata.get("config_invalid", False)):
                 match["config_invalid"] = True
             candidate_rule = {
@@ -1323,6 +1363,7 @@ class WatchdogEngine:
             "case_id": f"{self.ctx.incident_id or 'incident'}-{final_executor or strategy}-{datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}",
             "incident_id": self.ctx.incident_id,
             "failure_signature": failure_signature,
+            "normalized_failure_signature": normalized_failure_signature,
             "status": "recovered",
             "executor": final_executor or strategy,
             "strategy": strategy,
