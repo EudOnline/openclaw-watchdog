@@ -21,6 +21,8 @@ from watchdog_v2 import incident_context as incident_context_ops
 from watchdog_v2 import incidents as incident_ops
 from watchdog_v2 import repair as repair_ops
 from watchdog_v2 import reporting as reporting_ops
+from watchdog_v2 import recovery_tracking
+from watchdog_v2 import run_state_service
 from watchdog_v2 import survival as survival_ops
 from watchdog_v2.config import Config, parse_env_file
 from watchdog_v2.runtime import CommandResult, run_capture_to_file, run_command
@@ -140,65 +142,23 @@ class WatchdogEngine:
         return text
 
     def reset_recovery_tracking(self) -> None:
-        self.ctx.recovery_steps = []
-        self.ctx.last_recovery_strategy = "none"
-        self.ctx.last_recovery_action_count = 0
-        self.ctx.last_recovery_restored_conversation = False
-        self.ctx.rescue_attempt_count = 0
-        self.ctx.rescue_executor_selected = ""
-        self.ctx.rescue_plan_generated = False
-        self.ctx.rescue_plan_source = ""
-        self.ctx.rescue_plan_id = ""
-        self.ctx.rescue_plan_status = "not-run"
-        self.ctx.rescue_tier = "none"
-        self.ctx.case_ingest_result = "not-run"
-        self.ctx.candidate_rule_status = "none"
-        self.ctx.rescue_attempt_order = []
-        self.ctx.rescue_rejected_executors = []
-        self.ctx.rescue_learning_summary = "not-run / none"
-        self.ctx.rescue_mutation_scope = []
-        self.ctx.rollback_candidate_used = ""
-        self.ctx.rollback_reason = ""
-        self.ctx.config_drift_detected = False
-        self.ctx.survival_mode_active = False
-        self.ctx.survival_mode_reason = ""
-        self.ctx.survival_mode_since = ""
-        self.ctx.survival_mode_summary = ""
-        self.ctx.survival_mode_actions = []
-        self.ctx.survival_mode_disabled_features = []
-        self.ctx.survival_mode_config_file = ""
-        self.ctx.survival_mode_sticky = False
-        self.ctx.survival_mode_sticky_reason = ""
-        self.ctx.survival_mode_exit_ready = False
-        self.ctx.survival_mode_exit_policy = "none"
-        self.ctx.survival_mode_exit_blockers = []
-        self.ctx.survival_mode_stable_ready_runs = 0
-        self.ctx.survival_mode_stable_required_runs = self.config.watchdog_survival_stable_ready_runs
-        self.ctx.survival_mode_manual_clear_required = False
-        self.ctx.survival_mode_config_changed_away = False
-        self.ctx.survival_mode_last_exit_at = ""
-        self.ctx.survival_mode_last_exit_reason = ""
-        self.ctx.survival_mode_last_exit_kind = ""
-        self.ctx.survival_mode_last_exit_summary = ""
-        self.ctx.drift_scope = []
-        self.ctx.drift_since_last_good = ""
-        self.ctx.drift_summary = ""
-        self.ctx.latest_probe = {}
+        recovery_tracking.reset(
+            self.ctx,
+            stable_required_runs=self.config.watchdog_survival_stable_ready_runs,
+        )
 
     def record_recovery_step(self, step: str, outcome: str, detail: str = "") -> None:
-        token = f"{step}:{outcome}"
-        if detail:
-            token = f"{token}({detail})"
-        self.ctx.recovery_steps.append(token)
-        if outcome not in {"skipped", "diagnosed", "not-applicable"}:
-            self.ctx.last_recovery_action_count += 1
+        recovery_tracking.record_step(self.ctx, step, outcome, detail)
 
     def recovery_path_text(self) -> str:
-        return " -> ".join(self.ctx.recovery_steps) if self.ctx.recovery_steps else "none"
+        return recovery_tracking.path_text(self.ctx)
 
     def finalize_recovery_tracking(self, *, strategy: str, restored_conversation: bool) -> None:
-        self.ctx.last_recovery_strategy = strategy or "none"
-        self.ctx.last_recovery_restored_conversation = bool(restored_conversation)
+        recovery_tracking.finalize(
+            self.ctx,
+            strategy=strategy,
+            restored_conversation=restored_conversation,
+        )
 
     def read_failure_count(self) -> int:
         try:

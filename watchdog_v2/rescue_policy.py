@@ -11,6 +11,7 @@ def openclaw_policy_snapshot(config) -> dict[str, object]:
         'required_channels': list(getattr(config, 'watchdog_survival_required_channels', ()) or ()),
         'editable_paths': list(getattr(config, 'watchdog_rescue_editable_paths', ()) or ()),
         'editable_keys': list(getattr(config, 'watchdog_rescue_editable_keys', ()) or ()),
+        'config_write_mode': 'atomic-json-replace',
     }
 
 

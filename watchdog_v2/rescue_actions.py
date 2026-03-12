@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from watchdog_v2 import file_ops
 from watchdog_v2.rescue_models import RescuePlan, RescueResult
 
 
@@ -49,40 +50,60 @@ class RescueActionExecutor:
         cursor[parts[-1]] = value
         return previous_value
 
+    def _restore_snapshot(self, target: Path, snapshot: str | None) -> None:
+        if snapshot is None:
+            target.unlink(missing_ok=True)
+            return
+        file_ops.write_text_atomic(target, snapshot, encoding='utf-8')
+
+    def _needs_config_validation(self, validations: list[str]) -> bool:
+        for validation in validations:
+            key = validation.strip().lower()
+            if key in {'config_invalid', 'config_valid', 'config_reload_success'}:
+                return True
+        return False
+
     def update_openclaw_config(self, file: str, dotted_path: str, value: Any) -> Any:
         target = Path(file).expanduser()
         self._ensure_path_allowed(target)
         self._ensure_key_allowed(dotted_path)
-        current = {}
+        current: dict[str, Any] = {}
         if target.exists():
-            current = json.loads(target.read_text(encoding='utf-8'))
-            if not isinstance(current, dict):
+            current_payload = json.loads(target.read_text(encoding='utf-8'))
+            if not isinstance(current_payload, dict):
                 raise ValueError('OpenClaw config root must be a JSON object')
+            current = current_payload
         previous_value = self._set_json_path(current, dotted_path, value)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(current, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        file_ops.write_json_atomic(target, current)
         return previous_value
 
-    def _probe(self) -> dict[str, Any]:
+    def _probe(self, *, include_doctor: bool) -> dict[str, Any]:
         if not hasattr(self.engine, 'live_probe'):
             return {}
-        return dict(self.engine.live_probe(include_doctor=False, apply_grace=False))
+        return dict(self.engine.live_probe(include_doctor=include_doctor, apply_grace=False))
 
     def _validation_worsened(self, before: dict[str, Any], after: dict[str, Any], validations: list[str]) -> bool:
         for validation in validations:
-            key = validation.strip()
+            key = validation.strip().lower()
             if not key:
                 continue
-            if 'minimal' in key:
+            if key == 'minimal_usable_ready':
                 if bool(before.get('minimal_usable_ready', False)) and not bool(after.get('minimal_usable_ready', False)):
                     return True
-            elif 'conversation' in key:
+            elif key == 'conversation_ready':
                 if bool(before.get('conversation_ready', False)) and not bool(after.get('conversation_ready', False)):
+                    return True
+            elif key == 'service_layer_healthy':
+                if bool(before.get('service_layer_healthy', False)) and not bool(after.get('service_layer_healthy', False)):
+                    return True
+            elif key in {'config_invalid', 'config_valid', 'config_reload_success'}:
+                if not bool(before.get('config_invalid', False)) and bool(after.get('config_invalid', False)):
                     return True
         return False
 
     def apply_plan(self, plan: RescuePlan) -> RescueResult:
-        before_probe = self._probe()
+        needs_config_validation = self._needs_config_validation(plan.validations)
+        before_probe = self._probe(include_doctor=needs_config_validation)
         snapshots: dict[Path, str | None] = {}
         try:
             for action in plan.actions:
@@ -103,13 +124,10 @@ class RescueActionExecutor:
                 elif action.kind == 'run_doctor' and hasattr(self.engine, 'run_doctor'):
                     self.engine.run_doctor()
 
-            after_probe = self._probe()
+            after_probe = self._probe(include_doctor=needs_config_validation)
             if self._validation_worsened(before_probe, after_probe, plan.validations):
                 for target, snapshot in snapshots.items():
-                    if snapshot is None:
-                        target.unlink(missing_ok=True)
-                    else:
-                        target.write_text(snapshot, encoding='utf-8')
+                    self._restore_snapshot(target, snapshot)
                 return RescueResult(
                     status='rolled-back',
                     executor='local-actions',
@@ -126,8 +144,5 @@ class RescueActionExecutor:
             )
         except Exception:
             for target, snapshot in snapshots.items():
-                if snapshot is None:
-                    target.unlink(missing_ok=True)
-                else:
-                    target.write_text(snapshot, encoding='utf-8')
+                self._restore_snapshot(target, snapshot)
             raise
