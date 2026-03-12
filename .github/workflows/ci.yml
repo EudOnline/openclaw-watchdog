@@ -36,15 +36,6 @@ jobs:
       - name: Full unittest suite
         run: python -m unittest discover -s tests -v
 
-      - name: Rehearsal smoke scenarios
+      - name: Rehearsal critical scenarios
         if: matrix.python-version == '3.11'
-        run: |
-          bash rehearsal/scripts/run-scenario.sh bootstrap-missing-openclaw
-          bash rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-codex
-          bash rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-claude-code
-          bash rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-gemini-cli
-          bash rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-opencode
-          bash rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-litellm
-          bash rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-rule-agent
-          bash rehearsal/scripts/run-scenario.sh watchdog-candidate-rule-auto-promotion
-          bash rehearsal/scripts/run-scenario.sh watchdog-candidate-rule-review-pending
+        run: bash rehearsal/scripts/run-scenario.sh critical

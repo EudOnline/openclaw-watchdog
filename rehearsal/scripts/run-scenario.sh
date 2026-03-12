@@ -5,6 +5,59 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCENARIO="${1:-bootstrap-missing-openclaw}"
 ENV_FILE="rehearsal/env/openclaw-watchdog.rehearsal.env"
 
+CRITICAL_SCENARIOS=(
+  bootstrap-missing-openclaw
+  watchdog-rescue-chain-codex
+  watchdog-rescue-chain-claude-code
+  watchdog-rescue-chain-gemini-cli
+  watchdog-rescue-chain-opencode
+  watchdog-rescue-chain-litellm
+  watchdog-rescue-chain-rule-agent
+  watchdog-candidate-rule-auto-promotion
+  watchdog-candidate-rule-review-pending
+)
+
+EXTENDED_SCENARIOS=(
+  bootstrap-openclaw-missing-plugin
+  watchdog-recovery
+  watchdog-failed-fallback
+  watchdog-active-no-listener-grace
+  watchdog-service-layer-degraded
+  watchdog-service-layer-threshold-recovery
+  watchdog-service-layer-transient-retry
+  watchdog-conversation-probe-ready
+  watchdog-conversation-probe-minimal
+  watchdog-conversation-probe-down
+  watchdog-restart-priority-recovery
+  watchdog-rollback-priority-before-doctor
+  watchdog-doctor-deferred-until-survival-fails
+  watchdog-survival-mode-recovery
+  watchdog-survival-mode-sticky-until-stable
+  watchdog-survival-mode-exit
+  watchdog-config-drift-guard
+  watchdog-env-drift-rollback
+  watchdog-plugin-drift-rollback
+  watchdog-recovery-notify-normal
+  watchdog-last-good-generation-selection
+  watchdog-config-invalid-rollback
+  watchdog-incidents-open
+  watchdog-incidents-resolved
+  watchdog-metrics-healthy
+  watchdog-metrics-open-incident
+  watchdog-metrics-resolved
+  watchdog-metrics-operator-context
+  watchdog-report-operator-attention
+  watchdog-report-operator-attention-cleared
+  watchdog-incident-attention-filter
+  watchdog-incident-queue
+  watchdog-incident-operator-open
+  watchdog-incident-operator-resolved
+  watchdog-incident-operator-reset
+  watchdog-incident-timeline-open
+  watchdog-incident-timeline-resolved
+  watchdog-incident-notes-query
+)
+
 cd "$REPO_ROOT"
 export PYTHONPATH="$REPO_ROOT/rehearsal/shims/python:$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export HOME="$REPO_ROOT/rehearsal/runtime/home"
@@ -64,7 +117,23 @@ run_json() {
   echo "  output: $stdout_file"
 }
 
+run_group() {
+  local group_name="$1"
+  shift
+  local scenario
+  for scenario in "$@"; do
+    echo "Running ${group_name} scenario: $scenario"
+    rehearsal/scripts/run-scenario.sh "$scenario"
+  done
+}
+
 case "$SCENARIO" in
+  critical)
+    run_group critical "${CRITICAL_SCENARIOS[@]}"
+    ;;
+  extended)
+    run_group extended "${EXTENDED_SCENARIOS[@]}"
+    ;;
   bootstrap-missing-openclaw)
     run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" bootstrap
     ;;
@@ -207,49 +276,8 @@ case "$SCENARIO" in
     run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-incident-notes-query.assertions.json bash rehearsal/scripts/run-incident-notes-query-flow.sh "$ENV_FILE"
     ;;
   all)
-    rehearsal/scripts/run-scenario.sh bootstrap-missing-openclaw
-    rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-litellm
-    rehearsal/scripts/run-scenario.sh watchdog-rescue-chain-rule-agent
-    rehearsal/scripts/run-scenario.sh watchdog-candidate-rule-auto-promotion
-    rehearsal/scripts/run-scenario.sh watchdog-candidate-rule-review-pending
-    rehearsal/scripts/run-scenario.sh bootstrap-openclaw-missing-plugin
-    rehearsal/scripts/run-scenario.sh watchdog-recovery
-    rehearsal/scripts/run-scenario.sh watchdog-failed-fallback
-    rehearsal/scripts/run-scenario.sh watchdog-active-no-listener-grace
-    rehearsal/scripts/run-scenario.sh watchdog-service-layer-degraded
-    rehearsal/scripts/run-scenario.sh watchdog-service-layer-threshold-recovery
-    rehearsal/scripts/run-scenario.sh watchdog-service-layer-transient-retry
-    rehearsal/scripts/run-scenario.sh watchdog-conversation-probe-ready
-    rehearsal/scripts/run-scenario.sh watchdog-conversation-probe-minimal
-    rehearsal/scripts/run-scenario.sh watchdog-conversation-probe-down
-    rehearsal/scripts/run-scenario.sh watchdog-restart-priority-recovery
-    rehearsal/scripts/run-scenario.sh watchdog-rollback-priority-before-doctor
-    rehearsal/scripts/run-scenario.sh watchdog-doctor-deferred-until-survival-fails
-    rehearsal/scripts/run-scenario.sh watchdog-survival-mode-recovery
-    rehearsal/scripts/run-scenario.sh watchdog-survival-mode-sticky-until-stable
-    rehearsal/scripts/run-scenario.sh watchdog-survival-mode-exit
-    rehearsal/scripts/run-scenario.sh watchdog-config-drift-guard
-    rehearsal/scripts/run-scenario.sh watchdog-env-drift-rollback
-    rehearsal/scripts/run-scenario.sh watchdog-plugin-drift-rollback
-    rehearsal/scripts/run-scenario.sh watchdog-recovery-notify-normal
-    rehearsal/scripts/run-scenario.sh watchdog-last-good-generation-selection
-    rehearsal/scripts/run-scenario.sh watchdog-config-invalid-rollback
-    rehearsal/scripts/run-scenario.sh watchdog-incidents-open
-    rehearsal/scripts/run-scenario.sh watchdog-incidents-resolved
-    rehearsal/scripts/run-scenario.sh watchdog-metrics-healthy
-    rehearsal/scripts/run-scenario.sh watchdog-metrics-open-incident
-    rehearsal/scripts/run-scenario.sh watchdog-metrics-resolved
-    rehearsal/scripts/run-scenario.sh watchdog-metrics-operator-context
-    rehearsal/scripts/run-scenario.sh watchdog-report-operator-attention
-    rehearsal/scripts/run-scenario.sh watchdog-report-operator-attention-cleared
-    rehearsal/scripts/run-scenario.sh watchdog-incident-attention-filter
-    rehearsal/scripts/run-scenario.sh watchdog-incident-queue
-    rehearsal/scripts/run-scenario.sh watchdog-incident-operator-open
-    rehearsal/scripts/run-scenario.sh watchdog-incident-operator-resolved
-    rehearsal/scripts/run-scenario.sh watchdog-incident-operator-reset
-    rehearsal/scripts/run-scenario.sh watchdog-incident-timeline-open
-    rehearsal/scripts/run-scenario.sh watchdog-incident-timeline-resolved
-    rehearsal/scripts/run-scenario.sh watchdog-incident-notes-query
+    run_group critical "${CRITICAL_SCENARIOS[@]}"
+    run_group extended "${EXTENDED_SCENARIOS[@]}"
     ;;
   *)
     echo "Unknown scenario: $SCENARIO" >&2

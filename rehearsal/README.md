@@ -161,3 +161,20 @@ The rehearsal harness now treats these rescue-first scenarios as critical smoke 
 - `watchdog-candidate-rule-review-pending`
 
 They exercise the post-deterministic rescue chain, the `LiteLLM` specialist tier, the offline rule-agent tier, and the learning/promotion loop without installing extra software.
+
+## Scenario tiers
+
+The rehearsal matrix is now split into two tiers:
+
+- `critical`: the CI release gate for the OpenClaw-specific rescue chain and the learning/promotion loop
+- `extended`: slower or broader operator-flow coverage that should still be run before larger releases, but is not required on every CI pass
+
+Recommended commands:
+
+```bash
+bash rehearsal/scripts/run-scenario.sh critical
+bash rehearsal/scripts/run-scenario.sh extended
+bash rehearsal/scripts/run-scenario.sh all
+```
+
+For the exact scenario inventory and the rationale for each tier, see `rehearsal/scenarios/README.md`.
