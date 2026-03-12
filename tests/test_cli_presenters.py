@@ -35,6 +35,53 @@ class CliPresentersTest(unittest.TestCase):
         self.assertIn('reject=codex:unavailable,claude-code:no-plan', text)
         self.assertIn('last=all good', text)
 
+    def test_status_and_report_render_same_attempt_order_and_learning_summary(self) -> None:
+        payload = {
+            'last_status': 'degraded',
+            'status': 'degraded',
+            'conversation_status': 'minimal',
+            'conversation_ready': False,
+            'minimal_usable_ready': True,
+            'health_level': 'degraded',
+            'current_mode': 'degraded',
+            'last_recovery_strategy': 'litellm',
+            'last_recovery_path': 'restart -> rollback -> survival -> doctor',
+            'last_recovery_action_count': 4,
+            'last_recovery_restored_conversation': False,
+            'rescue_attempt_count': 5,
+            'rescue_executor_selected': 'litellm',
+            'rescue_plan_generated': True,
+            'rescue_plan_source': 'litellm',
+            'rescue_plan_status': 'applied',
+            'rescue_tier': 'litellm',
+            'case_ingest_result': 'recorded:case-1.json',
+            'candidate_rule_status': 'pending-review',
+            'rescue_attempt_order': ['codex', 'claude-code', 'litellm'],
+            'rescue_rejected_executors': ['codex:unavailable', 'claude-code:no-plan'],
+            'rescue_learning_summary': 'recorded:case-1.json / pending-review',
+            'rescue_mutation_scope': ['restart_service', 'update_openclaw_config'],
+            'rollback_candidate_used': '',
+            'rollback_reason': '',
+            'config_drift_detected': False,
+            'survival_mode_active': False,
+            'recent_event_stats': {'counts': {'healthy': 0, 'degraded': 1, 'recovered': 0, 'failed': 1}},
+            'last_event': {'human_summary': 'gateway degraded'},
+            'recent_incidents': [],
+            'incident_queue_summary': {'open_total': 0, 'attention_total': 0, 'handled_total': 0},
+            'operator_attention_items': [],
+            'operator_attention_needed': False,
+            'operator_attention_count': 0,
+            'message_text': 'message',
+        }
+
+        status_text = render_status_summary(payload)
+        report_text = render_report(payload)
+
+        self.assertIn('codex>claude-code>litellm', status_text)
+        self.assertIn('codex -> claude-code -> litellm', report_text)
+        self.assertIn('recorded:case-1.json / pending-review', status_text)
+        self.assertIn('recorded:case-1.json / pending-review', report_text)
+
     def test_render_report_surfaces_attention_and_recent_incident(self) -> None:
         text = render_report(
             {

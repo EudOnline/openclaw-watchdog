@@ -249,6 +249,73 @@ class ReportingTest(unittest.TestCase):
         self.assertNotIn('current_incident_events_count', metrics)
         self.assertNotIn('current_incident_latest_event_type', metrics)
 
+
+    def test_report_payload_reads_extracted_run_state_fields(self) -> None:
+        from watchdog_v2 import run_state_service
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_state_file = Path(temp_dir) / 'run-state.json'
+            guard_manifest_file = Path(temp_dir) / 'guard.json'
+            run_state_service.write_run_state(
+                run_state_file,
+                {
+                    'rescue_attempt_order': ['codex', 'claude-code', 'litellm'],
+                    'rescue_rejected_executors': ['codex:unavailable', 'claude-code:no-plan'],
+                    'rescue_learning_summary': 'recorded:case-1.json / pending-review',
+                    'rescue_mutation_scope': ['restart_service'],
+                },
+                stable_required_runs=2,
+                guard_manifest_file=guard_manifest_file,
+            )
+
+            class ServiceBackedEngine(FakeEngine):
+                def status_payload(self_nonlocal) -> dict[str, object]:
+                    payload = super().status_payload()
+                    payload['run_state'] = run_state_service.read_run_state(
+                        run_state_file,
+                        stable_required_runs=2,
+                        guard_manifest_file=guard_manifest_file,
+                    )
+                    return payload
+
+            report = report_payload(ServiceBackedEngine(temp_dir))
+
+        self.assertEqual(report['rescue_attempt_order'], ['codex', 'claude-code', 'litellm'])
+        self.assertEqual(report['rescue_rejected_executors'], ['codex:unavailable', 'claude-code:no-plan'])
+        self.assertEqual(report['rescue_learning_summary'], 'recorded:case-1.json / pending-review')
+        self.assertEqual(report['rescue_mutation_scope'], ['restart_service'])
+
+    def test_metrics_and_report_share_same_rescue_chain_fields(self) -> None:
+        from watchdog_v2.operator_snapshot import OPERATOR_SNAPSHOT_KEYS
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            engine = FakeEngine(temp_dir)
+            report = report_payload(engine)
+            metrics = metrics_payload(engine)
+
+        shared_keys = {
+            'last_recovery_strategy',
+            'last_recovery_path',
+            'rescue_attempt_order',
+            'rescue_rejected_executors',
+            'rescue_learning_summary',
+            'rescue_mutation_scope',
+        }
+        self.assertTrue(shared_keys.issubset(OPERATOR_SNAPSHOT_KEYS))
+        for key in shared_keys:
+            self.assertEqual(report[key], metrics[key])
+
+    def test_docs_index_references_rescue_lifecycle_guide(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        guide = repo_root / 'docs' / 'rescue-lifecycle.md'
+
+        self.assertTrue(guide.exists())
+        self.assertIn('rescue-lifecycle', (repo_root / 'README.md').read_text(encoding='utf-8'))
+        self.assertIn('rescue-lifecycle.md', (repo_root / 'docs' / 'README.md').read_text(encoding='utf-8'))
+        self.assertIn('rescue-lifecycle', (repo_root / 'docs' / 'internal-architecture.md').read_text(encoding='utf-8'))
+        self.assertIn('rescue-lifecycle', (repo_root / 'docs' / 'first-deployment.md').read_text(encoding='utf-8'))
+        self.assertIn('rescue-lifecycle', (repo_root / 'docs' / 'live-acceptance-checklist.md').read_text(encoding='utf-8'))
+
     def test_report_payload_enforces_contract_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             report = report_payload(FakeEngine(temp_dir))
