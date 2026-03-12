@@ -9,6 +9,7 @@ These are the documents new users and operators should start with:
 - [internal-architecture.md](internal-architecture.md)
 - [supported-environments.md](supported-environments.md)
 - [first-deployment.md](first-deployment.md)
+- [rescue-lifecycle.md](rescue-lifecycle.md)
 - [live-acceptance-checklist.md](live-acceptance-checklist.md)
 - [reporting-contract.md](reporting-contract.md) — current operational output surface
 - [live-samples.md](live-samples.md)

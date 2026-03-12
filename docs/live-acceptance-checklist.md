@@ -69,6 +69,9 @@ If any check fails, the script exits non-zero.
 
 ## Manual operator review
 
+If a live acceptance run looks surprising, compare it against the expected remediation narrative in [rescue-lifecycle.md](rescue-lifecycle.md) before widening automation scope.
+
+
 After the script passes, quickly review:
 
 - `status-summary.txt` is concise, readable, and starts with fallback/recovery signals

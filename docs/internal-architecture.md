@@ -45,6 +45,9 @@ The current layout keeps the operator-facing fallback surface coherent while mak
 
 ### Run flows
 
+For the operator/contributor walkthrough of this path, see [rescue-lifecycle.md](rescue-lifecycle.md).
+
+
 - `watchdog_v2/flows/rescue_run.py` contains the single rescue-first `run-once` orchestration path
 - deterministic repair always runs in one order: restart -> rollback -> survival -> doctor -> rescue dispatch
 - `watchdog_v2/engine.py` now builds a typed `RescueContext`, dispatches the prioritized executor chain, and records learning outcomes

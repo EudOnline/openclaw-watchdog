@@ -23,6 +23,8 @@ It combines:
 
 ## Quick links
 
+- [Rescue lifecycle guide](docs/rescue-lifecycle.md)
+
 - [Release notes](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
 - [Documentation index](docs/README.md)
 - [Supported environments](docs/supported-environments.md)
