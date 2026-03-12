@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 import unittest
 
@@ -36,6 +37,35 @@ class RunContextTest(unittest.TestCase):
             _ = engine.rollback_candidate_used
         with self.assertRaises(AttributeError):
             _ = engine.incident_id
+
+
+    def test_run_state_service_round_trips_learning_and_attempt_fields(self) -> None:
+        from watchdog_v2 import run_state_service
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_state_file = Path(temp_dir) / 'run-state.json'
+            guard_manifest_file = Path(temp_dir) / 'guard.json'
+
+            written = run_state_service.write_run_state(
+                run_state_file,
+                {
+                    'rescue_attempt_order': ['codex', 'litellm'],
+                    'rescue_learning_summary': 'recorded:case-1.json / pending-review',
+                    'candidate_rule_status': 'pending-review',
+                },
+                stable_required_runs=2,
+                guard_manifest_file=guard_manifest_file,
+            )
+            reread = run_state_service.read_run_state(
+                run_state_file,
+                stable_required_runs=2,
+                guard_manifest_file=guard_manifest_file,
+            )
+
+        self.assertEqual(written['rescue_attempt_order'], ['codex', 'litellm'])
+        self.assertEqual(reread['rescue_learning_summary'], 'recorded:case-1.json / pending-review')
+        self.assertEqual(reread['guard_manifest_file'], str(guard_manifest_file))
+        self.assertEqual(reread['survival_mode_stable_required_runs'], 2)
 
     def test_survival_state_applies_into_ctx(self) -> None:
         engine = SimpleNamespace(
