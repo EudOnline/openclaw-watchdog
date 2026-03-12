@@ -109,5 +109,66 @@ class RunContextTest(unittest.TestCase):
         self.assertEqual(survival_ops.run_state_fields(engine)['survival_mode_reason'], 'config-invalid')
 
 
+    def test_write_probe_run_state_keeps_health_and_conversation_projection(self) -> None:
+        engine = WatchdogEngine.__new__(WatchdogEngine)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            object.__setattr__(
+                engine,
+                'config',
+                SimpleNamespace(
+                    watchdog_survival_stable_ready_runs=2,
+                    watchdog_guard_manifest_file=Path(temp_dir) / 'guard.json',
+                    watchdog_maintenance_file=Path(temp_dir) / 'maintenance.flag',
+                    watchdog_enable_service_level_probe=True,
+                ),
+            )
+            object.__setattr__(engine, 'ctx', RunContext.initial(stable_required_runs=2))
+            object.__setattr__(engine, 'run_state_file', Path(temp_dir) / 'run-state.json')
+
+            health_level = engine._write_probe_run_state(
+                {
+                    'process_layer_healthy': True,
+                    'service_layer_healthy': True,
+                    'conversation_ready': False,
+                    'minimal_usable_ready': True,
+                    'conversation_status': 'minimal',
+                    'service_probe_checked_at': '2026-03-12T08:00:00+08:00',
+                    'service_probe_summary': 'conversation degraded',
+                    'conversation_probe_summary': 'minimal',
+                    'service_probe_rc': 0,
+                },
+                config_invalid=False,
+                service_probe_failures=2,
+            )
+            run_state = engine.read_run_state()
+
+        self.assertEqual(health_level, 'degraded')
+        self.assertEqual(run_state['service_probe_failures'], 2)
+        self.assertEqual(run_state['health_level'], 'degraded')
+        self.assertEqual(run_state['current_mode'], 'degraded')
+        self.assertEqual(run_state['conversation_status'], 'minimal')
+        self.assertTrue(run_state['minimal_usable_ready'])
+        self.assertFalse(run_state['conversation_ready'])
+
+    def test_service_probe_failure_counter_only_increments_for_service_layer_regressions(self) -> None:
+        engine = WatchdogEngine.__new__(WatchdogEngine)
+        object.__setattr__(engine, 'config', SimpleNamespace(watchdog_enable_service_level_probe=True))
+
+        self.assertEqual(
+            engine._service_probe_failures_for(
+                {'process_layer_healthy': True, 'service_layer_healthy': False},
+                previous_failures=1,
+            ),
+            2,
+        )
+        self.assertEqual(
+            engine._service_probe_failures_for(
+                {'process_layer_healthy': False, 'service_layer_healthy': False},
+                previous_failures=3,
+            ),
+            0,
+        )
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -301,5 +301,93 @@ class RescueFlowTests(unittest.TestCase):
         self.assertEqual(engine.ctx.last_recovery_strategy, 'litellm')
 
 
+class WatchdogEngineRescueContextSeamsTest(unittest.TestCase):
+    def _build_engine(self, temp_dir: str):
+        from watchdog_v2.engine import WatchdogEngine
+
+        engine = WatchdogEngine.__new__(WatchdogEngine)
+        object.__setattr__(
+            engine,
+            'config',
+            SimpleNamespace(
+                watchdog_rescue_knowledge_root=Path(temp_dir) / 'knowledge',
+                watchdog_rescue_editable_paths=(str(Path(temp_dir) / 'openclaw.json'),),
+                watchdog_rescue_editable_keys=('channels.qqbot.enabled',),
+                watchdog_rescue_executor_priority=('rule-agent',),
+                watchdog_litellm_enabled=False,
+                watchdog_litellm_model='',
+                watchdog_survival_stable_ready_runs=2,
+                watchdog_guard_manifest_file=Path(temp_dir) / 'guard.json',
+            ),
+        )
+        object.__setattr__(engine, 'ctx', RunContext.initial(stable_required_runs=2))
+        object.__setattr__(engine, 'run_state_file', Path(temp_dir) / 'run-state.json')
+        return engine
+
+    def test_build_rescue_context_keeps_normalized_signature_recent_cases_and_editable_bounds(self) -> None:
+        import json
+        import tempfile
+
+        from watchdog_v2.learning import LearningStore
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            engine = self._build_engine(temp_dir)
+            store = LearningStore(root=engine.config.watchdog_rescue_knowledge_root)
+            store.record_successful_case(
+                {
+                    'case_id': 'case-a',
+                    'failure_signature': 'yaml-parse-error',
+                    'config_invalid': True,
+                    'status': 'recovered',
+                    'executor': 'codex',
+                    'strategy': 'codex',
+                }
+            )
+            store.record_case(
+                {
+                    'case_id': 'case-b',
+                    'failure_signature': 'provider-auth-exploded',
+                    'config_invalid': True,
+                    'status': 'failed',
+                    'executor': 'rule-agent',
+                    'strategy': 'rule-agent',
+                }
+            )
+            (store.rules_dir / 'config-invalid-auto.json').write_text(
+                json.dumps(
+                    {
+                        'rule_id': 'config-invalid-auto',
+                        'match': {'normalized_failure_signature': 'config-invalid'},
+                        'diagnosis': 'restore last known good config',
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ) + '\n',
+                encoding='utf-8',
+            )
+
+            context = engine.build_rescue_context(
+                {
+                    'config_invalid': True,
+                    'process_layer_healthy': True,
+                    'service_layer_healthy': True,
+                    'minimal_usable_ready': False,
+                    'conversation_ready': False,
+                    'conversation_status': 'down',
+                    'service_active': True,
+                }
+            )
+
+        self.assertEqual(context.metadata['failure_signature'], 'config-invalid')
+        self.assertEqual(context.metadata['normalized_failure_signature'], 'config-invalid')
+        self.assertEqual([case['case_id'] for case in context.metadata['recent_cases']], ['case-a', 'case-b'])
+        self.assertEqual(context.metadata['known_rules'][0]['rule_id'], 'config-invalid-auto')
+        self.assertEqual(context.available_executors, ('rule-agent',))
+        self.assertEqual(context.editable_paths, (str(Path(temp_dir) / 'openclaw.json'),))
+        self.assertEqual(context.editable_keys, ('channels.qqbot.enabled',))
+        self.assertTrue(context.incident_id)
+
+
 if __name__ == '__main__':
     unittest.main()

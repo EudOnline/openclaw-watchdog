@@ -217,5 +217,73 @@ class RulePromotionTests(unittest.TestCase):
 
 
 
+class EngineRecoveryLearningSeamsTest(unittest.TestCase):
+    def _build_engine(self, temp_dir: str):
+        from watchdog_v2.engine import WatchdogEngine
+        from watchdog_v2.run_context import RunContext
+        from types import SimpleNamespace
+
+        engine = WatchdogEngine.__new__(WatchdogEngine)
+        object.__setattr__(
+            engine,
+            'config',
+            SimpleNamespace(
+                watchdog_rescue_knowledge_root=Path(temp_dir) / 'knowledge',
+            ),
+        )
+        object.__setattr__(engine, 'ctx', RunContext.initial(stable_required_runs=2))
+        engine.ctx.incident_id = 'incident-42'
+        return engine
+
+    def test_record_learning_from_recovery_persists_normalized_signature_and_candidate_rule(self) -> None:
+        from watchdog_v2.learning import LearningStore
+        from watchdog_v2.rescue_dispatch import DispatchResult
+        from watchdog_v2.rescue_models import RescueAction, RescueContext, RescuePlan
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            engine = self._build_engine(temp_dir)
+            context = RescueContext(
+                incident_id='incident-42',
+                health_level='failed',
+                conversation_status='down',
+                available_executors=('rule-agent',),
+                editable_paths=(),
+                editable_keys=(),
+                probe={'config_invalid': True},
+                metadata={
+                    'failure_signature': 'config-invalid',
+                    'normalized_failure_signature': 'config-invalid',
+                    'config_invalid': True,
+                },
+            )
+            dispatch_result = DispatchResult(
+                executor_order=['rule-agent'],
+                final_executor='rule-agent',
+                plan=RescuePlan(
+                    plan_id='plan-rule-agent',
+                    diagnosis='restore last good config',
+                    actions=[RescueAction(kind='restore_last_good', params={})],
+                    validations=['minimal_usable_ready'],
+                ),
+            )
+
+            result = engine.record_learning_from_recovery(
+                strategy='rule-agent',
+                recovery_kind='rescue',
+                probe={'config_invalid': True},
+                context=context,
+                dispatch_result=dispatch_result,
+                plan_result=None,
+            )
+            store = LearningStore(root=engine.config.watchdog_rescue_knowledge_root)
+            cases = store.load_cases()
+
+        self.assertEqual(result['candidate_rule_status'], 'candidate-recorded')
+        self.assertEqual(len(cases), 1)
+        self.assertEqual(cases[0]['normalized_failure_signature'], 'config-invalid')
+        self.assertEqual(cases[0]['candidate_rule']['match']['normalized_failure_signature'], 'config-invalid')
+        self.assertTrue(cases[0]['candidate_rule']['match']['config_invalid'])
+
+
 if __name__ == '__main__':
     unittest.main()
