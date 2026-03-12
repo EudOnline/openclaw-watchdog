@@ -50,7 +50,11 @@ For the operator/contributor walkthrough of this path, see [rescue-lifecycle.md]
 
 - `watchdog_v2/flows/rescue_run.py` contains the single rescue-first `run-once` orchestration path
 - deterministic repair always runs in one order: restart -> rollback -> survival -> doctor -> rescue dispatch
-- `watchdog_v2/engine.py` now builds a typed `RescueContext`, dispatches the prioritized executor chain, and records learning outcomes
+- `watchdog_v2/engine.py` is now primarily a composition root and thin facade for the CLI-facing operations
+- `watchdog_v2/incident_service.py` owns incident payload parsing, index refresh, and current-incident context wiring
+- `watchdog_v2/rescue_context_builder.py` owns failure-signature normalization, executor inventory shaping, rescue context construction, and LiteLLM client construction
+- `watchdog_v2/rescue_learning_service.py` owns rescue learning case persistence and candidate-rule promotion mapping
+- `watchdog_v2/probe_run_state.py` owns probe failure counting and probe-to-run-state projection
 - low-level repair / health / incident primitives stay in their focused modules; only orchestration moved out
 
 ### Bootstrap pipeline

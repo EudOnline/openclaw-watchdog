@@ -12,20 +12,23 @@ import tempfile
 import textwrap
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
+from watchdog_v2 import event_history
 from watchdog_v2 import events as event_ops
 from watchdog_v2 import health as health_ops
-from watchdog_v2 import incident_context as incident_context_ops
+from watchdog_v2 import incident_service as incident_service_ops
+from watchdog_v2 import rescue_context_builder
+from watchdog_v2 import rescue_learning_service
 from watchdog_v2 import incidents as incident_ops
-from watchdog_v2 import learning_signatures
 from watchdog_v2 import repair as repair_ops
 from watchdog_v2 import reporting as reporting_ops
 from watchdog_v2 import recovery_tracking
 from watchdog_v2 import run_state_service
 from watchdog_v2 import survival as survival_ops
-from watchdog_v2.config import Config, parse_env_file
+from watchdog_v2 import probe_run_state
+from watchdog_v2.config import Config
 from watchdog_v2.runtime import CommandResult, run_capture_to_file, run_command
 from watchdog_v2 import state_store
 from watchdog_v2.run_context import RunContext
@@ -184,98 +187,19 @@ class WatchdogEngine:
         return datetime.now().astimezone().isoformat(timespec="seconds")
 
     def read_run_state(self) -> dict[str, object]:
-        default = {
-            "service_probe_failures": 0,
-            "last_run_started_at": "",
-            "last_run_finished_at": "",
-            "last_run_duration_ms": 0,
-            "last_success_at": "",
-            "last_recovered_at": "",
-            "last_failed_at": "",
-            "last_degraded_at": "",
-            "last_backup_result": "not-run",
-            "last_backup_at": "",
-            "last_rollback_at": "",
-            "last_rollback_summary_archive_file": "",
-            "rollback_candidate_used": "",
-            "rollback_reason": "",
-            "config_drift_detected": False,
-            "last_service_probe_at": "",
-            "last_service_probe_result": "not-run",
-            "last_service_probe_summary": "",
-            "last_service_probe_rc": 0,
-            "current_mode": "normal",
-            "health_level": "unknown",
-            "survival_mode_active": False,
-            "survival_mode_reason": "",
-            "survival_mode_since": "",
-            "survival_mode_summary": "",
-            "survival_mode_actions": [],
-            "survival_mode_disabled_features": [],
-            "survival_mode_config_file": "",
-            "survival_mode_sticky": False,
-            "survival_mode_sticky_reason": "",
-            "survival_mode_exit_ready": False,
-            "survival_mode_exit_policy": "none",
-            "survival_mode_exit_blockers": [],
-            "survival_mode_stable_ready_runs": 0,
-            "survival_mode_stable_required_runs": self.config.watchdog_survival_stable_ready_runs,
-            "survival_mode_manual_clear_required": False,
-            "survival_mode_config_changed_away": False,
-            "survival_mode_last_exit_at": "",
-            "survival_mode_last_exit_reason": "",
-            "survival_mode_last_exit_kind": "",
-            "survival_mode_last_exit_summary": "",
-            "conversation_ready": False,
-            "minimal_usable_ready": False,
-            "conversation_status": "down",
-            "conversation_probe_summary": "",
-            "last_recovery_strategy": "none",
-            "last_recovery_path": "none",
-            "last_recovery_action_count": 0,
-            "last_recovery_restored_conversation": False,
-            "rescue_attempt_count": 0,
-            "rescue_executor_selected": "",
-            "rescue_plan_generated": False,
-            "rescue_plan_source": "",
-            "rescue_plan_id": "",
-            "rescue_plan_status": "not-run",
-            "rescue_tier": "none",
-            "case_ingest_result": "not-run",
-            "candidate_rule_status": "none",
-            "rescue_attempt_order": [],
-            "rescue_rejected_executors": [],
-            "rescue_learning_summary": "not-run / none",
-            "rescue_mutation_scope": [],
-            "last_good_validated_at": "",
-            "last_good_generation_id": "",
-            "last_good_generation_count": 0,
-            "drift_scope": [],
-            "drift_since_last_good": "",
-            "drift_summary": "",
-            "guard_manifest_file": str(self.config.watchdog_guard_manifest_file),
-            "guard_last_operation": "",
-            "guard_last_phase": "",
-            "guard_last_time": "",
-            "guard_last_summary": "",
-            "current_incident_id": "",
-            "current_incident_state": "",
-            "current_incident_age_seconds": 0,
-        }
-        try:
-            data = json.loads(self.run_state_file.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                default.update(data)
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
-        return default
+        return run_state_service.read_run_state(
+            self.run_state_file,
+            stable_required_runs=self.config.watchdog_survival_stable_ready_runs,
+            guard_manifest_file=self.config.watchdog_guard_manifest_file,
+        )
 
     def write_run_state(self, updates: dict[str, object]) -> dict[str, object]:
-        state = self.read_run_state()
-        state.update(updates)
-        self.run_state_file.parent.mkdir(parents=True, exist_ok=True)
-        self.run_state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        return state
+        return run_state_service.write_run_state(
+            self.run_state_file,
+            updates,
+            stable_required_runs=self.config.watchdog_survival_stable_ready_runs,
+            guard_manifest_file=self.config.watchdog_guard_manifest_file,
+        )
 
     def current_mode(self, *, maintenance: bool, degraded: bool = False, survival: bool = False) -> str:
         if maintenance:
@@ -296,180 +220,34 @@ class WatchdogEngine:
         return event_ops.event_human_summary(status, health_level, summary)
 
     def append_event_history(self, event_payload: dict[str, object]) -> None:
-        state_store.append_event_history(
-            self.config.watchdog_event_history_file,
-            event_payload,
-            keep=self.config.watchdog_event_history_limit,
-        )
+        event_history.append_event_history(self, event_payload)
 
     def read_event_history(self, limit: int | None = None) -> list[dict[str, object]]:
-        return state_store.read_event_history(self.config.watchdog_event_history_file, limit=limit)
+        return event_history.read_event_history(self, limit=limit)
 
     def event_time(self, event: dict[str, object]) -> datetime | None:
-        raw = event.get("time")
-        if not isinstance(raw, str) or not raw:
-            return None
-        local_tz = datetime.now().astimezone().tzinfo
-        for fmt in ("%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%S"):
-            try:
-                dt = datetime.strptime(raw, fmt)
-                return dt.astimezone() if dt.tzinfo else dt.replace(tzinfo=local_tz)
-            except ValueError:
-                continue
-        if len(raw) >= 19:
-            try:
-                return datetime.strptime(raw[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=local_tz)
-            except ValueError:
-                pass
-        try:
-            dt = datetime.fromisoformat(raw)
-            return dt if dt.tzinfo else dt.replace(tzinfo=local_tz)
-        except ValueError:
-            return None
+        return event_history.event_time(event)
 
     def recent_event_stats(self, *, hours: int = 24) -> dict[str, object]:
-        now = datetime.now().astimezone()
-        cutoff = now - timedelta(hours=max(1, hours))
-        events = self.read_event_history()
-        window: list[dict[str, object]] = []
-        for event in events:
-            when = self.event_time(event)
-            if when is None or when >= cutoff:
-                window.append(event)
-        counts = {
-            "ok": 0,
-            "info": 0,
-            "warning": 0,
-            "success": 0,
-            "critical": 0,
-            "healthy": 0,
-            "degraded": 0,
-            "recovered": 0,
-            "failed": 0,
-        }
-        last_recovered_at = ""
-        healthy_streak_start = ""
-        last_nonhealthy_at = ""
-        current_streak = 0
-        max_streak = 0
-        current_streak_duration_seconds = 0
-        longest_healthy_gap_seconds = 0
-        recovery_durations_seconds: list[int] = []
-        failed_started_at: datetime | None = None
-        previous_healthy_time: datetime | None = None
-        for event in window:
-            severity = str(event.get("severity", "info"))
-            status = str(event.get("status", "unknown"))
-            counts[severity] = counts.get(severity, 0) + 1
-            counts[status] = counts.get(status, 0) + 1
-            when = self.event_time(event)
-            when_text = str(event.get("time", ""))
-            if status == "failed" and when is not None and failed_started_at is None:
-                failed_started_at = when
-            elif status == "recovered" and when is not None:
-                last_recovered_at = when_text
-                if failed_started_at is not None:
-                    recovery_durations_seconds.append(max(0, int((when - failed_started_at).total_seconds())))
-                    failed_started_at = None
-            if status == "healthy":
-                if previous_healthy_time is not None and when is not None:
-                    longest_healthy_gap_seconds = max(longest_healthy_gap_seconds, max(0, int((when - previous_healthy_time).total_seconds())))
-                previous_healthy_time = when
-                current_streak += 1
-                if current_streak == 1:
-                    healthy_streak_start = when_text
-                if when is not None:
-                    streak_start_dt = self.event_time({"time": healthy_streak_start}) if healthy_streak_start else None
-                    if streak_start_dt is not None:
-                        current_streak_duration_seconds = max(0, int((when - streak_start_dt).total_seconds()))
-            else:
-                current_streak = 0
-                current_streak_duration_seconds = 0
-                previous_healthy_time = None
-                if when_text:
-                    last_nonhealthy_at = when_text
-                    healthy_streak_start = ""
-            max_streak = max(max_streak, current_streak)
-        last_recovery_duration_seconds = recovery_durations_seconds[-1] if recovery_durations_seconds else 0
-        return {
-            "window_hours": max(1, hours),
-            "total": len(window),
-            "counts": counts,
-            "last_recovered_at": last_recovered_at,
-            "last_nonhealthy_at": last_nonhealthy_at,
-            "healthy_streak_events": current_streak,
-            "healthy_streak_start": healthy_streak_start,
-            "healthy_streak_best": max_streak,
-            "healthy_streak_duration_seconds": current_streak_duration_seconds,
-            "longest_healthy_gap_seconds": longest_healthy_gap_seconds,
-            "last_recovery_duration_seconds": last_recovery_duration_seconds,
-        }
+        return event_history.recent_event_stats(self, hours=hours)
 
     def _incident_bool(self, value: object) -> bool:
-        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+        return incident_service_ops.incident_bool(value)
 
     def read_json_dict(self, path: Path) -> dict[str, object]:
-        if not path.exists() or not path.is_file():
-            return {}
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {}
-        return payload if isinstance(payload, dict) else {}
+        return incident_service_ops.read_json_dict(path)
 
     def read_incident_state_payload(self, incident_dir: Path) -> dict[str, object]:
-        return self.read_json_dict(self.incident_state_file(incident_dir))
+        return incident_service_ops.read_incident_state_payload(self, incident_dir)
 
     def read_incident_operator_summary_payload(self, incident_dir: Path) -> dict[str, object]:
-        return parse_env_file(incident_dir / "operator-summary.txt")
+        return incident_service_ops.read_incident_operator_summary_payload(self, incident_dir)
 
     def incident_operator_workflow_file(self, incident_dir: Path) -> Path:
-        return incident_dir / "operator-workflow.json"
+        return incident_service_ops.incident_operator_workflow_file(self, incident_dir)
 
     def read_incident_operator_workflow_payload(self, incident_dir: Path) -> dict[str, object]:
-        payload = self.read_json_dict(self.incident_operator_workflow_file(incident_dir))
-        notes = payload.get("notes", []) if isinstance(payload, dict) else []
-        if not isinstance(notes, list):
-            notes = []
-        clean_notes: list[dict[str, object]] = []
-        for note in notes:
-            if not isinstance(note, dict):
-                continue
-            clean_notes.append(
-                {
-                    "time": str(note.get("time", "") or ""),
-                    "by": str(note.get("by", "") or ""),
-                    "message": str(note.get("message", "") or ""),
-                }
-            )
-        events = payload.get("events", []) if isinstance(payload, dict) else []
-        if not isinstance(events, list):
-            events = []
-        clean_events: list[dict[str, object]] = []
-        for event in events:
-            if not isinstance(event, dict):
-                continue
-            clean_events.append(
-                {
-                    "time": str(event.get("time", "") or ""),
-                    "type": str(event.get("type", "") or ""),
-                    "by": str(event.get("by", "") or ""),
-                    "owner": str(event.get("owner", "") or ""),
-                    "acknowledged": bool(event.get("acknowledged", False)),
-                    "message": str(event.get("message", "") or ""),
-                    "summary": str(event.get("summary", "") or ""),
-                }
-            )
-        return {
-            "incident_id": str(payload.get("incident_id", incident_dir.name) or incident_dir.name),
-            "owner": str(payload.get("owner", "") or ""),
-            "acknowledged": bool(payload.get("acknowledged", False)),
-            "acknowledged_by": str(payload.get("acknowledged_by", "") or ""),
-            "acknowledged_at": str(payload.get("acknowledged_at", "") or ""),
-            "updated_at": str(payload.get("updated_at", "") or ""),
-            "notes": clean_notes,
-            "events": clean_events,
-        }
+        return incident_service_ops.read_incident_operator_workflow_payload(self, incident_dir)
 
     def incident_snapshot(self, incident_dir: Path) -> dict[str, object]:
         return incident_ops.incident_snapshot(self, incident_dir)
@@ -499,25 +277,7 @@ class WatchdogEngine:
         return incident_ops.incident_queue_payload(self, limit=limit)
 
     def incident_operator_summary(self, *, summary: str, active: str, main_pid: str, listeners: str) -> str:
-        run_state = self.read_run_state()
-        lines = [
-            f"incident_id={self.ctx.incident_id}",
-            f"time={self.ctx.run_ts}",
-            f"summary={summary}",
-            f"health_level={run_state.get('health_level', 'unknown')}",
-            f"conversation_status={run_state.get('conversation_status', 'down')}",
-            f"active={active}",
-            f"main_pid={main_pid}",
-            f"listeners={listeners}",
-            f"pre_repair_backup_result={self.ctx.pre_repair_backup_result}",
-            f"rollback_occurred={'true' if self.ctx.rollback_occurred else 'false'}",
-            f"rollback_summary_archive_file={self.ctx.rollback_summary_archive_file or 'none'}",
-            f"rollback_candidate_used={self.ctx.rollback_candidate_used or 'none'}",
-            f"rollback_reason={self.ctx.rollback_reason or 'none'}",
-            f"last_recovery_strategy={self.ctx.last_recovery_strategy}",
-            f"last_recovery_path={self.recovery_path_text()}",
-        ]
-        return "\n".join(lines) + "\n"
+        return incident_service_ops.incident_operator_summary(self, summary=summary, active=active, main_pid=main_pid, listeners=listeners)
 
     def incident_index_entry(
         self,
@@ -533,29 +293,18 @@ class WatchdogEngine:
         incident_id: str | None = None,
         incident_dir: Path | None = None,
     ) -> dict[str, object]:
-        target_incident_id = incident_id or self.ctx.incident_id
-        target_incident_dir = incident_dir or self.ctx.incident_dir
-        return incident_context_ops.build_incident_index_entry(
-            run_ts=self.ctx.run_ts,
-            incident_id=target_incident_id,
-            incident_dir=str(target_incident_dir) if target_incident_dir else "",
+        return incident_service_ops.incident_index_entry(
+            self,
             summary=summary,
-            state_payload=self.read_incident_state_payload(target_incident_dir) if target_incident_dir is not None else {},
-            workflow_payload=self.read_incident_operator_workflow_payload(target_incident_dir) if target_incident_dir is not None else {},
-            run_state={
-                **self.read_run_state(),
-                'health_level': health_level or str(self.read_run_state().get('health_level', 'unknown') or 'unknown'),
-            },
             active=active,
             main_pid=main_pid,
             listeners=listeners,
-            pre_repair_backup_result=pre_repair_backup_result or self.ctx.pre_repair_backup_result,
-            rollback_occurred=self.ctx.rollback_occurred if rollback_occurred is None else rollback_occurred,
-            rollback_summary_archive_file=rollback_summary_archive_file if rollback_summary_archive_file is not None else self.ctx.rollback_summary_archive_file,
-            rollback_candidate_used=self.ctx.rollback_candidate_used,
-            rollback_reason=self.ctx.rollback_reason,
-            last_recovery_strategy=self.ctx.last_recovery_strategy,
-            last_recovery_path=self.recovery_path_text(),
+            health_level=health_level,
+            pre_repair_backup_result=pre_repair_backup_result,
+            rollback_occurred=rollback_occurred,
+            rollback_summary_archive_file=rollback_summary_archive_file,
+            incident_id=incident_id,
+            incident_dir=incident_dir,
         )
 
     def update_incident_index(
@@ -572,17 +321,8 @@ class WatchdogEngine:
         incident_id: str | None = None,
         incident_dir: Path | None = None,
     ) -> None:
-        index_file = self.config.watchdog_incident_index_file
-        items: list[dict[str, object]] = []
-        if index_file.exists():
-            try:
-                data = json.loads(index_file.read_text(encoding="utf-8"))
-                if isinstance(data, list):
-                    items = [item for item in data if isinstance(item, dict)]
-            except json.JSONDecodeError:
-                items = []
-        target_incident_id = incident_id or self.ctx.incident_id
-        entry = self.incident_index_entry(
+        incident_service_ops.update_incident_index(
+            self,
             summary=summary,
             active=active,
             main_pid=main_pid,
@@ -591,53 +331,15 @@ class WatchdogEngine:
             pre_repair_backup_result=pre_repair_backup_result,
             rollback_occurred=rollback_occurred,
             rollback_summary_archive_file=rollback_summary_archive_file,
-            incident_id=target_incident_id,
+            incident_id=incident_id,
             incident_dir=incident_dir,
         )
-        items = [item for item in items if str(item.get("incident_id", "")) != target_incident_id]
-        items.append(entry)
-        items = sorted(items, key=lambda item: str(item.get("incident_id", "")))
-        keep = max(1, self.config.watchdog_incident_index_limit)
-        index_file.write_text(json.dumps(items[-keep:], ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     def read_incident_index(self, limit: int | None = None) -> list[dict[str, object]]:
-        index_file = self.config.watchdog_incident_index_file
-        if not index_file.exists():
-            return []
-        try:
-            data = json.loads(index_file.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            return []
-        items = [item for item in data if isinstance(item, dict)]
-        if limit is not None and limit > 0:
-            return items[-limit:]
-        return items
+        return incident_service_ops.read_incident_index(self, limit=limit)
 
     def refresh_current_incident_index(self, *, summary: str | None = None, health_level: str | None = None) -> None:
-        if self.ctx.incident_dir is None:
-            return
-        operator_payload = self.read_incident_operator_summary_payload(self.ctx.incident_dir)
-        existing_index_payload = next(
-            (
-                item
-                for item in reversed(self.read_incident_index())
-                if str(item.get("incident_id", "")) == self.ctx.incident_id
-            ),
-            {},
-        )
-        current_summary = summary or str(operator_payload.get("summary", existing_index_payload.get("summary", "")) or "")
-        self.update_incident_index(
-            summary=current_summary,
-            active=str(operator_payload.get("active", existing_index_payload.get("active", "unknown")) or "unknown"),
-            main_pid=str(operator_payload.get("main_pid", existing_index_payload.get("main_pid", "0")) or "0"),
-            listeners=str(operator_payload.get("listeners", existing_index_payload.get("listeners", "none")) or "none"),
-            health_level=health_level,
-            pre_repair_backup_result=str(existing_index_payload.get("pre_repair_backup_result", self.ctx.pre_repair_backup_result) or self.ctx.pre_repair_backup_result),
-            rollback_occurred=bool(existing_index_payload.get("rollback_occurred", self.ctx.rollback_occurred)),
-            rollback_summary_archive_file=str(existing_index_payload.get("rollback_summary_archive_file", self.ctx.rollback_summary_archive_file) or self.ctx.rollback_summary_archive_file),
-        )
+        incident_service_ops.refresh_current_incident_index(self, summary=summary, health_level=health_level)
 
     def refresh_incident_index_for(self, incident_id: str, *, summary: str | None = None, health_level: str | None = None) -> None:
         incident_ops.refresh_incident_index_for(self, incident_id, summary=summary, health_level=health_level)
@@ -682,40 +384,10 @@ class WatchdogEngine:
         return incident_ops.add_incident_note(self, incident_id, note_by=note_by, message=message)
 
     def write_incident_operator_summary(self, *, summary: str, active: str, main_pid: str, listeners: str) -> None:
-        if self.ctx.incident_dir is None:
-            return
-        (self.ctx.incident_dir / "operator-summary.txt").write_text(
-            self.incident_operator_summary(summary=summary, active=active, main_pid=main_pid, listeners=listeners),
-            encoding="utf-8",
-        )
-        self.update_incident_index(summary=summary, active=active, main_pid=main_pid, listeners=listeners)
+        incident_service_ops.write_incident_operator_summary(self, summary=summary, active=active, main_pid=main_pid, listeners=listeners)
 
     def update_incident_state(self, state: str, summary: str, *, resolved: bool = False) -> None:
-        if self.ctx.incident_dir is None:
-            return
-        incident_state_file = self.incident_state_file(self.ctx.incident_dir)
-        payload: dict[str, object] = {
-            "incident_id": self.ctx.incident_id,
-            "state": state,
-            "summary": summary,
-        }
-        if incident_state_file.exists():
-            try:
-                existing = json.loads(incident_state_file.read_text(encoding="utf-8"))
-                if isinstance(existing, dict):
-                    payload = {**existing, **payload}
-            except json.JSONDecodeError:
-                pass
-        payload.setdefault("created_at", self.now_iso())
-        if state == "open" and summary != "incident created":
-            if not str(payload.get("opened_summary", "") or "") or str(payload.get("opened_summary", "") or "") == "incident created":
-                payload["opened_summary"] = summary
-        elif not str(payload.get("opened_summary", "") or ""):
-            payload["opened_summary"] = summary
-        if resolved:
-            payload["resolved_at"] = self.now_iso()
-            payload["resolution_summary"] = summary
-        incident_state_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        incident_service_ops.update_incident_state(self, state, summary, resolved=resolved)
 
     def codex_bin_available(self) -> bool:
         candidate = self.config.watchdog_codex_bin
@@ -730,29 +402,13 @@ class WatchdogEngine:
         return shutil.which(candidate) is not None
 
     def load_existing_incident_context(self, incident_id: str) -> bool:
-        incident_id = incident_id.strip()
-        if not incident_id:
-            return False
-        incident_dir = self.config.watchdog_incidents_dir / incident_id
-        if not incident_dir.exists() or not incident_dir.is_dir():
-            return False
-        self.ctx.incident_id = incident_id
-        self.ctx.incident_dir = incident_dir
-        self.current_incident_marker.write_text(f"{incident_id}\n", encoding="utf-8")
-        return True
+        return incident_service_ops.load_existing_incident_context(self, incident_id)
 
     def attach_current_incident_if_any(self) -> bool:
-        if self.ctx.incident_dir is not None and self.ctx.incident_id:
-            return True
-        if not self.current_incident_marker.exists():
-            return False
-        incident_id = self.current_incident_marker.read_text(encoding="utf-8").strip()
-        return self.load_existing_incident_context(incident_id)
+        return incident_service_ops.attach_current_incident_if_any(self)
 
     def reset_incident_state(self) -> None:
-        self.current_incident_marker.unlink(missing_ok=True)
-        self.ctx.incident_id = ""
-        self.ctx.incident_dir = None
+        incident_service_ops.reset_incident_state(self)
 
     def sibling_json_path(self, path: Path) -> Path:
         if path.suffix:
@@ -1055,195 +711,20 @@ class WatchdogEngine:
         return self.maintenance_status_payload()
 
     def _rescue_failure_signature(self, probe: dict[str, object]) -> str:
-        if bool(probe.get("config_invalid", False)):
-            return "config-invalid"
-        if not bool(probe.get("process_layer_healthy", False)):
-            return "process-down"
-        if bool(probe.get("service_layer_healthy", True)) and not bool(probe.get("minimal_usable_ready", False)):
-            return "conversation-down"
-        if not bool(probe.get("service_layer_healthy", True)):
-            return "service-layer-degraded"
-        return "unknown-failure"
+        return rescue_context_builder.failure_signature_for(probe)
 
     def _rescue_available_executors(self) -> tuple[str, ...]:
-        priority = list(getattr(self.config, "watchdog_rescue_executor_priority", [])) or [
-            "codex",
-            "claude-code",
-            "gemini-cli",
-            "opencode",
-            "litellm",
-            "rule-agent",
-        ]
-        available: list[str] = []
-        command_map = {
-            "codex": ("codex",),
-            "claude-code": ("claude", "claude-code"),
-            "gemini-cli": ("gemini", "gemini-cli"),
-            "opencode": ("opencode",),
-        }
-        for name in priority:
-            if name == "rule-agent":
-                available.append(name)
-                continue
-            if name == "litellm":
-                litellm_enabled = bool(getattr(self.config, "watchdog_litellm_enabled", False))
-                litellm_model = str(getattr(self.config, "watchdog_litellm_model", "") or "")
-                if litellm_enabled and litellm_model:
-                    available.append(name)
-                continue
-            for command in command_map.get(name, (name,)):
-                if shutil.which(command):
-                    available.append(name)
-                    break
-        if "rule-agent" not in available:
-            available.append("rule-agent")
-        return tuple(available)
+        return rescue_context_builder.available_executors(self.config)
 
     def _rescue_command(self, name: str) -> str:
-        if name == "codex":
-            configured = str(getattr(self.config, "watchdog_codex_bin", "codex") or "codex")
-            return configured if shutil.which(configured) else "codex"
-        if name == "opencode":
-            configured = str(getattr(self.config, "watchdog_opencode_fallback_bin", "opencode") or "opencode")
-            return configured if shutil.which(configured) else "opencode"
-        candidates = {
-            "claude-code": ("claude", "claude-code"),
-            "gemini-cli": ("gemini", "gemini-cli"),
-        }
-        for candidate in candidates.get(name, (name,)):
-            if shutil.which(candidate):
-                return candidate
-        return name
+        return rescue_context_builder.rescue_command(self.config, name)
 
 
     def build_rescue_context(self, probe: dict[str, object]):
-        from watchdog_v2.learning import LearningStore
-        from watchdog_v2.rescue_models import RescueContext
-
-        failure_signature = self._rescue_failure_signature(probe)
-        normalized_failure_signature = learning_signatures.normalized_failure_signature(
-            {
-                'failure_signature': failure_signature,
-                'config_invalid': bool(probe.get('config_invalid', False)),
-                'process_layer_healthy': bool(probe.get('process_layer_healthy', False)),
-                'service_layer_healthy': bool(probe.get('service_layer_healthy', False)),
-                'minimal_usable_ready': bool(probe.get('minimal_usable_ready', False)),
-                'conversation_ready': bool(probe.get('conversation_ready', False)),
-                'config_drift_detected': bool(probe.get('config_drift_detected', False)),
-                'drift_scope': list(probe.get('drift_scope', [])) if isinstance(probe.get('drift_scope', []), list) else [],
-            }
-        )
-        store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
-        recent_case_criteria = {
-            'failure_signature': failure_signature,
-            'normalized_failure_signature': normalized_failure_signature,
-            'config_invalid': bool(probe.get('config_invalid', False)),
-            'process_layer_healthy': bool(probe.get('process_layer_healthy', False)),
-            'service_layer_healthy': bool(probe.get('service_layer_healthy', False)),
-            'minimal_usable_ready': bool(probe.get('minimal_usable_ready', False)),
-            'conversation_ready': bool(probe.get('conversation_ready', False)),
-            'config_drift_detected': bool(probe.get('config_drift_detected', False)),
-            'drift_scope': list(probe.get('drift_scope', [])) if isinstance(probe.get('drift_scope', []), list) else [],
-        }
-        recent_cases = [
-            {
-                'case_id': str(case.get('case_id', '') or ''),
-                'executor': str(case.get('executor', '') or ''),
-                'strategy': str(case.get('strategy', '') or ''),
-                'status': str(case.get('status', '') or ''),
-            }
-            for case in store.similar_cases(recent_case_criteria)[-3:]
-        ]
-        known_rules = [
-            {
-                'rule_id': str(rule.get('rule_id', '') or ''),
-                'match': dict(rule.get('match', {})) if isinstance(rule.get('match', {}), dict) else {},
-                'diagnosis': str(rule.get('diagnosis', '') or ''),
-            }
-            for rule in store.load_rules()[-5:]
-        ]
-        metadata = {
-            "config_invalid": bool(probe.get("config_invalid", False)),
-            "failure_signature": failure_signature,
-            "normalized_failure_signature": normalized_failure_signature,
-            "conversation_status": str(probe.get("conversation_status", "down") or "down"),
-            "process_layer_healthy": bool(probe.get("process_layer_healthy", False)),
-            "service_layer_healthy": bool(probe.get("service_layer_healthy", False)),
-            "minimal_usable_ready": bool(probe.get("minimal_usable_ready", False)),
-            "service_active": bool(probe.get("service_active", False)),
-            "recent_cases": recent_cases,
-            "known_rules": known_rules,
-        }
-        incident_id = self.ctx.incident_id or f"incident-{datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}"
-        self.ctx.incident_id = incident_id
-        return RescueContext(
-            incident_id=incident_id,
-            health_level=str(self.read_run_state().get("health_level", "failed") or "failed"),
-            conversation_status=str(probe.get("conversation_status", "down") or "down"),
-            available_executors=self._rescue_available_executors(),
-            editable_paths=tuple(str(item) for item in getattr(self.config, "watchdog_rescue_editable_paths", [])),
-            editable_keys=tuple(str(item) for item in getattr(self.config, "watchdog_rescue_editable_keys", [])),
-            probe=dict(probe),
-            metadata=metadata,
-        )
+        return rescue_context_builder.build_rescue_context(self, probe)
 
     def _build_litellm_client(self):
-        if not bool(getattr(self.config, "watchdog_litellm_enabled", False)):
-            return None
-        model = str(getattr(self.config, "watchdog_litellm_model", "") or "")
-        if not model:
-            return None
-        try:
-            import litellm  # type: ignore
-        except ImportError:
-            return None
-
-        engine = self
-        config = self.config
-
-        class _LiteLLMClient:
-            def generate_plan(self, payload: dict[str, object]) -> dict[str, object]:
-                api_key_env = str(getattr(config, "watchdog_litellm_api_key_env", "") or "")
-                api_key = os.environ.get(api_key_env, "") if api_key_env else ""
-                response = litellm.completion(
-                    model=model,
-                    api_base=str(getattr(config, "watchdog_litellm_api_base", "") or "") or None,
-                    api_key=api_key or None,
-                    timeout=int(getattr(config, "watchdog_litellm_timeout_seconds", 60) or 60),
-                    temperature=0,
-                    response_format={"type": "json_object"},
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are the OpenClaw rescue planner. Return JSON only with plan_id, diagnosis, actions, validations, rollback_strategy, risk_level, and rationale. "
-                                "Never emit shell commands or arbitrary execution."
-                            ),
-                        },
-                        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-                    ],
-                )
-                content = ""
-                choices = getattr(response, "choices", None)
-                if choices:
-                    first = choices[0]
-                    message = getattr(first, "message", None)
-                    content = getattr(message, "content", "") if message is not None else ""
-                elif isinstance(response, dict):
-                    try:
-                        content = response["choices"][0]["message"]["content"]
-                    except (KeyError, IndexError, TypeError):
-                        content = ""
-                if isinstance(content, list):
-                    content = "".join(str(item.get("text", "")) if isinstance(item, dict) else str(item) for item in content)
-                if not isinstance(content, str) or not content.strip():
-                    raise ValueError("LiteLLM did not return structured JSON content")
-                payload = json.loads(content)
-                if not isinstance(payload, dict):
-                    raise ValueError("LiteLLM response must be a JSON object")
-                return payload
-
-        return _LiteLLMClient()
+        return rescue_context_builder.build_litellm_client(self.config)
 
     def dispatch_rescue(self, context):
         from watchdog_v2.learning import LearningStore
@@ -1323,124 +804,34 @@ class WatchdogEngine:
         dispatch_result=None,
         plan_result=None,
     ) -> dict[str, object]:
-        from watchdog_v2.learning import LearningStore
-
-        store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
-        metadata = context.metadata if context is not None and isinstance(getattr(context, 'metadata', None), dict) else {}
-        failure_signature = str(metadata.get("failure_signature", "") or self._rescue_failure_signature(probe))
-        normalized_failure_signature = str(
-            metadata.get('normalized_failure_signature', '')
-            or learning_signatures.normalized_failure_signature(
-                {
-                    'failure_signature': failure_signature,
-                    'config_invalid': bool(metadata.get('config_invalid', False) or probe.get('config_invalid', False)),
-                    'process_layer_healthy': bool(metadata.get('process_layer_healthy', probe.get('process_layer_healthy', False))),
-                    'service_layer_healthy': bool(metadata.get('service_layer_healthy', probe.get('service_layer_healthy', False))),
-                    'minimal_usable_ready': bool(metadata.get('minimal_usable_ready', probe.get('minimal_usable_ready', False))),
-                    'conversation_ready': bool(metadata.get('conversation_ready', probe.get('conversation_ready', False))),
-                    'config_drift_detected': bool(metadata.get('config_drift_detected', False) or probe.get('config_drift_detected', False)),
-                    'drift_scope': list(metadata.get('drift_scope', [])) if isinstance(metadata.get('drift_scope', []), list) else [],
-                }
-            )
+        return rescue_learning_service.record_learning_from_recovery(
+            self,
+            strategy=strategy,
+            recovery_kind=recovery_kind,
+            probe=probe,
+            context=context,
+            dispatch_result=dispatch_result,
+            plan_result=plan_result,
         )
-        rule_slug = re.sub(r"[^a-z0-9-]+", "-", normalized_failure_signature.lower()).strip("-") or "rescue-rule"
-        plan = getattr(dispatch_result, 'plan', None) if dispatch_result is not None else None
-        final_executor = str(getattr(dispatch_result, 'final_executor', '') or strategy)
-        candidate_rule = None
-        if plan is not None:
-            match = {"normalized_failure_signature": normalized_failure_signature}
-            if bool(metadata.get("config_invalid", False)):
-                match["config_invalid"] = True
-            candidate_rule = {
-                "rule_id": f"{rule_slug}-{final_executor or 'rescue'}",
-                "match": match,
-                "diagnosis": plan.diagnosis,
-                "actions": [action.to_dict() for action in plan.actions],
-                "validations": list(plan.validations),
-            }
-        risk_level = plan.risk_level if plan is not None else 'low'
-        payload = {
-            "case_id": f"{self.ctx.incident_id or 'incident'}-{final_executor or strategy}-{datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}",
-            "incident_id": self.ctx.incident_id,
-            "failure_signature": failure_signature,
-            "normalized_failure_signature": normalized_failure_signature,
-            "status": "recovered",
-            "executor": final_executor or strategy,
-            "strategy": strategy,
-            "recovery_kind": recovery_kind,
-            "plan_id": plan.plan_id if plan is not None else '',
-            "risk_level": risk_level,
-            "candidate_rule": candidate_rule,
-            "recovered_at": datetime.now().astimezone().isoformat(timespec='seconds'),
-        }
-        case_path = store.record_successful_case(payload)
-        promotion = store.promote_candidates()
-        candidate_rule_status = 'none'
-        if candidate_rule is not None:
-            if promotion.pending_review > 0:
-                candidate_rule_status = 'pending-review'
-            elif promotion.auto_promoted > 0:
-                candidate_rule_status = 'auto-promoted'
-            else:
-                candidate_rule_status = 'candidate-recorded'
-        return {
-            'case_ingest_result': f'recorded:{case_path.name}',
-            'candidate_rule_status': candidate_rule_status,
-        }
 
     def record_learning_from_rescue(self, *, context, dispatch_result, plan_result) -> dict[str, object]:
-        return self.record_learning_from_recovery(
-            strategy=str(getattr(dispatch_result, 'final_executor', '') or 'rescue'),
-            recovery_kind='rescue',
-            probe=context.probe if context is not None else {},
+        return rescue_learning_service.record_learning_from_rescue(
+            self,
             context=context,
             dispatch_result=dispatch_result,
             plan_result=plan_result,
         )
 
     def _service_probe_failures_for(self, probe: dict[str, object], previous_failures: int) -> int:
-        process_layer_healthy = bool(probe.get("process_layer_healthy", False))
-        service_layer_healthy = bool(probe.get("service_layer_healthy", True))
-        if self.config.watchdog_enable_service_level_probe and process_layer_healthy and not service_layer_healthy:
-            return previous_failures + 1
-        return 0
+        return probe_run_state.service_probe_failures_for(self.config, probe, previous_failures)
 
     def _write_probe_run_state(self, probe: dict[str, object], *, config_invalid: bool, service_probe_failures: int) -> str:
-        self.ctx.latest_probe = dict(probe)
-        process_layer_healthy = bool(probe.get("process_layer_healthy", False))
-        service_layer_healthy = bool(probe.get("service_layer_healthy", True))
-        conversation_ready = bool(probe.get("conversation_ready", False))
-        minimal_usable_ready = bool(probe.get("minimal_usable_ready", False))
-        initial_health_level = "healthy"
-        if config_invalid or not process_layer_healthy:
-            initial_health_level = "failed"
-        elif conversation_ready:
-            initial_health_level = "healthy"
-        elif minimal_usable_ready:
-            initial_health_level = "degraded"
-        else:
-            initial_health_level = "failed"
-        self.write_run_state(
-            {
-                "service_probe_failures": service_probe_failures,
-                "last_service_probe_at": str(probe.get("service_probe_checked_at", self.now_iso())),
-                "last_service_probe_result": "healthy" if service_layer_healthy else "degraded",
-                "last_service_probe_summary": str(probe.get("service_probe_summary", "")),
-                "last_service_probe_rc": int(probe.get("service_probe_rc", 0) or 0),
-                "health_level": initial_health_level,
-                "current_mode": self.current_mode(
-                    maintenance=self.config.watchdog_maintenance_file.exists(),
-                    degraded=initial_health_level == "degraded",
-                    survival=self.ctx.survival_mode_active,
-                ),
-                    "conversation_ready": conversation_ready,
-                "minimal_usable_ready": minimal_usable_ready,
-                "conversation_status": str(probe.get("conversation_status", "down") or "down"),
-                "conversation_probe_summary": str(probe.get("conversation_probe_summary", "") or ""),
-                **survival_ops.run_state_fields(self),
-            }
+        return probe_run_state.write_probe_run_state(
+            self,
+            probe,
+            config_invalid=config_invalid,
+            service_probe_failures=service_probe_failures,
         )
-        return initial_health_level
 
     def run_once(self) -> RunOutcome:
         from watchdog_v2.flows import rescue_run

@@ -66,3 +66,13 @@ During and after recovery, the operator should inspect these surfaces together:
 - `incidents current` / `incidents queue` for open operational follow-up.
 
 The `status`, `report`, and `metrics` outputs now share one operator snapshot for the rescue-chain fields, so attempt order, rejected executors, learning summary, and mutation scope stay aligned.
+
+## 7. Internal ownership after the refactor
+
+The watchdog keeps `WatchdogEngine` as the composition root, but the detailed rescue/incident state handling is now delegated:
+
+- `watchdog_v2/incident_service.py` for incident payloads, indexes, and current-incident state
+- `watchdog_v2/rescue_context_builder.py` for rescue-context creation and LiteLLM client wiring
+- `watchdog_v2/rescue_learning_service.py` for learning persistence and candidate-rule promotion status
+- `watchdog_v2/probe_run_state.py` for probe-failure counting and run-state projection
+- `watchdog_v2/event_history.py` for event history parsing and recent-window statistics
