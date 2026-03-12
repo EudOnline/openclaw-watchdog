@@ -12,20 +12,22 @@ import tempfile
 import textwrap
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
+from watchdog_v2 import event_history
 from watchdog_v2 import events as event_ops
 from watchdog_v2 import health as health_ops
 from watchdog_v2 import incident_service as incident_service_ops
 from watchdog_v2 import rescue_context_builder
+from watchdog_v2 import rescue_learning_service
 from watchdog_v2 import incidents as incident_ops
-from watchdog_v2 import learning_signatures
 from watchdog_v2 import repair as repair_ops
 from watchdog_v2 import reporting as reporting_ops
 from watchdog_v2 import recovery_tracking
 from watchdog_v2 import run_state_service
 from watchdog_v2 import survival as survival_ops
+from watchdog_v2 import probe_run_state
 from watchdog_v2.config import Config
 from watchdog_v2.runtime import CommandResult, run_capture_to_file, run_command
 from watchdog_v2 import state_store
@@ -185,98 +187,19 @@ class WatchdogEngine:
         return datetime.now().astimezone().isoformat(timespec="seconds")
 
     def read_run_state(self) -> dict[str, object]:
-        default = {
-            "service_probe_failures": 0,
-            "last_run_started_at": "",
-            "last_run_finished_at": "",
-            "last_run_duration_ms": 0,
-            "last_success_at": "",
-            "last_recovered_at": "",
-            "last_failed_at": "",
-            "last_degraded_at": "",
-            "last_backup_result": "not-run",
-            "last_backup_at": "",
-            "last_rollback_at": "",
-            "last_rollback_summary_archive_file": "",
-            "rollback_candidate_used": "",
-            "rollback_reason": "",
-            "config_drift_detected": False,
-            "last_service_probe_at": "",
-            "last_service_probe_result": "not-run",
-            "last_service_probe_summary": "",
-            "last_service_probe_rc": 0,
-            "current_mode": "normal",
-            "health_level": "unknown",
-            "survival_mode_active": False,
-            "survival_mode_reason": "",
-            "survival_mode_since": "",
-            "survival_mode_summary": "",
-            "survival_mode_actions": [],
-            "survival_mode_disabled_features": [],
-            "survival_mode_config_file": "",
-            "survival_mode_sticky": False,
-            "survival_mode_sticky_reason": "",
-            "survival_mode_exit_ready": False,
-            "survival_mode_exit_policy": "none",
-            "survival_mode_exit_blockers": [],
-            "survival_mode_stable_ready_runs": 0,
-            "survival_mode_stable_required_runs": self.config.watchdog_survival_stable_ready_runs,
-            "survival_mode_manual_clear_required": False,
-            "survival_mode_config_changed_away": False,
-            "survival_mode_last_exit_at": "",
-            "survival_mode_last_exit_reason": "",
-            "survival_mode_last_exit_kind": "",
-            "survival_mode_last_exit_summary": "",
-            "conversation_ready": False,
-            "minimal_usable_ready": False,
-            "conversation_status": "down",
-            "conversation_probe_summary": "",
-            "last_recovery_strategy": "none",
-            "last_recovery_path": "none",
-            "last_recovery_action_count": 0,
-            "last_recovery_restored_conversation": False,
-            "rescue_attempt_count": 0,
-            "rescue_executor_selected": "",
-            "rescue_plan_generated": False,
-            "rescue_plan_source": "",
-            "rescue_plan_id": "",
-            "rescue_plan_status": "not-run",
-            "rescue_tier": "none",
-            "case_ingest_result": "not-run",
-            "candidate_rule_status": "none",
-            "rescue_attempt_order": [],
-            "rescue_rejected_executors": [],
-            "rescue_learning_summary": "not-run / none",
-            "rescue_mutation_scope": [],
-            "last_good_validated_at": "",
-            "last_good_generation_id": "",
-            "last_good_generation_count": 0,
-            "drift_scope": [],
-            "drift_since_last_good": "",
-            "drift_summary": "",
-            "guard_manifest_file": str(self.config.watchdog_guard_manifest_file),
-            "guard_last_operation": "",
-            "guard_last_phase": "",
-            "guard_last_time": "",
-            "guard_last_summary": "",
-            "current_incident_id": "",
-            "current_incident_state": "",
-            "current_incident_age_seconds": 0,
-        }
-        try:
-            data = json.loads(self.run_state_file.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                default.update(data)
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
-        return default
+        return run_state_service.read_run_state(
+            self.run_state_file,
+            stable_required_runs=self.config.watchdog_survival_stable_ready_runs,
+            guard_manifest_file=self.config.watchdog_guard_manifest_file,
+        )
 
     def write_run_state(self, updates: dict[str, object]) -> dict[str, object]:
-        state = self.read_run_state()
-        state.update(updates)
-        self.run_state_file.parent.mkdir(parents=True, exist_ok=True)
-        self.run_state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        return state
+        return run_state_service.write_run_state(
+            self.run_state_file,
+            updates,
+            stable_required_runs=self.config.watchdog_survival_stable_ready_runs,
+            guard_manifest_file=self.config.watchdog_guard_manifest_file,
+        )
 
     def current_mode(self, *, maintenance: bool, degraded: bool = False, survival: bool = False) -> str:
         if maintenance:
@@ -297,114 +220,16 @@ class WatchdogEngine:
         return event_ops.event_human_summary(status, health_level, summary)
 
     def append_event_history(self, event_payload: dict[str, object]) -> None:
-        state_store.append_event_history(
-            self.config.watchdog_event_history_file,
-            event_payload,
-            keep=self.config.watchdog_event_history_limit,
-        )
+        event_history.append_event_history(self, event_payload)
 
     def read_event_history(self, limit: int | None = None) -> list[dict[str, object]]:
-        return state_store.read_event_history(self.config.watchdog_event_history_file, limit=limit)
+        return event_history.read_event_history(self, limit=limit)
 
     def event_time(self, event: dict[str, object]) -> datetime | None:
-        raw = event.get("time")
-        if not isinstance(raw, str) or not raw:
-            return None
-        local_tz = datetime.now().astimezone().tzinfo
-        for fmt in ("%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%S"):
-            try:
-                dt = datetime.strptime(raw, fmt)
-                return dt.astimezone() if dt.tzinfo else dt.replace(tzinfo=local_tz)
-            except ValueError:
-                continue
-        if len(raw) >= 19:
-            try:
-                return datetime.strptime(raw[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=local_tz)
-            except ValueError:
-                pass
-        try:
-            dt = datetime.fromisoformat(raw)
-            return dt if dt.tzinfo else dt.replace(tzinfo=local_tz)
-        except ValueError:
-            return None
+        return event_history.event_time(event)
 
     def recent_event_stats(self, *, hours: int = 24) -> dict[str, object]:
-        now = datetime.now().astimezone()
-        cutoff = now - timedelta(hours=max(1, hours))
-        events = self.read_event_history()
-        window: list[dict[str, object]] = []
-        for event in events:
-            when = self.event_time(event)
-            if when is None or when >= cutoff:
-                window.append(event)
-        counts = {
-            "ok": 0,
-            "info": 0,
-            "warning": 0,
-            "success": 0,
-            "critical": 0,
-            "healthy": 0,
-            "degraded": 0,
-            "recovered": 0,
-            "failed": 0,
-        }
-        last_recovered_at = ""
-        healthy_streak_start = ""
-        last_nonhealthy_at = ""
-        current_streak = 0
-        max_streak = 0
-        current_streak_duration_seconds = 0
-        longest_healthy_gap_seconds = 0
-        recovery_durations_seconds: list[int] = []
-        failed_started_at: datetime | None = None
-        previous_healthy_time: datetime | None = None
-        for event in window:
-            severity = str(event.get("severity", "info"))
-            status = str(event.get("status", "unknown"))
-            counts[severity] = counts.get(severity, 0) + 1
-            counts[status] = counts.get(status, 0) + 1
-            when = self.event_time(event)
-            when_text = str(event.get("time", ""))
-            if status == "failed" and when is not None and failed_started_at is None:
-                failed_started_at = when
-            elif status == "recovered" and when is not None:
-                last_recovered_at = when_text
-                if failed_started_at is not None:
-                    recovery_durations_seconds.append(max(0, int((when - failed_started_at).total_seconds())))
-                    failed_started_at = None
-            if status == "healthy":
-                if previous_healthy_time is not None and when is not None:
-                    longest_healthy_gap_seconds = max(longest_healthy_gap_seconds, max(0, int((when - previous_healthy_time).total_seconds())))
-                previous_healthy_time = when
-                current_streak += 1
-                if current_streak == 1:
-                    healthy_streak_start = when_text
-                if when is not None:
-                    streak_start_dt = self.event_time({"time": healthy_streak_start}) if healthy_streak_start else None
-                    if streak_start_dt is not None:
-                        current_streak_duration_seconds = max(0, int((when - streak_start_dt).total_seconds()))
-            else:
-                current_streak = 0
-                current_streak_duration_seconds = 0
-                previous_healthy_time = None
-                if when_text:
-                    last_nonhealthy_at = when_text
-                    healthy_streak_start = ""
-            max_streak = max(max_streak, current_streak)
-        last_recovery_duration_seconds = recovery_durations_seconds[-1] if recovery_durations_seconds else 0
-        return {
-            "window_hours": max(1, hours),
-            "total": len(window),
-            "counts": counts,
-            "last_recovered_at": last_recovered_at,
-            "last_nonhealthy_at": last_nonhealthy_at,
-            "healthy_streak_events": current_streak,
-            "healthy_streak_start": healthy_streak_start,
-            "healthy_streak_best": max_streak,
-            "healthy_streak_duration_seconds": current_streak_duration_seconds,
-            "longest_healthy_gap_seconds": longest_healthy_gap_seconds,
-            "last_recovery_duration_seconds": last_recovery_duration_seconds,
-        }
+        return event_history.recent_event_stats(self, hours=hours)
 
     def _incident_bool(self, value: object) -> bool:
         return incident_service_ops.incident_bool(value)
@@ -979,124 +804,34 @@ class WatchdogEngine:
         dispatch_result=None,
         plan_result=None,
     ) -> dict[str, object]:
-        from watchdog_v2.learning import LearningStore
-
-        store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
-        metadata = context.metadata if context is not None and isinstance(getattr(context, 'metadata', None), dict) else {}
-        failure_signature = str(metadata.get("failure_signature", "") or self._rescue_failure_signature(probe))
-        normalized_failure_signature = str(
-            metadata.get('normalized_failure_signature', '')
-            or learning_signatures.normalized_failure_signature(
-                {
-                    'failure_signature': failure_signature,
-                    'config_invalid': bool(metadata.get('config_invalid', False) or probe.get('config_invalid', False)),
-                    'process_layer_healthy': bool(metadata.get('process_layer_healthy', probe.get('process_layer_healthy', False))),
-                    'service_layer_healthy': bool(metadata.get('service_layer_healthy', probe.get('service_layer_healthy', False))),
-                    'minimal_usable_ready': bool(metadata.get('minimal_usable_ready', probe.get('minimal_usable_ready', False))),
-                    'conversation_ready': bool(metadata.get('conversation_ready', probe.get('conversation_ready', False))),
-                    'config_drift_detected': bool(metadata.get('config_drift_detected', False) or probe.get('config_drift_detected', False)),
-                    'drift_scope': list(metadata.get('drift_scope', [])) if isinstance(metadata.get('drift_scope', []), list) else [],
-                }
-            )
+        return rescue_learning_service.record_learning_from_recovery(
+            self,
+            strategy=strategy,
+            recovery_kind=recovery_kind,
+            probe=probe,
+            context=context,
+            dispatch_result=dispatch_result,
+            plan_result=plan_result,
         )
-        rule_slug = re.sub(r"[^a-z0-9-]+", "-", normalized_failure_signature.lower()).strip("-") or "rescue-rule"
-        plan = getattr(dispatch_result, 'plan', None) if dispatch_result is not None else None
-        final_executor = str(getattr(dispatch_result, 'final_executor', '') or strategy)
-        candidate_rule = None
-        if plan is not None:
-            match = {"normalized_failure_signature": normalized_failure_signature}
-            if bool(metadata.get("config_invalid", False)):
-                match["config_invalid"] = True
-            candidate_rule = {
-                "rule_id": f"{rule_slug}-{final_executor or 'rescue'}",
-                "match": match,
-                "diagnosis": plan.diagnosis,
-                "actions": [action.to_dict() for action in plan.actions],
-                "validations": list(plan.validations),
-            }
-        risk_level = plan.risk_level if plan is not None else 'low'
-        payload = {
-            "case_id": f"{self.ctx.incident_id or 'incident'}-{final_executor or strategy}-{datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}",
-            "incident_id": self.ctx.incident_id,
-            "failure_signature": failure_signature,
-            "normalized_failure_signature": normalized_failure_signature,
-            "status": "recovered",
-            "executor": final_executor or strategy,
-            "strategy": strategy,
-            "recovery_kind": recovery_kind,
-            "plan_id": plan.plan_id if plan is not None else '',
-            "risk_level": risk_level,
-            "candidate_rule": candidate_rule,
-            "recovered_at": datetime.now().astimezone().isoformat(timespec='seconds'),
-        }
-        case_path = store.record_successful_case(payload)
-        promotion = store.promote_candidates()
-        candidate_rule_status = 'none'
-        if candidate_rule is not None:
-            if promotion.pending_review > 0:
-                candidate_rule_status = 'pending-review'
-            elif promotion.auto_promoted > 0:
-                candidate_rule_status = 'auto-promoted'
-            else:
-                candidate_rule_status = 'candidate-recorded'
-        return {
-            'case_ingest_result': f'recorded:{case_path.name}',
-            'candidate_rule_status': candidate_rule_status,
-        }
 
     def record_learning_from_rescue(self, *, context, dispatch_result, plan_result) -> dict[str, object]:
-        return self.record_learning_from_recovery(
-            strategy=str(getattr(dispatch_result, 'final_executor', '') or 'rescue'),
-            recovery_kind='rescue',
-            probe=context.probe if context is not None else {},
+        return rescue_learning_service.record_learning_from_rescue(
+            self,
             context=context,
             dispatch_result=dispatch_result,
             plan_result=plan_result,
         )
 
     def _service_probe_failures_for(self, probe: dict[str, object], previous_failures: int) -> int:
-        process_layer_healthy = bool(probe.get("process_layer_healthy", False))
-        service_layer_healthy = bool(probe.get("service_layer_healthy", True))
-        if self.config.watchdog_enable_service_level_probe and process_layer_healthy and not service_layer_healthy:
-            return previous_failures + 1
-        return 0
+        return probe_run_state.service_probe_failures_for(self.config, probe, previous_failures)
 
     def _write_probe_run_state(self, probe: dict[str, object], *, config_invalid: bool, service_probe_failures: int) -> str:
-        self.ctx.latest_probe = dict(probe)
-        process_layer_healthy = bool(probe.get("process_layer_healthy", False))
-        service_layer_healthy = bool(probe.get("service_layer_healthy", True))
-        conversation_ready = bool(probe.get("conversation_ready", False))
-        minimal_usable_ready = bool(probe.get("minimal_usable_ready", False))
-        initial_health_level = "healthy"
-        if config_invalid or not process_layer_healthy:
-            initial_health_level = "failed"
-        elif conversation_ready:
-            initial_health_level = "healthy"
-        elif minimal_usable_ready:
-            initial_health_level = "degraded"
-        else:
-            initial_health_level = "failed"
-        self.write_run_state(
-            {
-                "service_probe_failures": service_probe_failures,
-                "last_service_probe_at": str(probe.get("service_probe_checked_at", self.now_iso())),
-                "last_service_probe_result": "healthy" if service_layer_healthy else "degraded",
-                "last_service_probe_summary": str(probe.get("service_probe_summary", "")),
-                "last_service_probe_rc": int(probe.get("service_probe_rc", 0) or 0),
-                "health_level": initial_health_level,
-                "current_mode": self.current_mode(
-                    maintenance=self.config.watchdog_maintenance_file.exists(),
-                    degraded=initial_health_level == "degraded",
-                    survival=self.ctx.survival_mode_active,
-                ),
-                    "conversation_ready": conversation_ready,
-                "minimal_usable_ready": minimal_usable_ready,
-                "conversation_status": str(probe.get("conversation_status", "down") or "down"),
-                "conversation_probe_summary": str(probe.get("conversation_probe_summary", "") or ""),
-                **survival_ops.run_state_fields(self),
-            }
+        return probe_run_state.write_probe_run_state(
+            self,
+            probe,
+            config_invalid=config_invalid,
+            service_probe_failures=service_probe_failures,
         )
-        return initial_health_level
 
     def run_once(self) -> RunOutcome:
         from watchdog_v2.flows import rescue_run
