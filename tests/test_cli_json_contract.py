@@ -49,6 +49,49 @@ class _FakeEngine:
             'message_text': 'ok',
         }
 
+    def status_payload(self) -> dict[str, object]:
+        return {
+            'last_status': 'healthy',
+            'health_level': 'healthy',
+            'current_mode': 'normal',
+            'service_active': True,
+            'process_layer_healthy': True,
+            'service_layer_healthy': True,
+            'conversation_ready': True,
+            'minimal_usable_ready': True,
+            'conversation_status': 'ready',
+            'last_recovery_strategy': 'litellm',
+            'last_recovery_path': 'restart -> rollback -> survival -> doctor',
+            'last_recovery_action_count': 4,
+            'last_recovery_restored_conversation': True,
+            'rescue_attempt_count': 5,
+            'rescue_executor_selected': 'litellm',
+            'rescue_plan_generated': True,
+            'rescue_plan_source': 'litellm',
+            'rescue_plan_status': 'applied',
+            'rescue_tier': 'litellm',
+            'case_ingest_result': 'recorded:case-1.json',
+            'candidate_rule_status': 'pending-review',
+            'rescue_attempt_order': ['codex', 'claude-code', 'litellm'],
+            'rescue_rejected_executors': ['codex:unavailable', 'claude-code:no-plan'],
+            'rescue_learning_summary': 'recorded:case-1.json / pending-review',
+            'rescue_mutation_scope': ['restart_service', 'update_openclaw_config'],
+            'config_drift_detected': False,
+            'survival_mode_active': False,
+            'survival_mode_exit_ready': True,
+            'maintenance': {'enabled': False},
+            'last_event': {'human_summary': 'ok'},
+            'recent_event_stats': {'counts': {'healthy': 2, 'degraded': 0, 'recovered': 1, 'failed': 0}},
+            'recent_incidents': [],
+            'incident_queue_summary': {'open_total': 0, 'attention_total': 0, 'handled_total': 0},
+            'healthy': True,
+            'healthy_raw': True,
+            'service_probe_summary': 'ok',
+            'conversation_probe_summary': 'ready',
+            'run_state': {},
+            'recent_events': [],
+        }
+
     def metrics_payload(self) -> dict[str, object]:
         return {
             'status': 'healthy',
@@ -58,13 +101,21 @@ class _FakeEngine:
             'minimal_usable_ready': True,
             'survival_mode_active': False,
             'survival_mode_exit_ready': True,
+            'last_recovery_strategy': 'litellm',
+            'last_recovery_path': 'restart -> rollback -> survival -> doctor',
             'last_recovery_action_count': 4,
+            'last_recovery_restored_conversation': True,
             'rescue_attempt_count': 5,
             'rescue_executor_selected': 'litellm',
             'rescue_plan_generated': True,
+            'rescue_plan_source': 'litellm',
             'rescue_plan_status': 'applied',
             'rescue_tier': 'litellm',
             'candidate_rule_status': 'pending-review',
+            'rescue_attempt_order': ['codex', 'claude-code', 'litellm'],
+            'rescue_rejected_executors': ['codex:unavailable', 'claude-code:no-plan'],
+            'rescue_learning_summary': 'recorded:case-1.json / pending-review',
+            'rescue_mutation_scope': ['restart_service', 'update_openclaw_config'],
             'config_drift_detected': False,
             'current_incident_open': False,
             'current_incident_acknowledged': False,
@@ -158,6 +209,33 @@ class CliJsonContractTest(unittest.TestCase):
         )
         self.assertNotIn('current_incident_events_count', payload)
         self.assertNotIn('current_incident_latest_event_type', payload)
+
+    def test_status_report_metrics_share_operator_snapshot_keys(self) -> None:
+        from watchdog_v2.operator_snapshot import OPERATOR_SNAPSHOT_KEYS
+
+        status_exit_code, status_output = self._run_cli(['status', '--json'])
+        report_exit_code, report_output = self._run_cli(['report', '--json'])
+        metrics_exit_code, metrics_output = self._run_cli(['metrics', '--json'])
+
+        status_payload = json.loads(status_output)
+        report_payload = json.loads(report_output)
+        metrics_payload = json.loads(metrics_output)
+
+        self.assertEqual(status_exit_code, 0)
+        self.assertEqual(report_exit_code, 0)
+        self.assertEqual(metrics_exit_code, 0)
+        shared_keys = {
+            'last_recovery_strategy',
+            'last_recovery_path',
+            'rescue_attempt_order',
+            'rescue_rejected_executors',
+            'rescue_learning_summary',
+            'rescue_mutation_scope',
+        }
+        self.assertTrue(shared_keys.issubset(OPERATOR_SNAPSHOT_KEYS))
+        self.assertTrue(shared_keys.issubset(status_payload))
+        self.assertTrue(shared_keys.issubset(report_payload))
+        self.assertTrue(shared_keys.issubset(metrics_payload))
 
     def test_metrics_prometheus_keeps_stable_metric_names(self) -> None:
         exit_code, output = self._run_cli(['metrics', '--prometheus'])

@@ -19,8 +19,11 @@ from watchdog_v2 import events as event_ops
 from watchdog_v2 import health as health_ops
 from watchdog_v2 import incident_context as incident_context_ops
 from watchdog_v2 import incidents as incident_ops
+from watchdog_v2 import learning_signatures
 from watchdog_v2 import repair as repair_ops
 from watchdog_v2 import reporting as reporting_ops
+from watchdog_v2 import recovery_tracking
+from watchdog_v2 import run_state_service
 from watchdog_v2 import survival as survival_ops
 from watchdog_v2.config import Config, parse_env_file
 from watchdog_v2.runtime import CommandResult, run_capture_to_file, run_command
@@ -140,65 +143,23 @@ class WatchdogEngine:
         return text
 
     def reset_recovery_tracking(self) -> None:
-        self.ctx.recovery_steps = []
-        self.ctx.last_recovery_strategy = "none"
-        self.ctx.last_recovery_action_count = 0
-        self.ctx.last_recovery_restored_conversation = False
-        self.ctx.rescue_attempt_count = 0
-        self.ctx.rescue_executor_selected = ""
-        self.ctx.rescue_plan_generated = False
-        self.ctx.rescue_plan_source = ""
-        self.ctx.rescue_plan_id = ""
-        self.ctx.rescue_plan_status = "not-run"
-        self.ctx.rescue_tier = "none"
-        self.ctx.case_ingest_result = "not-run"
-        self.ctx.candidate_rule_status = "none"
-        self.ctx.rescue_attempt_order = []
-        self.ctx.rescue_rejected_executors = []
-        self.ctx.rescue_learning_summary = "not-run / none"
-        self.ctx.rescue_mutation_scope = []
-        self.ctx.rollback_candidate_used = ""
-        self.ctx.rollback_reason = ""
-        self.ctx.config_drift_detected = False
-        self.ctx.survival_mode_active = False
-        self.ctx.survival_mode_reason = ""
-        self.ctx.survival_mode_since = ""
-        self.ctx.survival_mode_summary = ""
-        self.ctx.survival_mode_actions = []
-        self.ctx.survival_mode_disabled_features = []
-        self.ctx.survival_mode_config_file = ""
-        self.ctx.survival_mode_sticky = False
-        self.ctx.survival_mode_sticky_reason = ""
-        self.ctx.survival_mode_exit_ready = False
-        self.ctx.survival_mode_exit_policy = "none"
-        self.ctx.survival_mode_exit_blockers = []
-        self.ctx.survival_mode_stable_ready_runs = 0
-        self.ctx.survival_mode_stable_required_runs = self.config.watchdog_survival_stable_ready_runs
-        self.ctx.survival_mode_manual_clear_required = False
-        self.ctx.survival_mode_config_changed_away = False
-        self.ctx.survival_mode_last_exit_at = ""
-        self.ctx.survival_mode_last_exit_reason = ""
-        self.ctx.survival_mode_last_exit_kind = ""
-        self.ctx.survival_mode_last_exit_summary = ""
-        self.ctx.drift_scope = []
-        self.ctx.drift_since_last_good = ""
-        self.ctx.drift_summary = ""
-        self.ctx.latest_probe = {}
+        recovery_tracking.reset(
+            self.ctx,
+            stable_required_runs=self.config.watchdog_survival_stable_ready_runs,
+        )
 
     def record_recovery_step(self, step: str, outcome: str, detail: str = "") -> None:
-        token = f"{step}:{outcome}"
-        if detail:
-            token = f"{token}({detail})"
-        self.ctx.recovery_steps.append(token)
-        if outcome not in {"skipped", "diagnosed", "not-applicable"}:
-            self.ctx.last_recovery_action_count += 1
+        recovery_tracking.record_step(self.ctx, step, outcome, detail)
 
     def recovery_path_text(self) -> str:
-        return " -> ".join(self.ctx.recovery_steps) if self.ctx.recovery_steps else "none"
+        return recovery_tracking.path_text(self.ctx)
 
     def finalize_recovery_tracking(self, *, strategy: str, restored_conversation: bool) -> None:
-        self.ctx.last_recovery_strategy = strategy or "none"
-        self.ctx.last_recovery_restored_conversation = bool(restored_conversation)
+        recovery_tracking.finalize(
+            self.ctx,
+            strategy=strategy,
+            restored_conversation=restored_conversation,
+        )
 
     def read_failure_count(self) -> int:
         try:
@@ -1160,7 +1121,30 @@ class WatchdogEngine:
         from watchdog_v2.rescue_models import RescueContext
 
         failure_signature = self._rescue_failure_signature(probe)
+        normalized_failure_signature = learning_signatures.normalized_failure_signature(
+            {
+                'failure_signature': failure_signature,
+                'config_invalid': bool(probe.get('config_invalid', False)),
+                'process_layer_healthy': bool(probe.get('process_layer_healthy', False)),
+                'service_layer_healthy': bool(probe.get('service_layer_healthy', False)),
+                'minimal_usable_ready': bool(probe.get('minimal_usable_ready', False)),
+                'conversation_ready': bool(probe.get('conversation_ready', False)),
+                'config_drift_detected': bool(probe.get('config_drift_detected', False)),
+                'drift_scope': list(probe.get('drift_scope', [])) if isinstance(probe.get('drift_scope', []), list) else [],
+            }
+        )
         store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
+        recent_case_criteria = {
+            'failure_signature': failure_signature,
+            'normalized_failure_signature': normalized_failure_signature,
+            'config_invalid': bool(probe.get('config_invalid', False)),
+            'process_layer_healthy': bool(probe.get('process_layer_healthy', False)),
+            'service_layer_healthy': bool(probe.get('service_layer_healthy', False)),
+            'minimal_usable_ready': bool(probe.get('minimal_usable_ready', False)),
+            'conversation_ready': bool(probe.get('conversation_ready', False)),
+            'config_drift_detected': bool(probe.get('config_drift_detected', False)),
+            'drift_scope': list(probe.get('drift_scope', [])) if isinstance(probe.get('drift_scope', []), list) else [],
+        }
         recent_cases = [
             {
                 'case_id': str(case.get('case_id', '') or ''),
@@ -1168,7 +1152,7 @@ class WatchdogEngine:
                 'strategy': str(case.get('strategy', '') or ''),
                 'status': str(case.get('status', '') or ''),
             }
-            for case in store.similar_cases({'failure_signature': failure_signature})[-3:]
+            for case in store.similar_cases(recent_case_criteria)[-3:]
         ]
         known_rules = [
             {
@@ -1181,6 +1165,7 @@ class WatchdogEngine:
         metadata = {
             "config_invalid": bool(probe.get("config_invalid", False)),
             "failure_signature": failure_signature,
+            "normalized_failure_signature": normalized_failure_signature,
             "conversation_status": str(probe.get("conversation_status", "down") or "down"),
             "process_layer_healthy": bool(probe.get("process_layer_healthy", False)),
             "service_layer_healthy": bool(probe.get("service_layer_healthy", False)),
@@ -1343,12 +1328,27 @@ class WatchdogEngine:
         store = LearningStore(root=self.config.watchdog_rescue_knowledge_root)
         metadata = context.metadata if context is not None and isinstance(getattr(context, 'metadata', None), dict) else {}
         failure_signature = str(metadata.get("failure_signature", "") or self._rescue_failure_signature(probe))
-        rule_slug = re.sub(r"[^a-z0-9-]+", "-", failure_signature.lower()).strip("-") or "rescue-rule"
+        normalized_failure_signature = str(
+            metadata.get('normalized_failure_signature', '')
+            or learning_signatures.normalized_failure_signature(
+                {
+                    'failure_signature': failure_signature,
+                    'config_invalid': bool(metadata.get('config_invalid', False) or probe.get('config_invalid', False)),
+                    'process_layer_healthy': bool(metadata.get('process_layer_healthy', probe.get('process_layer_healthy', False))),
+                    'service_layer_healthy': bool(metadata.get('service_layer_healthy', probe.get('service_layer_healthy', False))),
+                    'minimal_usable_ready': bool(metadata.get('minimal_usable_ready', probe.get('minimal_usable_ready', False))),
+                    'conversation_ready': bool(metadata.get('conversation_ready', probe.get('conversation_ready', False))),
+                    'config_drift_detected': bool(metadata.get('config_drift_detected', False) or probe.get('config_drift_detected', False)),
+                    'drift_scope': list(metadata.get('drift_scope', [])) if isinstance(metadata.get('drift_scope', []), list) else [],
+                }
+            )
+        )
+        rule_slug = re.sub(r"[^a-z0-9-]+", "-", normalized_failure_signature.lower()).strip("-") or "rescue-rule"
         plan = getattr(dispatch_result, 'plan', None) if dispatch_result is not None else None
         final_executor = str(getattr(dispatch_result, 'final_executor', '') or strategy)
         candidate_rule = None
         if plan is not None:
-            match = {"failure_signature": failure_signature}
+            match = {"normalized_failure_signature": normalized_failure_signature}
             if bool(metadata.get("config_invalid", False)):
                 match["config_invalid"] = True
             candidate_rule = {
@@ -1363,6 +1363,7 @@ class WatchdogEngine:
             "case_id": f"{self.ctx.incident_id or 'incident'}-{final_executor or strategy}-{datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}",
             "incident_id": self.ctx.incident_id,
             "failure_signature": failure_signature,
+            "normalized_failure_signature": normalized_failure_signature,
             "status": "recovered",
             "executor": final_executor or strategy,
             "strategy": strategy,

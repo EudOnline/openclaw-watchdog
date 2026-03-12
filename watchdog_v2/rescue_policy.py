@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from watchdog_v2 import learning_signatures
 from watchdog_v2.rescue_models import RescueContext
 
 
@@ -11,6 +12,7 @@ def openclaw_policy_snapshot(config) -> dict[str, object]:
         'required_channels': list(getattr(config, 'watchdog_survival_required_channels', ()) or ()),
         'editable_paths': list(getattr(config, 'watchdog_rescue_editable_paths', ()) or ()),
         'editable_keys': list(getattr(config, 'watchdog_rescue_editable_keys', ()) or ()),
+        'config_write_mode': 'atomic-json-replace',
     }
 
 
@@ -25,6 +27,10 @@ def mutation_scope(actions: list[dict[str, Any]] | tuple[dict[str, Any], ...] | 
     return scope
 
 
+def learned_rule_suppression_threshold() -> int:
+    return 2
+
+
 def confidence_label(*, evidence_count: int, risk_level: str) -> str:
     if risk_level == 'high':
         return 'review-required'
@@ -37,7 +43,8 @@ def confidence_label(*, evidence_count: int, risk_level: str) -> str:
 
 def heuristic_plan(context: RescueContext) -> dict[str, Any] | None:
     metadata = context.metadata if isinstance(context.metadata, dict) else {}
-    failure_signature = str(metadata.get('failure_signature', '') or '').strip() or 'unknown-failure'
+    normalized_signature = learning_signatures.normalized_failure_signature(metadata)
+    failure_signature = normalized_signature or str(metadata.get('failure_signature', '') or '').strip() or 'unknown-failure'
     recent_cases = metadata.get('recent_cases', []) if isinstance(metadata.get('recent_cases', []), list) else []
     rationale_parts = ['heuristic']
     if recent_cases:

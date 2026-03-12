@@ -113,6 +113,9 @@ scripts/openclaw-watchdog report --env config/openclaw-watchdog.env --message
 
 ## Notes
 
+If you want the full recovery sequence in one place before enabling live automation, read [rescue-lifecycle.md](rescue-lifecycle.md).
+
+
 - `detect` is meant to reduce first-run guesswork, not to silently auto-configure a production host.
 - If the wrapper reports that no compatible interpreter was found, install Python 3.11+ before proceeding.
 - Only enable more aggressive automation after the conservative path above looks correct on the real host.

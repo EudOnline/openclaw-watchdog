@@ -218,6 +218,13 @@ def run(engine, ctx):
         if plan is not None:
             plan_result = engine.execute_rescue_plan(plan, executor=str(getattr(dispatch_result, 'final_executor', '') or 'rescue'))
             ctx.rescue_plan_status = str(getattr(plan_result, 'status', 'unknown') or 'unknown')
+            if ctx.rescue_plan_status == 'rolled-back':
+                summary = 'rescue plan failed validation and was rolled back'
+                if hasattr(engine, 'finalize_recovery_tracking'):
+                    engine.finalize_recovery_tracking(strategy='failed', restored_conversation=False)
+                if hasattr(engine, 'set_state'):
+                    engine.set_state('failed', summary, health_level_override='failed')
+                return RunOutcome(exit_code=1, state='failed', summary=summary)
             probe = dict(engine.live_probe(include_doctor=False, apply_grace=True))
             config_invalid = bool(probe.get('config_invalid', config_invalid))
             service_probe_failures = _service_probe_failures_for(engine, probe)

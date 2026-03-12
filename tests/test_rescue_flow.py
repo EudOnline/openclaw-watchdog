@@ -182,6 +182,91 @@ class DeterministicLearningEngineDouble(FlowEngineDouble):
         return {'case_ingest_result': 'recorded:restart-case.json', 'candidate_rule_status': 'none'}
 
 
+
+
+class ValidationRollbackFlowEngineDouble(FlowEngineDouble):
+    def __init__(self) -> None:
+        super().__init__()
+        self._probes = [
+            {
+                'doctor_output': '',
+                'config_invalid': False,
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+                'service_probe_summary': 'down',
+                'conversation_probe_summary': 'down',
+                'service_probe_checked_at': '2026-03-11T10:00:00+08:00',
+                'doctor_rc': 0,
+            },
+            {
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+            },
+            {
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+            },
+            {
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+            },
+            {
+                'process_layer_healthy': True,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': True,
+                'conversation_status': 'minimal',
+                'service_active': True,
+                'service_main_pid': '123',
+                'listener_pids': ['456'],
+            },
+        ]
+
+    def execute_rescue_plan(self, plan: RescuePlan, *, executor: str) -> RescueResult:
+        self.last_executor = executor
+        return RescueResult(status='rolled-back', executor=executor, plan_id=plan.plan_id, rollback_performed=True)
+
+
+class RecoveryTrackingHelpersTest(unittest.TestCase):
+    def test_recovery_tracking_helper_keeps_action_count_and_path_order(self) -> None:
+        from watchdog_v2 import recovery_tracking
+
+        ctx = RunContext.initial(stable_required_runs=2)
+        recovery_tracking.reset(ctx, stable_required_runs=2)
+        recovery_tracking.record_step(ctx, 'restart', 'applied')
+        recovery_tracking.record_step(ctx, 'doctor', 'skipped')
+        recovery_tracking.record_step(ctx, 'rollback', 'failed', 'missing-last-good')
+        recovery_tracking.finalize(ctx, strategy='litellm', restored_conversation=False)
+
+        self.assertEqual(ctx.last_recovery_action_count, 2)
+        self.assertEqual(recovery_tracking.path_text(ctx), 'restart:applied -> doctor:skipped -> rollback:failed(missing-last-good)')
+        self.assertEqual(ctx.last_recovery_strategy, 'litellm')
+        self.assertFalse(ctx.last_recovery_restored_conversation)
+
 class RescueFlowTests(unittest.TestCase):
     def test_deterministic_recovery_records_learning(self) -> None:
         from watchdog_v2.flows import rescue_run
@@ -193,6 +278,16 @@ class RescueFlowTests(unittest.TestCase):
         self.assertEqual(engine.ctx.last_recovery_strategy, 'restart')
         self.assertEqual(engine.learning_calls[0]['strategy'], 'restart')
         self.assertEqual(engine.learning_calls[0]['recovery_kind'], 'deterministic')
+
+    def test_failed_validation_marks_rescue_result_as_rolled_back(self) -> None:
+        from watchdog_v2.flows import rescue_run
+
+        engine = ValidationRollbackFlowEngineDouble()
+        outcome = rescue_run.run(engine, engine.ctx)
+
+        self.assertEqual(engine.ctx.rescue_plan_status, 'rolled-back')
+        self.assertEqual(outcome.state, 'failed')
+        self.assertEqual(engine.ctx.last_recovery_strategy, 'failed')
 
     def test_deterministic_repair_runs_before_agent_dispatch(self) -> None:
         from watchdog_v2.flows import rescue_run

@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 
 from watchdog_v2.config import parse_env_file
+from watchdog_v2 import operator_snapshot
 
 
 def service_level_probe(engine) -> dict[str, object]:
@@ -264,6 +265,15 @@ def live_probe(engine, *, include_doctor: bool, apply_grace: bool = True) -> dic
             payload["health_level"] = "failed"
 
     payload["survival_mode_active"] = bool(engine.read_run_state().get("survival_mode_active", False))
+    payload.update(
+        operator_snapshot.to_payload(
+            operator_snapshot.build_operator_snapshot(
+                payload,
+                stable_required_runs=engine.config.watchdog_survival_stable_ready_runs,
+                guard_manifest_file=str(engine.config.watchdog_guard_manifest_file),
+            )
+        )
+    )
     payload["current_mode"] = engine.current_mode(
         maintenance=payload["maintenance_mode"],
         degraded=payload["health_level"] == "degraded",
@@ -405,6 +415,15 @@ def status_payload(engine) -> dict[str, object]:
         ("guard_last_summary", ""),
     ):
         payload[key] = run_state.get(key, payload.get(key, default))
+    payload.update(
+        operator_snapshot.to_payload(
+            operator_snapshot.build_operator_snapshot(
+                payload,
+                stable_required_runs=engine.config.watchdog_survival_stable_ready_runs,
+                guard_manifest_file=str(engine.config.watchdog_guard_manifest_file),
+            )
+        )
+    )
     payload["current_mode"] = engine.current_mode(
         maintenance=maintenance_info["enabled"],
         degraded=payload.get("health_level") == "degraded",

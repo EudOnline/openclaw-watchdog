@@ -16,6 +16,57 @@ class LearningStoreTests(unittest.TestCase):
             self.assertTrue(written.exists())
             self.assertEqual(written.parent.name, 'cases')
 
+    def test_recorded_case_persists_normalized_signature(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from watchdog_v2.learning import LearningStore
+
+            store = LearningStore(root=Path(temp_dir))
+            case_path = store.record_case(
+                {
+                    'case_id': 'case-normalized',
+                    'failure_signature': 'provider-auth-exploded',
+                    'config_invalid': True,
+                    'status': 'failed',
+                }
+            )
+
+            payload = case_path.read_text(encoding='utf-8')
+            self.assertIn('"normalized_failure_signature": "config-invalid"', payload)
+
+    def test_similar_cases_match_normalized_signature_not_raw_summary_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from watchdog_v2.learning import LearningStore
+
+            store = LearningStore(root=Path(temp_dir))
+            store.record_case(
+                {
+                    'case_id': 'case-1',
+                    'failure_signature': 'provider-auth-exploded',
+                    'config_invalid': True,
+                    'status': 'recovered',
+                }
+            )
+            store.record_case(
+                {
+                    'case_id': 'case-2',
+                    'failure_signature': 'gateway-tls-broken',
+                    'config_invalid': True,
+                    'status': 'recovered',
+                }
+            )
+            store.record_case(
+                {
+                    'case_id': 'case-3',
+                    'failure_signature': 'process-down',
+                    'process_layer_healthy': False,
+                    'status': 'failed',
+                }
+            )
+
+            cases = store.similar_cases({'failure_signature': 'yaml-parse-error', 'config_invalid': True})
+
+            self.assertEqual([case['case_id'] for case in cases], ['case-1', 'case-2'])
+
     def test_similar_cases_match_failure_signature(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from watchdog_v2.learning import LearningStore
@@ -61,6 +112,79 @@ class RulePromotionTests(unittest.TestCase):
             self.assertIn('"evidence_count": 3', promoted)
             self.assertIn('"confidence"', promoted)
 
+
+    def test_rule_is_marked_pending_review_again_after_high_risk_failure_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from watchdog_v2.learning import LearningStore
+
+            store = LearningStore(root=Path(temp_dir))
+            promoted_rule = {
+                'rule_id': 'config-invalid-auto',
+                'match': {'normalized_failure_signature': 'config-invalid'},
+                'diagnosis': 'config invalid',
+                'actions': [{'kind': 'restore_last_good', 'params': {}}],
+                'validations': ['minimal_usable_ready'],
+                'negative_evidence_count': 0,
+                'suppressed': False,
+            }
+            (store.rules_dir / 'config-invalid-auto.json').write_text(
+                __import__('json').dumps(promoted_rule, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
+                encoding='utf-8',
+            )
+            store.record_case(
+                {
+                    'case_id': 'case-high-regression',
+                    'failure_signature': 'yaml-parse-error',
+                    'normalized_failure_signature': 'config-invalid',
+                    'status': 'failed',
+                    'risk_level': 'high',
+                    'candidate_rule': {'rule_id': 'config-invalid-auto'},
+                }
+            )
+
+            result = store.promote_candidates()
+
+            self.assertEqual(result.pending_review, 1)
+            review_payload = (store.reviews_dir / 'config-invalid-auto.json').read_text(encoding='utf-8')
+            self.assertIn('"status": "pending-review"', review_payload)
+            updated_rule = (store.rules_dir / 'config-invalid-auto.json').read_text(encoding='utf-8')
+            self.assertIn('"negative_evidence_count": 1', updated_rule)
+
+    def test_rule_with_repeated_failed_outcomes_is_suppressed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from watchdog_v2.learning import LearningStore
+
+            store = LearningStore(root=Path(temp_dir))
+            promoted_rule = {
+                'rule_id': 'process-down-auto',
+                'match': {'normalized_failure_signature': 'process-down'},
+                'diagnosis': 'restart service',
+                'actions': [{'kind': 'restart_service', 'params': {}}],
+                'validations': ['minimal_usable_ready'],
+                'negative_evidence_count': 0,
+                'suppressed': False,
+            }
+            (store.rules_dir / 'process-down-auto.json').write_text(
+                __import__('json').dumps(promoted_rule, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
+                encoding='utf-8',
+            )
+            for idx in range(2):
+                store.record_case(
+                    {
+                        'case_id': f'case-failed-{idx}',
+                        'failure_signature': 'agent-timeout',
+                        'normalized_failure_signature': 'process-down',
+                        'status': 'failed',
+                        'risk_level': 'low',
+                        'candidate_rule': {'rule_id': 'process-down-auto'},
+                    }
+                )
+
+            store.promote_candidates()
+
+            updated_rule = (store.rules_dir / 'process-down-auto.json').read_text(encoding='utf-8')
+            self.assertIn('"negative_evidence_count": 2', updated_rule)
+            self.assertIn('"suppressed": true', updated_rule)
 
     def test_high_risk_candidate_requires_review(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

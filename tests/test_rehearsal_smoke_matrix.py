@@ -16,13 +16,72 @@ CRITICAL_SCENARIOS = [
     'watchdog-candidate-rule-review-pending',
 ]
 
+EXTENDED_SCENARIOS = [
+    'bootstrap-openclaw-missing-plugin',
+    'watchdog-recovery',
+    'watchdog-failed-fallback',
+    'watchdog-active-no-listener-grace',
+    'watchdog-service-layer-degraded',
+    'watchdog-service-layer-threshold-recovery',
+    'watchdog-service-layer-transient-retry',
+    'watchdog-conversation-probe-ready',
+    'watchdog-conversation-probe-minimal',
+    'watchdog-conversation-probe-down',
+    'watchdog-restart-priority-recovery',
+    'watchdog-rollback-priority-before-doctor',
+    'watchdog-doctor-deferred-until-survival-fails',
+    'watchdog-survival-mode-recovery',
+    'watchdog-survival-mode-sticky-until-stable',
+    'watchdog-survival-mode-exit',
+    'watchdog-config-drift-guard',
+    'watchdog-env-drift-rollback',
+    'watchdog-plugin-drift-rollback',
+    'watchdog-recovery-notify-normal',
+    'watchdog-last-good-generation-selection',
+    'watchdog-config-invalid-rollback',
+    'watchdog-incidents-open',
+    'watchdog-incidents-resolved',
+    'watchdog-metrics-healthy',
+    'watchdog-metrics-open-incident',
+    'watchdog-metrics-resolved',
+    'watchdog-metrics-operator-context',
+    'watchdog-report-operator-attention',
+    'watchdog-report-operator-attention-cleared',
+    'watchdog-incident-attention-filter',
+    'watchdog-incident-queue',
+    'watchdog-incident-operator-open',
+    'watchdog-incident-operator-resolved',
+    'watchdog-incident-operator-reset',
+    'watchdog-incident-timeline-open',
+    'watchdog-incident-timeline-resolved',
+    'watchdog-incident-notes-query',
+]
+
 
 class RehearsalSmokeMatrixTest(unittest.TestCase):
     def test_ci_workflow_runs_critical_rehearsal_scenarios(self) -> None:
         workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
 
-        for scenario in CRITICAL_SCENARIOS:
-            self.assertIn(f'bash rehearsal/scripts/run-scenario.sh {scenario}', workflow_text)
+        self.assertIn('bash rehearsal/scripts/run-scenario.sh critical', workflow_text)
+
+    def test_ci_runs_only_critical_release_gate_scenarios(self) -> None:
+        workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
+
+        self.assertNotIn('bash rehearsal/scripts/run-scenario.sh extended', workflow_text)
+        for scenario in EXTENDED_SCENARIOS:
+            self.assertNotIn(f'bash rehearsal/scripts/run-scenario.sh {scenario}', workflow_text)
+
+    def test_extended_scenarios_are_documented_but_not_required_in_ci(self) -> None:
+        workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
+        scenarios_readme = Path('rehearsal/scenarios/README.md').read_text(encoding='utf-8')
+        run_script = Path('rehearsal/scripts/run-scenario.sh').read_text(encoding='utf-8')
+
+        self.assertIn('critical)', run_script)
+        self.assertIn('extended)', run_script)
+        for scenario in CRITICAL_SCENARIOS + EXTENDED_SCENARIOS:
+            self.assertIn(f'- `{scenario}`', scenarios_readme)
+        for scenario in EXTENDED_SCENARIOS:
+            self.assertNotIn(f'bash rehearsal/scripts/run-scenario.sh {scenario}', workflow_text)
 
     def test_critical_scenarios_have_expected_artifacts(self) -> None:
         scenario_dir = Path('rehearsal/scenarios')

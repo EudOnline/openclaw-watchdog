@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 
 from watchdog_v2 import incident_context as incident_context_ops
+from watchdog_v2 import operator_snapshot
 from watchdog_v2.models import IncidentSummary, ProbeSnapshot, RunStateSnapshot
 
 
@@ -322,6 +323,14 @@ def metrics_payload(engine) -> dict[str, object]:
     counts = recent_stats.get("counts", {}) if isinstance(recent_stats.get("counts"), dict) else {}
     current_incident_state = str(payload.get("current_incident_state", "") or "")
     current_incident = _incident_summary(engine.current_incident_payload() if str(payload.get("current_incident_id", "") or "") else {})
+    snapshot_source = dict(payload)
+    if isinstance(payload.get('run_state'), dict):
+        snapshot_source.update(payload.get('run_state', {}))
+    snapshot = operator_snapshot.build_operator_snapshot(
+        snapshot_source,
+        stable_required_runs=int(payload.get('survival_mode_stable_required_runs', 0) or 0) or 1,
+        guard_manifest_file=str(payload.get('guard_manifest_file', '') or ''),
+    )
     metrics = {
         "generated_at": engine.now_iso(),
         "env_file": payload.get("env_file", ""),
@@ -397,6 +406,7 @@ def metrics_payload(engine) -> dict[str, object]:
         "last_failed_at": str(payload.get("last_failed_at", "") or ""),
         "last_recovered_at": str(payload.get("last_recovered_at", "") or ""),
     }
+    metrics.update(operator_snapshot.to_payload(snapshot))
     metrics["last_success_timestamp"] = unix_timestamp(metrics.get("last_success_at"))
     metrics["last_failed_timestamp"] = unix_timestamp(metrics.get("last_failed_at"))
     metrics["last_recovered_timestamp"] = unix_timestamp(metrics.get("last_recovered_at"))
@@ -409,6 +419,14 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
     payload = engine.status_payload()
     probe = ProbeSnapshot.from_dict(payload)
     run_state = _run_state_snapshot(payload)
+    snapshot_source = dict(payload)
+    if isinstance(payload.get('run_state'), dict):
+        snapshot_source.update(payload.get('run_state', {}))
+    snapshot = operator_snapshot.build_operator_snapshot(
+        snapshot_source,
+        stable_required_runs=int(payload.get('survival_mode_stable_required_runs', 0) or 0) or 1,
+        guard_manifest_file=str(payload.get('guard_manifest_file', '') or ''),
+    )
     current_incident = engine.current_incident_payload() if str(payload.get("current_incident_id", "") or "") else {}
     recent_incidents = engine.list_incident_snapshots(limit=max(1, incident_limit))
     incident_context = incident_context_ops.build_report_incident_context(
@@ -482,6 +500,7 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "maintenance": payload.get("maintenance", {}),
         "env_file": payload.get("env_file", ""),
     }
+    report.update(operator_snapshot.to_payload(snapshot))
     report['operator_attention_items'] = incident_context['operator_attention_items']
     report['operator_attention_needed'] = incident_context['operator_attention_needed']
     report['operator_attention_count'] = incident_context['operator_attention_count']
