@@ -11,7 +11,7 @@ from openclaw_watchdog.rescue_models import RescueAction, RescueContext, RescueP
 
 
 class RescueRuntimeTest(unittest.TestCase):
-    def test_build_rescue_adapters_uses_configured_priority_order(self) -> None:
+    def test_build_rescue_adapters_uses_canonical_order_even_when_legacy_override_is_present(self) -> None:
         from openclaw_watchdog import rescue_runtime
 
         with TemporaryDirectory() as temp_dir:
@@ -44,10 +44,17 @@ class RescueRuntimeTest(unittest.TestCase):
 
             adapters = rescue_runtime.build_rescue_adapters(engine, context)
 
-        self.assertEqual([adapter.name for adapter in adapters], ['opencode', 'codex', 'rule-agent'])
-        self.assertEqual(adapters[0].timeout_seconds, 34)
-        self.assertEqual(adapters[0].cwd, temp_root / 'opencode')
-        self.assertEqual(adapters[1].timeout_seconds, 31)
+        self.assertEqual(
+            [adapter.name for adapter in adapters],
+            ['codex', 'claude-code', 'gemini-cli', 'opencode', 'litellm', 'rule-agent'],
+        )
+        self.assertEqual(
+            [adapter.is_available(context) for adapter in adapters],
+            [True, False, False, True, False, True],
+        )
+        self.assertEqual(adapters[0].timeout_seconds, 31)
+        self.assertEqual(adapters[3].timeout_seconds, 34)
+        self.assertEqual(adapters[3].cwd, temp_root / 'opencode')
 
     def test_runtime_dispatch_and_execute_entrypoints_use_runtime_owners(self) -> None:
         from openclaw_watchdog import rescue_runtime

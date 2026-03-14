@@ -52,14 +52,7 @@ EXECUTOR_SPECS: dict[str, dict[str, object]] = {
 
 
 def configured_priority(config) -> tuple[str, ...]:
-    raw_priority = tuple(getattr(config, 'watchdog_rescue_executor_priority', ()) or CANONICAL_EXECUTOR_ORDER)
-    ordered: list[str] = []
-    for name in raw_priority:
-        if name in EXECUTOR_SPECS and name not in ordered:
-            ordered.append(name)
-    if 'rule-agent' not in ordered:
-        ordered.append('rule-agent')
-    return tuple(ordered)
+    return CANONICAL_EXECUTOR_ORDER
 
 
 def display_name(name: str) -> str:

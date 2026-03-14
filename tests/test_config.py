@@ -41,10 +41,7 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(config.watchdog_opencode_workdir, expected_home)
         self.assertEqual(config.openclaw_config, expected_home / '.openclaw/openclaw.json')
         self.assertEqual(config.watchdog_state_dir, expected_home / '.openclaw-backup/watchdog')
-        self.assertEqual(
-            config.watchdog_rescue_executor_priority,
-            ('codex', 'claude-code', 'gemini-cli', 'opencode', 'litellm', 'rule-agent'),
-        )
+        self.assertFalse(hasattr(config, 'watchdog_rescue_executor_priority'))
         self.assertFalse(config.watchdog_litellm_enabled)
         self.assertEqual(config.watchdog_rescue_knowledge_root, expected_home / '.openclaw-backup/watchdog/rescue')
         self.assertEqual(config.watchdog_rescue_cases_dir, expected_home / '.openclaw-backup/watchdog/rescue/cases')
@@ -63,6 +60,23 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertFalse(hasattr(config, 'watchdog_codex_min_failures'))
         self.assertFalse(hasattr(config, 'watchdog_codex_cooldown_seconds'))
         self.assertFalse(hasattr(config, 'watchdog_opencode_fallback_workdir'))
+
+    def test_legacy_rescue_executor_priority_env_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_home:
+            config = self._load_with_home(
+                temp_home,
+                '\n'.join(
+                    [
+                        'WATCHDOG_RESCUE_EXECUTOR_PRIORITY=rule-agent,litellm,opencode,codex',
+                        'WATCHDOG_LITELLM_ENABLED=true',
+                        'WATCHDOG_LITELLM_MODEL=openai/gpt-5',
+                    ]
+                ),
+            )
+
+        self.assertFalse(hasattr(config, 'watchdog_rescue_executor_priority'))
+        self.assertTrue(config.watchdog_litellm_enabled)
+        self.assertEqual(config.watchdog_litellm_model, 'openai/gpt-5')
 
     def test_parses_litellm_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_home:

@@ -58,7 +58,7 @@ For the operator/contributor walkthrough of this path, see [rescue-lifecycle.md]
 - deterministic repair always runs in one order: restart -> rollback -> survival -> doctor -> rescue dispatch
 - `openclaw_watchdog/engine.py` is now primarily a composition root and thin facade for the CLI-facing operations
 - `openclaw_watchdog/incident_service.py` owns incident payload parsing, index refresh, and current-incident context wiring
-- `openclaw_watchdog/executor_registry.py` owns canonical rescue-chain order, command resolution, executor availability checks, and per-executor runtime settings
+- `openclaw_watchdog/executor_registry.py` owns the fixed canonical rescue-chain order, command resolution, executor availability checks, and per-executor runtime settings
 - `openclaw_watchdog/maintenance_runtime.py` owns maintenance-mode file writes/removal and hands status rendering back to health payload helpers
 - `openclaw_watchdog/engine_support_runtime.py` owns state-dir prep, file locking, logging, notifications, failure counters, and small engine host helpers
 - `openclaw_watchdog/doctor_runtime.py` owns `doctor` subprocess execution and config-invalid detection

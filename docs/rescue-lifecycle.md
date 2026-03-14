@@ -28,7 +28,7 @@ This ordering is intentional: cheap, bounded, reversible steps happen first; bro
 
 ## 3. Rescue dispatch order
 
-If deterministic repair does not restore a usable path, the fallback system dispatches rescue in the configured priority order:
+If deterministic repair does not restore a usable path, the fallback system dispatches rescue in this fixed priority order:
 
 1. `Codex`
 2. `Claude Code`

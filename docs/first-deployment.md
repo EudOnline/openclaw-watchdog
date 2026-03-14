@@ -67,7 +67,7 @@ The live rescue order remains fixed:
 
 If one tier is missing or unavailable, the fallback system skips it and continues. The deployment path does not auto-install any of these tools.
 
-Canonical rescue chain: `codex -> claude-code -> gemini-cli -> opencode -> litellm -> rule-agent`.
+Canonical rescue chain is fixed in code: `codex -> claude-code -> gemini-cli -> opencode -> litellm -> rule-agent`.
 
 ### 5. Review the main env file
 

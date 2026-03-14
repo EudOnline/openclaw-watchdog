@@ -140,7 +140,7 @@ Important knobs include:
 - service-level failure threshold
 - notification target/channel
 - backup / rollback behavior
-- rescue executor priority (`Codex -> Claude Code -> Gemini CLI -> OpenCode -> LiteLLM -> rule-agent`)
+- fixed rescue order (`Codex -> Claude Code -> Gemini CLI -> OpenCode -> LiteLLM -> rule-agent`)
 - remote-model settings for the `LiteLLM` specialist agent
 - editable OpenClaw file/key boundaries for controlled rescue mutation
 

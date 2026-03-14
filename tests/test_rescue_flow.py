@@ -803,7 +803,6 @@ class WatchdogEngineRescueContextSeamsTest(unittest.TestCase):
                 watchdog_rescue_knowledge_root=Path(temp_dir) / 'knowledge',
                 watchdog_rescue_editable_paths=(str(Path(temp_dir) / 'openclaw.json'),),
                 watchdog_rescue_editable_keys=('channels.qqbot.enabled',),
-                watchdog_rescue_executor_priority=('rule-agent',),
                 watchdog_litellm_enabled=False,
                 watchdog_litellm_model='',
                 watchdog_survival_stable_ready_runs=2,
@@ -858,18 +857,22 @@ class WatchdogEngineRescueContextSeamsTest(unittest.TestCase):
                 encoding='utf-8',
             )
 
-            context = rescue_context_builder.build_rescue_context(
-                engine,
-                {
-                    'config_invalid': True,
-                    'process_layer_healthy': True,
-                    'service_layer_healthy': True,
-                    'minimal_usable_ready': False,
-                    'conversation_ready': False,
-                    'conversation_status': 'down',
-                    'service_active': True,
-                }
-            )
+            with patch(
+                'openclaw_watchdog.executor_registry.executor_available',
+                side_effect=lambda config, name, which=None: name == 'rule-agent',
+            ):
+                context = rescue_context_builder.build_rescue_context(
+                    engine,
+                    {
+                        'config_invalid': True,
+                        'process_layer_healthy': True,
+                        'service_layer_healthy': True,
+                        'minimal_usable_ready': False,
+                        'conversation_ready': False,
+                        'conversation_status': 'down',
+                        'service_active': True,
+                    }
+                )
 
         self.assertEqual(context.metadata['failure_signature'], 'config-invalid')
         self.assertEqual(context.metadata['normalized_failure_signature'], 'config-invalid')
@@ -879,6 +882,34 @@ class WatchdogEngineRescueContextSeamsTest(unittest.TestCase):
         self.assertEqual(context.editable_paths, (str(Path(temp_dir) / 'openclaw.json'),))
         self.assertEqual(context.editable_keys, ('channels.qqbot.enabled',))
         self.assertTrue(context.incident_id)
+
+    def test_build_rescue_context_ignores_legacy_executor_priority_override(self) -> None:
+        import tempfile
+
+        from openclaw_watchdog import rescue_context_builder
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            engine = self._build_engine(temp_dir)
+            engine.config.watchdog_rescue_executor_priority = ('rule-agent', 'opencode', 'codex')
+
+            with patch(
+                'openclaw_watchdog.executor_registry.executor_available',
+                side_effect=lambda config, name, which=None: name in {'codex', 'opencode', 'rule-agent'},
+            ):
+                context = rescue_context_builder.build_rescue_context(
+                    engine,
+                    {
+                        'config_invalid': False,
+                        'process_layer_healthy': False,
+                        'service_layer_healthy': False,
+                        'minimal_usable_ready': False,
+                        'conversation_ready': False,
+                        'conversation_status': 'down',
+                        'service_active': False,
+                    },
+                )
+
+        self.assertEqual(context.available_executors, ('codex', 'opencode', 'rule-agent'))
 
 
 if __name__ == '__main__':

@@ -7,16 +7,24 @@ from openclaw_watchdog.engine import WatchdogEngine
 
 class ExecutorRegistryTest(unittest.TestCase):
     def test_configured_priority_defaults_to_canonical_order(self) -> None:
-        config = SimpleNamespace(watchdog_rescue_executor_priority=())
+        config = SimpleNamespace()
 
         self.assertEqual(
             executor_registry.configured_priority(config),
             ('codex', 'claude-code', 'gemini-cli', 'opencode', 'litellm', 'rule-agent'),
         )
 
-    def test_available_executors_follows_priority_and_registry_rules(self) -> None:
+    def test_configured_priority_ignores_legacy_override_values(self) -> None:
+        config = SimpleNamespace(watchdog_rescue_executor_priority=('rule-agent', 'litellm', 'codex'))
+
+        self.assertEqual(
+            executor_registry.configured_priority(config),
+            ('codex', 'claude-code', 'gemini-cli', 'opencode', 'litellm', 'rule-agent'),
+        )
+
+    def test_available_executors_keeps_canonical_order_even_when_legacy_override_is_present(self) -> None:
         config = SimpleNamespace(
-            watchdog_rescue_executor_priority=('codex', 'opencode', 'litellm', 'rule-agent'),
+            watchdog_rescue_executor_priority=('rule-agent', 'litellm', 'opencode', 'codex'),
             watchdog_codex_bin='custom-codex',
             watchdog_opencode_bin='custom-open',
             watchdog_litellm_enabled=True,

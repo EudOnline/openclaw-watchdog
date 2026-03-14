@@ -155,7 +155,6 @@ class Config:
     watchdog_opencode_bin: str
     watchdog_opencode_workdir: Path
     watchdog_opencode_timeout_seconds: int
-    watchdog_rescue_executor_priority: tuple[str, ...]
     watchdog_litellm_enabled: bool
     watchdog_litellm_model: str
     watchdog_litellm_api_base: str
@@ -275,11 +274,6 @@ class Config:
             watchdog_opencode_bin=_env(raw, "WATCHDOG_OPENCODE_BIN", "opencode"),
             watchdog_opencode_workdir=_env_path(raw, "WATCHDOG_OPENCODE_WORKDIR", "~"),
             watchdog_opencode_timeout_seconds=_env_int(raw, "WATCHDOG_OPENCODE_TIMEOUT_SECONDS", 1800),
-            watchdog_rescue_executor_priority=_env_csv(
-                raw,
-                "WATCHDOG_RESCUE_EXECUTOR_PRIORITY",
-                "codex,claude-code,gemini-cli,opencode,litellm,rule-agent",
-            ),
             watchdog_litellm_enabled=_env_bool(raw, "WATCHDOG_LITELLM_ENABLED", False),
             watchdog_litellm_model=_env(raw, "WATCHDOG_LITELLM_MODEL", "").strip(),
             watchdog_litellm_api_base=_env(raw, "WATCHDOG_LITELLM_API_BASE", "").strip(),
