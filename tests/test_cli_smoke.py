@@ -110,6 +110,122 @@ class CliSmokeTest(unittest.TestCase):
                 self.assertEqual(exit_code, 23)
                 run_command.assert_called_once()
 
+    def test_cli_module_no_longer_defines_text_output_helpers(self) -> None:
+        from openclaw_watchdog import cli
+
+        for name in (
+            '_print_json',
+            '_print_run_once',
+            '_print_check',
+            '_print_status_summary',
+            '_print_report',
+            '_print_metrics',
+            '_print_status',
+            '_print_incidents_list',
+            '_print_incident_detail',
+            '_print_incident_queue',
+            '_print_incident_timeline',
+            '_print_maintenance',
+            '_print_bootstrap',
+        ):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(cli, name))
+
+    def test_cli_dispatch_wires_output_helpers_from_owner_module(self) -> None:
+        from openclaw_watchdog import cli
+        from openclaw_watchdog.cli import main
+
+        cli_output = type(
+            'CliOutputStub',
+            (),
+            {
+                'print_json': object(),
+                'print_bootstrap': object(),
+                'print_run_once': object(),
+                'print_check': object(),
+                'print_status_summary': object(),
+                'print_status': object(),
+                'print_report': object(),
+                'print_metrics': object(),
+                'print_incidents_list': object(),
+                'print_incident_detail': object(),
+                'print_incident_queue': object(),
+                'print_incident_timeline': object(),
+                'print_maintenance': object(),
+            },
+        )()
+
+        cases = [
+            (
+                ['bootstrap', '--json'],
+                'openclaw_watchdog.cli_commands.bootstrap_command.run',
+                {
+                    'json_printer': cli_output.print_json,
+                    'bootstrap_printer': cli_output.print_bootstrap,
+                },
+                False,
+            ),
+            (
+                ['run-once'],
+                'openclaw_watchdog.cli_commands.run_once_command.run',
+                {
+                    'json_printer': cli_output.print_json,
+                    'run_once_printer': cli_output.print_run_once,
+                    'check_printer': cli_output.print_check,
+                },
+                True,
+            ),
+            (
+                ['status'],
+                'openclaw_watchdog.cli_commands.status_command.run',
+                {
+                    'json_printer': cli_output.print_json,
+                    'summary_printer': cli_output.print_status_summary,
+                    'status_printer': cli_output.print_status,
+                },
+                True,
+            ),
+            (
+                ['incidents', 'queue'],
+                'openclaw_watchdog.cli_commands.incidents_command.run',
+                {
+                    'json_printer': cli_output.print_json,
+                    'incidents_list_printer': cli_output.print_incidents_list,
+                    'incident_detail_printer': cli_output.print_incident_detail,
+                    'incident_queue_printer': cli_output.print_incident_queue,
+                    'incident_timeline_printer': cli_output.print_incident_timeline,
+                },
+                True,
+            ),
+            (
+                ['maintenance', 'status'],
+                'openclaw_watchdog.cli_commands.maintenance_command.run',
+                {
+                    'json_printer': cli_output.print_json,
+                    'maintenance_printer': cli_output.print_maintenance,
+                },
+                True,
+            ),
+        ]
+
+        for argv, target, expected_kwargs, uses_engine in cases:
+            with self.subTest(argv=argv):
+                with patch.object(cli, 'cli_output', cli_output, create=True):
+                    with patch('openclaw_watchdog.cli.Config.load', return_value=object()):
+                        with patch(target, return_value=29) as run_command:
+                            if uses_engine:
+                                with patch('openclaw_watchdog.cli.WatchdogEngine', return_value=_EngineStub()):
+                                    exit_code = main(argv)
+                            else:
+                                with patch('openclaw_watchdog.cli.WatchdogEngine') as engine_type:
+                                    exit_code = main(argv)
+                                    engine_type.assert_not_called()
+
+                self.assertEqual(exit_code, 29)
+                called_kwargs = run_command.call_args.kwargs
+                for key, expected in expected_kwargs.items():
+                    self.assertIs(called_kwargs[key], expected)
+
 
 if __name__ == '__main__':
     unittest.main()

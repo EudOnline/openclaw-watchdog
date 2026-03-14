@@ -299,7 +299,7 @@ class IncidentCutoverTests(unittest.TestCase):
             with patch('openclaw_watchdog.cli.WatchdogEngine', return_value=FakeEngine()):
                 with patch('openclaw_watchdog.cli.incident_ops.current_incident_payload', return_value={'incident_id': 'incident-1'}) as current_mock:
                     with patch('openclaw_watchdog.cli.incident_ops.set_incident_owner', return_value={'incident_id': 'incident-1', 'owner': 'alice'}) as assign_mock:
-                        with patch('openclaw_watchdog.cli._print_json', side_effect=lambda payload: emitted.append(payload)):
+                        with patch('openclaw_watchdog.cli.cli_output.print_json', side_effect=lambda payload: emitted.append(payload)):
                             current_exit = main(['incidents', 'current', '--json'])
                             assign_exit = main(['incidents', 'assign', 'incident-1', '--owner', 'alice', '--json'])
 
