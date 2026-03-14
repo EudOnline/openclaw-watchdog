@@ -4,12 +4,12 @@ This directory contains older planning and migration material that remains usefu
 
 Contents:
 
-- `MIGRATION-v2.md`: migration notes from the earlier naming and rollout phase
+- `migration-legacy-rollout.md`: migration notes from the earlier naming and rollout phase
 - `watchdog-next-phase-survivability-plan.md`: historical implementation planning document
 
 For current usage, start with:
 
 - `../README.md`
-- `../compatibility-and-deprecations.md`
+- `../history/migration-legacy-rollout.md`
 - `../live-acceptance-checklist.md`
 - `../live-samples.md`

@@ -5,13 +5,13 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](pyproject.toml)
 [![CI](https://github.com/EudOnline/openclaw-watchdog/actions/workflows/ci.yml/badge.svg)](https://github.com/EudOnline/openclaw-watchdog/actions/workflows/ci.yml)
 
-A production-oriented external watchdog and recovery toolkit for OpenClaw.
+A production-oriented OpenClaw fallback and recovery system.
 
-> This repository publishes the watchdog project as a standalone, sanitized open-source package. Private workspace state, live incidents, memory files, and real credentials are intentionally excluded.
+> This repository publishes the OpenClaw fallback system as a standalone, sanitized open-source package. Private workspace state, live incidents, memory files, and real credentials are intentionally excluded.
 
 ## TL;DR
 
-OpenClaw Watchdog is designed to help operators recover a usable OpenClaw conversation path safely and quickly.
+OpenClaw Watchdog is an OpenClaw fallback system designed to restore a usable conversation path safely and quickly.
 
 It combines:
 
@@ -36,24 +36,24 @@ It combines:
 
 ## Highlights
 
-- **External watchdog loop** for OpenClaw gateway health and remediation
+- **OpenClaw fallback loop** for gateway health and remediation
 - **Layered health model**: process, service probe, and conversation readiness
 - **Incident workflow** with queueing, ownership, acknowledgement, notes, and timelines
 - **Safety rails** for rollback, drift detection, and repair sequencing
-- **Detect-only bootstrap / fallback helpers** for OpenClaw and the prioritized rescue chain
+- **Detect-only bootstrap and rescue inventory** for the prioritized executor chain
 - **Rehearsal scenarios** for testing expected failure and recovery paths
 - **Systemd user units** for unattended timer-based execution on Linux
 
 ## Status
 
-This repository is the standalone public home of **OpenClaw Watchdog**.
+This repository is the standalone public home of the **OpenClaw fallback system**.
 
-The public-facing interface uses the non-`v2` names throughout the repo. The internal Python package name remains `watchdog_v2` because import churn is not worth prioritizing over clear fallback flows, rehearsal coverage, and operator docs.
+The repository now uses one canonical name throughout the public surface and Python implementation: `openclaw_watchdog`.
 
 ## Repository layout
 
 ```text
-watchdog_v2/   Python implementation
+openclaw_watchdog/   Python implementation
 scripts/       CLI wrappers and install helpers
 systemd/       sample user service + timer units
 docs/          current guides, validation docs, and historical notes
@@ -63,14 +63,23 @@ rehearsal/     fixtures, shims, scenarios, and test flows
 
 ## Internal architecture
 
-The codebase is organized around fallback-first seams so recovery logic stays explicit and testable:
+The codebase is organized around OpenClaw fallback seams so recovery logic stays explicit and testable:
 
-- `watchdog_v2/models.py` for typed state models at serialization boundaries
-- `watchdog_v2/presenters/` for human-readable CLI formatting
-- `watchdog_v2/run_context.py` for mutable per-run state
-- `watchdog_v2/flows/` for rescue-first run orchestration
-- `watchdog_v2/bootstrap_steps.py` for ordered bootstrap step execution
-- `watchdog_v2/engine.py` as the runtime facade and dependency hub
+- `openclaw_watchdog/engine_support_runtime.py` for state-dir prep, file locking, logging, notifications, failure counters, and small engine host helpers
+- `openclaw_watchdog/doctor_runtime.py` for `openclaw doctor --non-interactive` execution and config-invalid parsing
+- `openclaw_watchdog/models.py` for typed state models at serialization boundaries
+- `openclaw_watchdog/presenters/` for human-readable CLI formatting
+- `openclaw_watchdog/run_context.py` for mutable per-run state
+- `openclaw_watchdog/flows/` for rescue-first run orchestration
+- `openclaw_watchdog/executor_registry.py` for canonical rescue-chain order, availability checks, and runtime settings
+- `openclaw_watchdog/maintenance_runtime.py` for maintenance mode file toggles and operator-facing state handoff
+- `openclaw_watchdog/last_good_runtime.py` for last-good generations, drift context, and protected-path guard snapshots
+- `openclaw_watchdog/rollback_runtime.py` for rollback summaries, rollback archive pruning, and last-good restore execution
+- `openclaw_watchdog/repair_action_runtime.py` for pre-repair backup, service restart, stray-listener cleanup, and doctor-repair actions
+- `openclaw_watchdog/service_runtime.py` for `systemctl` / `ss` / `ps` based service probing
+- `openclaw_watchdog/bootstrap_steps.py` for ordered bootstrap step execution
+- `openclaw_watchdog/bootstrap_inventory.py` and `openclaw_watchdog/bootstrap_inspectors.py` for read-only bootstrap checks
+- `openclaw_watchdog/engine.py` as the runtime facade and dependency hub
 
 For the fuller package map and validation story, see `docs/internal-architecture.md`.
 
@@ -114,7 +123,7 @@ If the wrapper reports that no compatible interpreter was found, install Python 
 If you are working from a source checkout, you can also invoke the package directly:
 
 ```bash
-python3.11 -m watchdog_v2 --help
+python3.11 -m openclaw_watchdog --help
 ```
 
 ## Configuration
@@ -136,6 +145,13 @@ Important knobs include:
 - editable OpenClaw file/key boundaries for controlled rescue mutation
 
 The example config is intentionally sanitized. Its paths and conservative rollout toggles are now aligned with the built-in defaults so a missing env file does not silently fall back to `/root/...`-style paths or enable aggressive automation. Bootstrap and `detect` inventory available rescue executors, but they do not install missing tools for you. OpenClaw and any external rescue CLI must already be installed on the host you operate.
+
+The controlled mutation surface is intentionally narrow:
+
+- rescue config writes are limited to an explicit file allowlist
+- by default that allowlist contains only `~/.openclaw/openclaw.json` and `~/.openclaw-backup/watchdog/openclaw.survival.json`
+- editable keys use exact-or-descendant dotted-path matching, so allowing `channels` also allows `channels.qqbot.enabled`
+- rescue plans that exceed those file/key bounds are rejected during dispatch before execution, and execution re-checks the same policy before writing
 
 ## Common commands
 
@@ -201,11 +217,11 @@ Start with:
 - `docs/supported-environments.md`
 - `docs/roadmap.md`
 - `docs/faq.md`
-- `docs/history/MIGRATION-v2.md` (historical migration notes)
+- `docs/history/migration-legacy-rollout.md` (historical rollout notes)
 
 ## Design notes
 
-The watchdog is designed around a few principles:
+The fallback system is designed around a few principles:
 
 1. **Repair only after evidence collection**
 2. **Prefer reversible changes**
@@ -218,12 +234,8 @@ The watchdog is designed around a few principles:
 - Canonical CLI wrapper: `scripts/openclaw-watchdog`
 - Canonical env example: `config/openclaw-watchdog.env.example`
 - Canonical systemd units: `systemd/openclaw-watchdog.service` and `systemd/openclaw-watchdog.timer`
-- Internal Python package name remains `watchdog_v2` for implementation stability
-- Legacy shim scripts remain only as migration aids and are not part of the primary fallback path:
-  - `scripts/openclaw-watchdog-v2`
-  - `scripts/install-openclaw-watchdog-v2-units.sh`
-  - `scripts/openclaw-watchdog-v2-live-acceptance.sh`
-- Historical migration notes remain in `docs/history/MIGRATION-v2.md`
+- Internal Python package name remains `openclaw_watchdog` for implementation stability
+- Historical migration notes remain in `docs/history/migration-legacy-rollout.md`
 
 ## Security
 

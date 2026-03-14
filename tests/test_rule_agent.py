@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from watchdog_v2.rescue_models import RescueContext
+from openclaw_watchdog.rescue_models import RescueContext
 
 
 class RuleAgentTests(unittest.TestCase):
@@ -27,8 +27,8 @@ class RuleAgentTests(unittest.TestCase):
                 encoding='utf-8',
             )
 
-            from watchdog_v2.rescue_agents.rule_agent import RuleBasedRescueAgent
-            from watchdog_v2.learning import LearningStore
+            from openclaw_watchdog.rescue_agents.rule_agent import RuleBasedRescueAgent
+            from openclaw_watchdog.learning import LearningStore
 
             agent = RuleBasedRescueAgent(rule_store=LearningStore(root=root))
             plan = agent.propose_plan(
@@ -56,8 +56,8 @@ class RuleAgentTests(unittest.TestCase):
                 encoding='utf-8',
             )
 
-            from watchdog_v2.rescue_agents.rule_agent import RuleBasedRescueAgent
-            from watchdog_v2.learning import LearningStore
+            from openclaw_watchdog.rescue_agents.rule_agent import RuleBasedRescueAgent
+            from openclaw_watchdog.learning import LearningStore
 
             store = LearningStore(root=root)
             store.record_case(
@@ -87,8 +87,8 @@ class RuleAgentTests(unittest.TestCase):
 
     def test_uses_process_down_heuristic_when_no_promoted_rule_matches(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            from watchdog_v2.rescue_agents.rule_agent import RuleBasedRescueAgent
-            from watchdog_v2.learning import LearningStore
+            from openclaw_watchdog.rescue_agents.rule_agent import RuleBasedRescueAgent
+            from openclaw_watchdog.learning import LearningStore
 
             agent = RuleBasedRescueAgent(rule_store=LearningStore(root=Path(temp_dir)))
             plan = agent.propose_plan(
@@ -126,8 +126,8 @@ class RuleAgentTests(unittest.TestCase):
                 encoding='utf-8',
             )
 
-            from watchdog_v2.rescue_agents.rule_agent import RuleBasedRescueAgent
-            from watchdog_v2.learning import LearningStore
+            from openclaw_watchdog.rescue_agents.rule_agent import RuleBasedRescueAgent
+            from openclaw_watchdog.learning import LearningStore
 
             agent = RuleBasedRescueAgent(rule_store=LearningStore(root=root))
             plan = agent.propose_plan(
@@ -145,6 +145,46 @@ class RuleAgentTests(unittest.TestCase):
             self.assertEqual(plan.actions[0].kind, 'restart_service')
             self.assertIn('heuristic', plan.rationale)
             self.assertNotEqual(plan.plan_id, 'suppressed-process')
+
+    def test_rule_agent_skips_low_confidence_rule_and_falls_back_to_static_heuristic(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            rules_dir = root / 'rules'
+            rules_dir.mkdir(parents=True, exist_ok=True)
+            (rules_dir / 'low-confidence-process.json').write_text(
+                json.dumps(
+                    {
+                        'rule_id': 'low-confidence-process',
+                        'match': {'normalized_failure_signature': 'process-down'},
+                        'diagnosis': 'restart service',
+                        'actions': [{'kind': 'restart_service', 'params': {}}],
+                        'validations': ['minimal_usable_ready'],
+                        'confidence': 'low',
+                        'evidence_count': 1,
+                    }
+                ),
+                encoding='utf-8',
+            )
+
+            from openclaw_watchdog.rescue_agents.rule_agent import RuleBasedRescueAgent
+            from openclaw_watchdog.learning import LearningStore
+
+            agent = RuleBasedRescueAgent(rule_store=LearningStore(root=root))
+            plan = agent.propose_plan(
+                RescueContext(
+                    incident_id='incident-low-confidence',
+                    health_level='failed',
+                    metadata={
+                        'failure_signature': 'watchdog-reported-timeout',
+                        'process_layer_healthy': False,
+                        'service_active': False,
+                    },
+                )
+            )
+
+            self.assertEqual(plan.actions[0].kind, 'restart_service')
+            self.assertIn('heuristic', plan.rationale)
+            self.assertNotEqual(plan.plan_id, 'low-confidence-process')
 
     def test_uses_recent_case_evidence_in_rationale(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -164,8 +204,8 @@ class RuleAgentTests(unittest.TestCase):
                 encoding='utf-8',
             )
 
-            from watchdog_v2.rescue_agents.rule_agent import RuleBasedRescueAgent
-            from watchdog_v2.learning import LearningStore
+            from openclaw_watchdog.rescue_agents.rule_agent import RuleBasedRescueAgent
+            from openclaw_watchdog.learning import LearningStore
 
             store = LearningStore(root=root)
             store.record_case(

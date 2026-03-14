@@ -1,10 +1,10 @@
 # First deployment
 
-This guide is for the first safe rollout on a host that already has OpenClaw installed.
+This guide is for the first safe rollout of the OpenClaw fallback system on a host that already has OpenClaw installed.
 
 ## Goal
 
-Move from source checkout to a validated watchdog deployment without immediately enabling aggressive repair behavior.
+Move from source checkout to a validated fallback deployment without immediately enabling aggressive repair behavior.
 
 ## Minimum safe rollout
 
@@ -35,7 +35,7 @@ Keep these values off for the first live deployment:
 scripts/openclaw-watchdog detect
 ```
 
-This command is **detect-only**. It does not enable repair actions or mutate the live deployment.
+This command is **detect-only**. It does not enable repair actions or mutate the live deployment, and it does not install missing rescue tools.
 
 It inspects the current host and reports:
 
@@ -56,6 +56,19 @@ scripts/openclaw-watchdog detect \
 
 Review the generated file before merging any values into your main config.
 
+The live rescue order remains fixed:
+
+- `codex`
+- `claude-code`
+- `gemini-cli`
+- `opencode`
+- `litellm`
+- `rule-agent`
+
+If one tier is missing or unavailable, the fallback system skips it and continues. The deployment path does not auto-install any of these tools.
+
+Canonical rescue chain: `codex -> claude-code -> gemini-cli -> opencode -> litellm -> rule-agent`.
+
 ### 5. Review the main env file
 
 **Required before first live run**
@@ -73,6 +86,8 @@ Review the generated file before merging any values into your main config.
 - `WATCHDOG_LAST_METRICS_FILE`
 - `WATCHDOG_NOTIFY_CHANNEL`
 - `WATCHDOG_NOTIFY_TARGET`
+- `WATCHDOG_RESCUE_EDITABLE_PATHS`
+- `WATCHDOG_RESCUE_EDITABLE_KEYS`
 
 **Leave conservative on the first rollout**
 
@@ -93,6 +108,8 @@ Review the output and confirm that:
 - the configured gateway service and config path are correct;
 - the state and incident directories are writable;
 - the reported conversation targets match what you intend to recover;
+- the rescue order and available executors match the tools already installed on the host;
+- the editable path/key boundary only covers the OpenClaw files and namespaces you are willing to let rescue mutate;
 - the summary/report output is understandable enough for an operator to act on.
 
 ### 7. Enable systemd user units only after review
@@ -117,5 +134,6 @@ If you want the full recovery sequence in one place before enabling live automat
 
 
 - `detect` is meant to reduce first-run guesswork, not to silently auto-configure a production host.
+- the deployment path does not install missing rescue tools; install and verify each desired executor yourself before relying on that tier.
 - If the wrapper reports that no compatible interpreter was found, install Python 3.11+ before proceeding.
 - Only enable more aggressive automation after the conservative path above looks correct on the real host.

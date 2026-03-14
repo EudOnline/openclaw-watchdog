@@ -6,7 +6,7 @@ from unittest.mock import patch
 class CliSmokeTest(unittest.TestCase):
     @staticmethod
     def _build_parser():
-        from watchdog_v2.cli import build_parser
+        from openclaw_watchdog.cli import build_parser
 
         return build_parser()
 
@@ -55,7 +55,7 @@ class CliSmokeTest(unittest.TestCase):
                 'maintenance',
             }.issubset(subparsers_action.choices)
         )
-        self.assertIn('provision', subparsers_action.choices)
+        self.assertNotIn('provision', subparsers_action.choices)
 
     def test_bootstrap_parser_rejects_legacy_install_flag(self) -> None:
         parser = self._build_parser()
@@ -63,22 +63,22 @@ class CliSmokeTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parser.parse_args(['bootstrap', '--install-openclaw'])
 
-    def test_provision_alias_dispatches_bootstrap_flow(self) -> None:
-        from watchdog_v2.cli import main
+    def test_bootstrap_dispatches_bootstrap_flow_without_legacy_aliases(self) -> None:
+        from openclaw_watchdog.cli import main
 
         config = object()
-        outcome = type('BootstrapOutcomeStub', (), {'exit_code': 17, 'payload': {'state': 'dry-run'}})()
-        with patch('watchdog_v2.cli.Config.load', return_value=config) as config_load:
-            with patch('watchdog_v2.cli.Bootstrapper') as bootstrapper:
-                with patch('watchdog_v2.cli.WatchdogEngine') as engine_type:
-                    with patch('watchdog_v2.cli._print_json'):
+        outcome = type('BootstrapOutcomeStub', (), {'exit_code': 17, 'payload': {'state': 'attention'}})()
+        with patch('openclaw_watchdog.cli.Config.load', return_value=config) as config_load:
+            with patch('openclaw_watchdog.cli.Bootstrapper') as bootstrapper:
+                with patch('openclaw_watchdog.cli.WatchdogEngine') as engine_type:
+                    with patch('openclaw_watchdog.cli._print_json'):
                         bootstrapper.return_value.run.return_value = outcome
 
-                        exit_code = main(['provision', '--dry-run', '--json'])
+                        exit_code = main(['bootstrap', '--json'])
 
         self.assertEqual(exit_code, 17)
         config_load.assert_called_once()
-        bootstrapper.assert_called_once_with(config, dry_run=True)
+        bootstrapper.assert_called_once_with(config)
         bootstrapper.return_value.run.assert_called_once_with()
         engine_type.assert_not_called()
 

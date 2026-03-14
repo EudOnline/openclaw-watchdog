@@ -22,7 +22,7 @@ Good contributions include:
 
 ## Development tips
 
-- Main implementation: `watchdog_v2/`
+- Main implementation: `openclaw_watchdog/`
 - CLI wrapper: `scripts/openclaw-watchdog`
 - Rehearsal harness: `rehearsal/`
 - Sample units: `systemd/`
@@ -43,7 +43,7 @@ At minimum, contributors should run targeted checks relevant to their change. Th
 ```bash
 ./scripts/openclaw-watchdog --help
 python3 -m unittest discover -s tests -v
-python3 -m py_compile watchdog_v2/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py
+python3 -m py_compile openclaw_watchdog/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py
 ```
 
 If your change touches incident logic, rehearsal flows, or reporting, also run the corresponding rehearsal scripts. If you change report or metrics output, review `docs/reporting-contract.md` and update `docs/live-acceptance-checklist.md` when the operator-facing contract changes. If you change compatibility assumptions, update `docs/supported-environments.md`, `README.md`, and `CHANGELOG.md` in the same PR.

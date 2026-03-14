@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from watchdog_v2.rescue_models import RescueContext
-from watchdog_v2.runtime import CommandResult
+from openclaw_watchdog.rescue_models import RescueContext
+from openclaw_watchdog.runtime import CommandResult
 
 
 class FakeRunner:
@@ -19,7 +19,7 @@ class FakeRunner:
 
 class CliRescueAdaptersTest(unittest.TestCase):
     def test_codex_adapter_parses_structured_plan_from_stdout(self) -> None:
-        from watchdog_v2.rescue_agents.codex_adapter import CodexAdapter
+        from openclaw_watchdog.rescue_agents.codex_adapter import CodexAdapter
 
         runner = FakeRunner(
             CommandResult(
@@ -38,7 +38,7 @@ class CliRescueAdaptersTest(unittest.TestCase):
         self.assertEqual(runner.calls[0][0][:2], ['codex', 'exec'])
 
     def test_claude_code_adapter_unwraps_nested_response_json(self) -> None:
-        from watchdog_v2.rescue_agents.claude_code_adapter import ClaudeCodeAdapter
+        from openclaw_watchdog.rescue_agents.claude_code_adapter import ClaudeCodeAdapter
 
         runner = FakeRunner(
             CommandResult(
@@ -57,7 +57,7 @@ class CliRescueAdaptersTest(unittest.TestCase):
         self.assertEqual(runner.calls[0][0][:2], ['claude', '-p'])
 
     def test_gemini_adapter_rejects_freeform_shell_payload(self) -> None:
-        from watchdog_v2.rescue_agents.gemini_cli_adapter import GeminiCliAdapter
+        from openclaw_watchdog.rescue_agents.gemini_cli_adapter import GeminiCliAdapter
 
         runner = FakeRunner(
             CommandResult(
@@ -75,7 +75,7 @@ class CliRescueAdaptersTest(unittest.TestCase):
         self.assertEqual(runner.calls[0][0][:2], ['gemini', '-p'])
 
     def test_opencode_adapter_returns_none_for_empty_actions(self) -> None:
-        from watchdog_v2.rescue_agents.opencode_adapter import OpenCodeAdapter
+        from openclaw_watchdog.rescue_agents.opencode_adapter import OpenCodeAdapter
 
         runner = FakeRunner(
             CommandResult(

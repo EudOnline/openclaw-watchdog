@@ -21,8 +21,8 @@ resolve_python() {
 
 if ! PYTHON_BIN="$(resolve_python)"; then
   echo "openclaw-watchdog requires Python 3.11+." >&2
-  echo "Install Python 3.11+ or invoke the module with a compatible interpreter, for example: python3.11 -m watchdog_v2 --help" >&2
+  echo "Install Python 3.11+ or invoke the module with a compatible interpreter, for example: python3.11 -m openclaw_watchdog --help" >&2
   exit 1
 fi
 
-exec "$PYTHON_BIN" -m watchdog_v2 "$@"
+exec "$PYTHON_BIN" -m openclaw_watchdog "$@"

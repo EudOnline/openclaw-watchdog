@@ -13,11 +13,11 @@
 ### Task 1: Remove bootstrap auto-install surface
 
 **Files:**
-- Modify: `watchdog_v2/cli.py`
-- Modify: `watchdog_v2/bootstrap.py`
-- Modify: `watchdog_v2/bootstrap_steps.py`
-- Modify: `watchdog_v2/config.py`
-- Modify: `watchdog_v2/detect.py`
+- Modify: `openclaw_watchdog/cli.py`
+- Modify: `openclaw_watchdog/bootstrap.py`
+- Modify: `openclaw_watchdog/bootstrap_steps.py`
+- Modify: `openclaw_watchdog/config.py`
+- Modify: `openclaw_watchdog/detect.py`
 - Modify: `tests/test_cli_smoke.py`
 - Modify: `tests/test_bootstrap_steps.py`
 - Modify: `tests/test_config.py`
@@ -35,16 +35,16 @@
 ### Task 2: Remove legacy Codex/OpenCode handoff side path
 
 **Files:**
-- Modify: `watchdog_v2/run_context.py`
-- Modify: `watchdog_v2/engine.py`
-- Modify: `watchdog_v2/events.py`
-- Modify: `watchdog_v2/incidents.py`
-- Modify: `watchdog_v2/incident_context.py`
+- Modify: `openclaw_watchdog/run_context.py`
+- Modify: `openclaw_watchdog/engine.py`
+- Modify: `openclaw_watchdog/events.py`
+- Modify: `openclaw_watchdog/incidents.py`
+- Modify: `openclaw_watchdog/incident_context.py`
 - Modify: `tests/test_events.py`
 - Modify: `tests/test_incident_context.py`
 - Modify: `tests/test_cli_json_contract.py`
 - Modify: `tests/test_reporting.py`
-- Delete or simplify: `watchdog_v2/handoff.py`
+- Delete or simplify: `openclaw_watchdog/handoff.py`
 
 **Steps:**
 1. Write failing tests asserting runtime/event/incident payloads no longer expose codex autorun or opencode fallback handoff fields.
@@ -55,9 +55,9 @@
 ### Task 3: Tighten rescue plan contract to executable actions only
 
 **Files:**
-- Modify: `watchdog_v2/rescue_models.py`
-- Modify: `watchdog_v2/rescue_actions.py`
-- Modify: `watchdog_v2/rescue_agents/base.py`
+- Modify: `openclaw_watchdog/rescue_models.py`
+- Modify: `openclaw_watchdog/rescue_actions.py`
+- Modify: `openclaw_watchdog/rescue_agents/base.py`
 - Modify: `tests/test_rescue_models.py`
 - Modify: `tests/test_rescue_actions.py`
 - Modify: `tests/test_cli_rescue_adapters.py`
@@ -71,10 +71,10 @@
 ### Task 4: Introduce OpenClaw rescue policy and richer specialist context
 
 **Files:**
-- Create: `watchdog_v2/rescue_policy.py`
-- Modify: `watchdog_v2/engine.py`
-- Modify: `watchdog_v2/rescue_agents/litellm_agent.py`
-- Modify: `watchdog_v2/rescue_agents/rule_agent.py`
+- Create: `openclaw_watchdog/rescue_policy.py`
+- Modify: `openclaw_watchdog/engine.py`
+- Modify: `openclaw_watchdog/rescue_agents/litellm_agent.py`
+- Modify: `openclaw_watchdog/rescue_agents/rule_agent.py`
 - Modify: `tests/test_litellm_agent.py`
 - Modify: `tests/test_rule_agent.py`
 
@@ -87,9 +87,9 @@
 ### Task 5: Expand learning to all successful recovery outcomes
 
 **Files:**
-- Modify: `watchdog_v2/flows/rescue_run.py`
-- Modify: `watchdog_v2/engine.py`
-- Modify: `watchdog_v2/learning.py`
+- Modify: `openclaw_watchdog/flows/rescue_run.py`
+- Modify: `openclaw_watchdog/engine.py`
+- Modify: `openclaw_watchdog/learning.py`
 - Modify: `tests/test_learning.py`
 - Modify: `tests/test_rescue_flow.py`
 
@@ -102,9 +102,9 @@
 ### Task 6: Strengthen reporting and docs around the unified rescue chain
 
 **Files:**
-- Modify: `watchdog_v2/reporting.py`
-- Modify: `watchdog_v2/presenters/status.py`
-- Modify: `watchdog_v2/presenters/report.py`
+- Modify: `openclaw_watchdog/reporting.py`
+- Modify: `openclaw_watchdog/presenters/status.py`
+- Modify: `openclaw_watchdog/presenters/report.py`
 - Modify: `tests/test_cli_presenters.py`
 - Modify: `tests/test_reporting.py`
 - Modify: `docs/internal-architecture.md`

@@ -1,6 +1,6 @@
 import unittest
 
-from watchdog_v2.events import build_event_payload, event_human_summary, event_severity
+from openclaw_watchdog.events import build_event_payload, event_human_summary, event_severity
 
 
 class EventsTest(unittest.TestCase):

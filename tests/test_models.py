@@ -1,6 +1,6 @@
 import unittest
 
-from watchdog_v2.models import BootstrapSummary, IncidentSummary, ProbeSnapshot, RunStateSnapshot
+from openclaw_watchdog.models import BootstrapSummary, IncidentSummary, ProbeSnapshot, RunStateSnapshot
 
 
 class ModelsTest(unittest.TestCase):
@@ -51,11 +51,11 @@ class ModelsTest(unittest.TestCase):
             summary.get('owner')
 
     def test_bootstrap_summary_builds_serializable_default_payload(self) -> None:
-        summary = BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=True)
+        summary = BootstrapSummary.initial(config_path='state/openclaw.json')
         payload = summary.to_dict()
 
         self.assertEqual(payload['state'], 'unknown')
-        self.assertTrue(payload['dry_run'])
+        self.assertNotIn('dry_run', payload)
         self.assertEqual(payload['config']['path'], 'state/openclaw.json')
         self.assertIn('detect-opencode', payload['flow'])
         self.assertEqual(BootstrapSummary.from_dict(payload).to_dict(), payload)

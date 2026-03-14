@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from watchdog_v2.runtime import run_capture_to_file, run_command
+from openclaw_watchdog.runtime import run_capture_to_file, run_command
 
 
 class RuntimeHelpersTest(unittest.TestCase):

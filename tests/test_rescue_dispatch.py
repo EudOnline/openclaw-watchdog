@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
-from watchdog_v2.rescue_models import RescueAction, RescueContext, RescuePlan
+from openclaw_watchdog.rescue_models import RescueAction, RescueContext, RescuePlan
 
 
 class StubAdapter:
@@ -20,7 +21,7 @@ class StubAdapter:
 
 class RescueDispatchTests(unittest.TestCase):
     def test_dispatch_tries_executors_in_priority_order(self) -> None:
-        from watchdog_v2.rescue_dispatch import RescueDispatcher
+        from openclaw_watchdog.rescue_dispatch import RescueDispatcher
 
         context = RescueContext(incident_id='incident-1', available_executors=('codex', 'gemini-cli', 'rule-agent'))
         dispatcher = RescueDispatcher(
@@ -47,7 +48,7 @@ class RescueDispatchTests(unittest.TestCase):
         self.assertEqual(attempt.final_executor, 'rule-agent')
 
     def test_dispatch_skips_unavailable_tools_without_install(self) -> None:
-        from watchdog_v2.rescue_dispatch import RescueDispatcher
+        from openclaw_watchdog.rescue_dispatch import RescueDispatcher
 
         context = RescueContext(incident_id='incident-2', available_executors=('rule-agent',))
         dispatcher = RescueDispatcher(
@@ -74,6 +75,58 @@ class RescueDispatchTests(unittest.TestCase):
 
         self.assertEqual(attempt.final_executor, 'rule-agent')
         self.assertFalse(attempt.installed_anything)
+
+    def test_dispatch_rejects_unsafe_config_mutation_plan_and_falls_through(self) -> None:
+        from openclaw_watchdog.rescue_dispatch import RescueDispatcher
+
+        allowed_file = Path('~/.openclaw/openclaw.json').expanduser()
+        context = RescueContext(
+            incident_id='incident-3',
+            available_executors=('litellm', 'rule-agent'),
+            editable_paths=(str(allowed_file),),
+            editable_keys=('channels',),
+        )
+        dispatcher = RescueDispatcher(
+            adapters=[
+                StubAdapter(
+                    'litellm',
+                    available=True,
+                    plan=RescuePlan(
+                        plan_id='plan-unsafe',
+                        diagnosis='mutate disallowed namespace',
+                        actions=[
+                            RescueAction(
+                                kind='update_openclaw_config',
+                                params={
+                                    'file': str(allowed_file),
+                                    'path': 'secrets.api_key',
+                                    'value': 'nope',
+                                },
+                            )
+                        ],
+                        validations=['minimal_usable_ready'],
+                    ),
+                ),
+                StubAdapter(
+                    'rule-agent',
+                    available=True,
+                    plan=RescuePlan(
+                        plan_id='plan-safe',
+                        diagnosis='restart locally',
+                        actions=[RescueAction(kind='restart_service', params={})],
+                        validations=['minimal_usable_ready'],
+                    ),
+                ),
+            ]
+        )
+
+        attempt = dispatcher.dispatch(context)
+
+        self.assertEqual(attempt.final_executor, 'rule-agent')
+        self.assertEqual(attempt.plan.plan_id, 'plan-safe')
+        self.assertEqual(attempt.attempts[0].executor, 'litellm')
+        self.assertEqual(attempt.attempts[0].status, 'unsafe-plan')
+        self.assertIn('secrets.api_key', attempt.attempts[0].error)
 
 
 if __name__ == '__main__':

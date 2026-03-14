@@ -5,9 +5,9 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 
-from watchdog_v2.engine import WatchdogEngine
-from watchdog_v2.run_context import RunContext
-from watchdog_v2 import survival as survival_ops
+from openclaw_watchdog.engine import WatchdogEngine
+from openclaw_watchdog.run_context import RunContext
+from openclaw_watchdog import survival as survival_ops
 
 
 class RunContextTest(unittest.TestCase):
@@ -40,7 +40,7 @@ class RunContextTest(unittest.TestCase):
 
 
     def test_run_state_service_round_trips_learning_and_attempt_fields(self) -> None:
-        from watchdog_v2 import run_state_service
+        from openclaw_watchdog import run_state_service
 
         with tempfile.TemporaryDirectory() as temp_dir:
             run_state_file = Path(temp_dir) / 'run-state.json'
@@ -110,6 +110,8 @@ class RunContextTest(unittest.TestCase):
 
 
     def test_write_probe_run_state_keeps_health_and_conversation_projection(self) -> None:
+        from openclaw_watchdog import probe_run_state
+
         engine = WatchdogEngine.__new__(WatchdogEngine)
         with tempfile.TemporaryDirectory() as temp_dir:
             object.__setattr__(
@@ -125,7 +127,8 @@ class RunContextTest(unittest.TestCase):
             object.__setattr__(engine, 'ctx', RunContext.initial(stable_required_runs=2))
             object.__setattr__(engine, 'run_state_file', Path(temp_dir) / 'run-state.json')
 
-            health_level = engine._write_probe_run_state(
+            health_level = probe_run_state.write_probe_run_state(
+                engine,
                 {
                     'process_layer_healthy': True,
                     'service_layer_healthy': True,
@@ -151,20 +154,24 @@ class RunContextTest(unittest.TestCase):
         self.assertFalse(run_state['conversation_ready'])
 
     def test_service_probe_failure_counter_only_increments_for_service_layer_regressions(self) -> None:
+        from openclaw_watchdog import probe_run_state
+
         engine = WatchdogEngine.__new__(WatchdogEngine)
         object.__setattr__(engine, 'config', SimpleNamespace(watchdog_enable_service_level_probe=True))
 
         self.assertEqual(
-            engine._service_probe_failures_for(
+            probe_run_state.service_probe_failures_for(
+                engine.config,
                 {'process_layer_healthy': True, 'service_layer_healthy': False},
-                previous_failures=1,
+                1,
             ),
             2,
         )
         self.assertEqual(
-            engine._service_probe_failures_for(
+            probe_run_state.service_probe_failures_for(
+                engine.config,
                 {'process_layer_healthy': False, 'service_layer_healthy': False},
-                previous_failures=3,
+                3,
             ),
             0,
         )

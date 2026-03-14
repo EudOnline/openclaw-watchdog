@@ -1,6 +1,6 @@
 # Roadmap
 
-This roadmap now assumes the current internal seams are in place: typed models, presenters, a single rescue-first flow, a run context, a white-listed rescue action boundary, and a step-based bootstrap pipeline. Future work should build on those seams instead of collapsing logic back into `watchdog_v2/engine.py` or `watchdog_v2/cli.py`.
+This roadmap now assumes the current internal seams are in place: typed models, presenters, a single OpenClaw rescue chain, a run context, a white-listed rescue action boundary, and a step-based bootstrap pipeline. Future work should build on those seams instead of collapsing logic back into `openclaw_watchdog/engine.py` or `openclaw_watchdog/cli.py`.
 
 ## Near-term follow-up
 
@@ -21,6 +21,6 @@ Every substantial change should keep these layers green:
 
 ## Non-goals for now
 
-- renaming the internal `watchdog_v2` package
+- renaming the internal `openclaw_watchdog` package
 - introducing a framework or dependency injection container
-- turning the watchdog into a hosted incident-management product
+- turning the OpenClaw fallback system into a general SaaS incident platform

@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from watchdog_v2.state_store import append_event_history, read_event_history, read_run_state, sibling_json_path, write_run_state
+from openclaw_watchdog.state_store import append_event_history, read_event_history, read_run_state, sibling_json_path, write_run_state
 
 
 class StateStoreTest(unittest.TestCase):

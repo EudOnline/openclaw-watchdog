@@ -32,14 +32,13 @@ Repository = "https://github.com/EudOnline/openclaw-watchdog"
 Issues = "https://github.com/EudOnline/openclaw-watchdog/issues"
 
 [project.scripts]
-openclaw-watchdog = "watchdog_v2.cli:main"
-openclaw-watchdog-v2 = "watchdog_v2.cli:main"
+openclaw-watchdog = "openclaw_watchdog.cli:main"
 
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["watchdog_v2*", "rehearsal*"]
+include = ["openclaw_watchdog*", "rehearsal*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

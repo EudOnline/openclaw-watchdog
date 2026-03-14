@@ -4,9 +4,10 @@ import io
 import json
 import unittest
 from contextlib import redirect_stdout
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
-from watchdog_v2.cli import main
+from openclaw_watchdog.cli import main
 
 
 class _FakeEngine:
@@ -143,10 +144,13 @@ class CliJsonContractTest(unittest.TestCase):
     def _run_cli(self, argv: list[str]) -> tuple[int, str]:
         stdout = io.StringIO()
         fake_engine = _FakeEngine()
-        with patch('watchdog_v2.cli.Config.load', return_value=object()):
-            with patch('watchdog_v2.cli.WatchdogEngine', return_value=fake_engine):
-                with redirect_stdout(stdout):
-                    exit_code = main(argv)
+        with patch('openclaw_watchdog.cli.Config.load', return_value=object()):
+            with patch('openclaw_watchdog.cli.WatchdogEngine', return_value=fake_engine):
+                with patch('openclaw_watchdog.cli.health_ops.status_payload', side_effect=lambda engine: engine.status_payload()):
+                    with patch('openclaw_watchdog.cli.reporting_ops.report_payload', side_effect=lambda engine, incident_limit=5: engine.report_payload(incident_limit=incident_limit)):
+                        with patch('openclaw_watchdog.cli.reporting_ops.metrics_payload', side_effect=lambda engine: engine.metrics_payload()):
+                            with redirect_stdout(stdout):
+                                exit_code = main(argv)
         return exit_code, stdout.getvalue()
 
     def test_report_json_keeps_stable_top_level_keys(self) -> None:
@@ -211,7 +215,7 @@ class CliJsonContractTest(unittest.TestCase):
         self.assertNotIn('current_incident_latest_event_type', payload)
 
     def test_status_report_metrics_share_operator_snapshot_keys(self) -> None:
-        from watchdog_v2.operator_snapshot import OPERATOR_SNAPSHOT_KEYS
+        from openclaw_watchdog.operator_snapshot import OPERATOR_SNAPSHOT_KEYS
 
         status_exit_code, status_output = self._run_cli(['status', '--json'])
         report_exit_code, report_output = self._run_cli(['report', '--json'])
@@ -244,6 +248,27 @@ class CliJsonContractTest(unittest.TestCase):
         self.assertIn('openclaw_watchdog_info', output)
         self.assertIn('openclaw_watchdog_service_active', output)
         self.assertIn('openclaw_watchdog_conversation_ready', output)
+
+    def test_reporting_facade_delegates_to_runtime_modules(self) -> None:
+        from openclaw_watchdog import reporting
+
+        engine = object()
+        report_mock = Mock(return_value={'status': 'healthy'})
+        metrics_mock = Mock(return_value={'status': 'healthy'})
+        prometheus_mock = Mock(return_value='metric 1\n')
+
+        with patch.object(reporting, 'report_payload_runtime', SimpleNamespace(report_payload=report_mock), create=True):
+            report = reporting.report_payload(engine, incident_limit=4)
+        with patch.object(reporting, 'metrics_runtime', SimpleNamespace(metrics_payload=metrics_mock, prometheus_metrics_text=prometheus_mock), create=True):
+            metrics = reporting.metrics_payload(engine)
+            text = reporting.prometheus_metrics_text({'status': 'healthy'})
+
+        self.assertEqual(report, {'status': 'healthy'})
+        self.assertEqual(metrics, {'status': 'healthy'})
+        self.assertEqual(text, 'metric 1\n')
+        report_mock.assert_called_once_with(engine, incident_limit=4)
+        metrics_mock.assert_called_once_with(engine)
+        prometheus_mock.assert_called_once_with({'status': 'healthy'})
 
 
 if __name__ == '__main__':

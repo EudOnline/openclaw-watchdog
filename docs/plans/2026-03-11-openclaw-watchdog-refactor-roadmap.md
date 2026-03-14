@@ -4,7 +4,7 @@
 
 **Goal:** Rebuild OpenClaw Watchdog into a thinner, more testable, and more maintainable operations tool without breaking its public CLI, env surface, reporting contract, or rehearsal workflows.
 
-**Architecture:** Use a gradual strangler-style refactor, not a rewrite. First freeze public contracts and validation gates, then extract typed models and presentation helpers, then split orchestration out of `watchdog_v2/engine.py` and `watchdog_v2/bootstrap.py` into smaller flow modules, and only then tighten packaging and release discipline. The public surface stays stable: `scripts/openclaw-watchdog`, env variable names, report/metrics JSON keys, and current rehearsal scenario semantics remain the compatibility anchors throughout the work.
+**Architecture:** Use a gradual strangler-style refactor, not a rewrite. First freeze public contracts and validation gates, then extract typed models and presentation helpers, then split orchestration out of `openclaw_watchdog/engine.py` and `openclaw_watchdog/bootstrap.py` into smaller flow modules, and only then tighten packaging and release discipline. The public surface stays stable: `scripts/openclaw-watchdog`, env variable names, report/metrics JSON keys, and current rehearsal scenario semantics remain the compatibility anchors throughout the work.
 
 **Tech Stack:** Python 3.11+, `argparse`, standard-library dataclasses and typing, shell wrappers, GitHub Actions, existing `unittest` suite, existing rehearsal harness under `rehearsal/`.
 
@@ -14,7 +14,7 @@
 
 This roadmap assumes the following constraints remain true throughout the work:
 
-- do **not** rename the internal `watchdog_v2` package during this refactor;
+- do **not** rename the internal `openclaw_watchdog` package during this refactor;
 - do **not** change canonical CLI names (`openclaw-watchdog`, `detect`, `run-once`, `report`, `metrics`, `incidents`, `bootstrap`) unless there is a separately approved migration plan;
 - do **not** break the stable report/metrics contract documented in `docs/reporting-contract.md`;
 - do **not** weaken rollback, drift-guard, incident logging, or operator visibility in the name of cleanup;
@@ -40,14 +40,14 @@ Make only tactical improvements around `engine.py`, `bootstrap.py`, and the wrap
 
 At the end of this roadmap, the repository should converge on these responsibilities:
 
-- `watchdog_v2/config.py`: env parsing + config construction only
-- `watchdog_v2/runtime.py`: subprocess execution only
-- `watchdog_v2/state_store.py`: persistence primitives only
-- `watchdog_v2/models.py`: typed dataclasses for probe state, run state, incidents, and bootstrap results
-- `watchdog_v2/presenters/`: text/json/prometheus rendering helpers
-- `watchdog_v2/flows/`: legacy run flow, survivability flow, bootstrap flow
-- `watchdog_v2/engine.py`: thin compatibility facade and dependency container
-- `watchdog_v2/cli.py`: parser + dispatch only, not full rendering/orchestration
+- `openclaw_watchdog/config.py`: env parsing + config construction only
+- `openclaw_watchdog/runtime.py`: subprocess execution only
+- `openclaw_watchdog/state_store.py`: persistence primitives only
+- `openclaw_watchdog/models.py`: typed dataclasses for probe state, run state, incidents, and bootstrap results
+- `openclaw_watchdog/presenters/`: text/json/prometheus rendering helpers
+- `openclaw_watchdog/flows/`: legacy run flow, survivability flow, bootstrap flow
+- `openclaw_watchdog/engine.py`: thin compatibility facade and dependency container
+- `openclaw_watchdog/cli.py`: parser + dispatch only, not full rendering/orchestration
 
 The resulting architecture is intentionally pragmatic. It does **not** introduce a framework, dependency injection container, or event bus. The aim is to make the existing design legible and testable, not to reinvent it.
 
@@ -62,9 +62,9 @@ The resulting architecture is intentionally pragmatic. It does **not** introduce
 
 Success means:
 
-- `watchdog_v2/engine.py` becomes a thin facade instead of the main implementation home;
-- `watchdog_v2/bootstrap.py` becomes a composable step pipeline;
-- report/metrics/incident/status rendering no longer lives as a giant pile of printer functions in `watchdog_v2/cli.py`;
+- `openclaw_watchdog/engine.py` becomes a thin facade instead of the main implementation home;
+- `openclaw_watchdog/bootstrap.py` becomes a composable step pipeline;
+- report/metrics/incident/status rendering no longer lives as a giant pile of printer functions in `openclaw_watchdog/cli.py`;
 - runtime/rehearsal verification works reliably on any machine with Python 3.11+;
 - tests prove contract stability and cover major orchestration branches directly, not only through indirect smoke flows.
 
@@ -86,7 +86,7 @@ Success means:
 **Step 1: Inventory the public surface before refactoring**
 
 Write down the surfaces that may not break during the refactor:
-- CLI commands and help epilog in `watchdog_v2/cli.py`
+- CLI commands and help epilog in `openclaw_watchdog/cli.py`
 - wrapper entrypoint `scripts/openclaw-watchdog`
 - report/metrics keys in `docs/reporting-contract.md`
 - systemd sample layout in `systemd/`
@@ -107,7 +107,7 @@ Update `docs/reporting-contract.md`, `docs/supported-environments.md`, and `CHAN
 **Step 4: Run baseline verification**
 
 Run:
-- `python3.11 -m watchdog_v2 --help`
+- `python3.11 -m openclaw_watchdog --help`
 - `python3.11 -m unittest tests/test_cli_smoke.py -v`
 - `python3.11 -m unittest tests/test_reporting.py -v`
 
@@ -192,20 +192,20 @@ git commit -m "fix: normalize python runtime discovery"
 ### Task 3: Introduce typed models for run state, probes, incidents, and bootstrap results
 
 **Files:**
-- Create: `watchdog_v2/models.py`
-- Modify: `watchdog_v2/health.py`
-- Modify: `watchdog_v2/reporting.py`
-- Modify: `watchdog_v2/incidents.py`
-- Modify: `watchdog_v2/incident_context.py`
-- Modify: `watchdog_v2/bootstrap.py`
-- Modify: `watchdog_v2/engine.py`
+- Create: `openclaw_watchdog/models.py`
+- Modify: `openclaw_watchdog/health.py`
+- Modify: `openclaw_watchdog/reporting.py`
+- Modify: `openclaw_watchdog/incidents.py`
+- Modify: `openclaw_watchdog/incident_context.py`
+- Modify: `openclaw_watchdog/bootstrap.py`
+- Modify: `openclaw_watchdog/engine.py`
 - Create: `tests/test_models.py`
 
 **Phase:** 2
 
 **Step 1: Define the first typed seam**
 
-Create `watchdog_v2/models.py` with dataclasses for the shapes that are currently passed around as ad-hoc dicts.
+Create `openclaw_watchdog/models.py` with dataclasses for the shapes that are currently passed around as ad-hoc dicts.
 
 Minimum recommended models:
 - `ProbeSnapshot`
@@ -221,15 +221,15 @@ The first version should support:
 **Step 2: Move one module at a time off raw dict indexing**
 
 Start with read-heavy modules first:
-- `watchdog_v2/reporting.py`
-- `watchdog_v2/incident_context.py`
-- `watchdog_v2/incidents.py`
+- `openclaw_watchdog/reporting.py`
+- `openclaw_watchdog/incident_context.py`
+- `openclaw_watchdog/incidents.py`
 
 Avoid converting `engine.py` all at once. Let `engine.py` keep building dicts initially, then wrap them with model constructors inside the consumer modules.
 
 **Step 3: Convert bootstrap output to a typed result**
 
-Refactor `watchdog_v2/bootstrap.py` so `BootstrapOutcome.payload` is still serializable, but the internal assembly logic uses a typed `BootstrapSummary` or step result objects instead of one giant mutable dict.
+Refactor `openclaw_watchdog/bootstrap.py` so `BootstrapOutcome.payload` is still serializable, but the internal assembly logic uses a typed `BootstrapSummary` or step result objects instead of one giant mutable dict.
 
 **Step 4: Add focused model regression tests**
 
@@ -252,7 +252,7 @@ Expected:
 **Step 6: Commit**
 
 ```bash
-git add watchdog_v2/models.py watchdog_v2/health.py watchdog_v2/reporting.py watchdog_v2/incidents.py watchdog_v2/incident_context.py watchdog_v2/bootstrap.py watchdog_v2/engine.py tests/test_models.py
+git add openclaw_watchdog/models.py openclaw_watchdog/health.py openclaw_watchdog/reporting.py openclaw_watchdog/incidents.py openclaw_watchdog/incident_context.py openclaw_watchdog/bootstrap.py openclaw_watchdog/engine.py tests/test_models.py
 git commit -m "refactor: introduce typed watchdog models"
 ```
 
@@ -261,12 +261,12 @@ git commit -m "refactor: introduce typed watchdog models"
 ### Task 4: Split CLI responsibilities into parser, dispatch, and presenters
 
 **Files:**
-- Create: `watchdog_v2/presenters/__init__.py`
-- Create: `watchdog_v2/presenters/status.py`
-- Create: `watchdog_v2/presenters/report.py`
-- Create: `watchdog_v2/presenters/incidents.py`
-- Create: `watchdog_v2/presenters/bootstrap.py`
-- Modify: `watchdog_v2/cli.py`
+- Create: `openclaw_watchdog/presenters/__init__.py`
+- Create: `openclaw_watchdog/presenters/status.py`
+- Create: `openclaw_watchdog/presenters/report.py`
+- Create: `openclaw_watchdog/presenters/incidents.py`
+- Create: `openclaw_watchdog/presenters/bootstrap.py`
+- Modify: `openclaw_watchdog/cli.py`
 - Modify: `tests/test_cli_smoke.py`
 - Create: `tests/test_cli_presenters.py`
 
@@ -274,23 +274,23 @@ git commit -m "refactor: introduce typed watchdog models"
 
 **Step 1: Freeze existing output behavior before moving code**
 
-Capture the existing responsibilities in `watchdog_v2/cli.py`:
+Capture the existing responsibilities in `openclaw_watchdog/cli.py`:
 - parser construction;
 - command dispatch;
 - human-readable output rendering;
 - JSON output handling.
 
-Keep parser construction in `watchdog_v2/cli.py`, but move formatter/renderer functions out first.
+Keep parser construction in `openclaw_watchdog/cli.py`, but move formatter/renderer functions out first.
 
 **Step 2: Extract presenter functions without changing command behavior**
 
 Move these categories into dedicated modules:
-- status output helpers -> `watchdog_v2/presenters/status.py`
-- report and metrics output helpers -> `watchdog_v2/presenters/report.py`
-- incident list/detail/queue/timeline helpers -> `watchdog_v2/presenters/incidents.py`
-- bootstrap output helpers -> `watchdog_v2/presenters/bootstrap.py`
+- status output helpers -> `openclaw_watchdog/presenters/status.py`
+- report and metrics output helpers -> `openclaw_watchdog/presenters/report.py`
+- incident list/detail/queue/timeline helpers -> `openclaw_watchdog/presenters/incidents.py`
+- bootstrap output helpers -> `openclaw_watchdog/presenters/bootstrap.py`
 
-`watchdog_v2/cli.py` should become a small command router that delegates rendering.
+`openclaw_watchdog/cli.py` should become a small command router that delegates rendering.
 
 **Step 3: Add presenter-specific tests**
 
@@ -309,7 +309,7 @@ Ensure JSON output paths stay direct and do not route through string presenters,
 Run:
 - `python3.11 -m unittest tests/test_cli_smoke.py -v`
 - `python3.11 -m unittest tests/test_cli_presenters.py -v`
-- `python3.11 -m watchdog_v2 --help`
+- `python3.11 -m openclaw_watchdog --help`
 
 Expected:
 - CLI parser behavior is unchanged;
@@ -319,7 +319,7 @@ Expected:
 **Step 6: Commit**
 
 ```bash
-git add watchdog_v2/presenters watchdog_v2/cli.py tests/test_cli_smoke.py tests/test_cli_presenters.py
+git add openclaw_watchdog/presenters openclaw_watchdog/cli.py tests/test_cli_smoke.py tests/test_cli_presenters.py
 git commit -m "refactor: split cli presentation from dispatch"
 ```
 
@@ -328,12 +328,12 @@ git commit -m "refactor: split cli presentation from dispatch"
 ### Task 5: Extract engine state into a dedicated run context and make `engine.py` a facade
 
 **Files:**
-- Create: `watchdog_v2/run_context.py`
-- Modify: `watchdog_v2/engine.py`
-- Modify: `watchdog_v2/reporting.py`
-- Modify: `watchdog_v2/events.py`
-- Modify: `watchdog_v2/handoff.py`
-- Modify: `watchdog_v2/survival.py`
+- Create: `openclaw_watchdog/run_context.py`
+- Modify: `openclaw_watchdog/engine.py`
+- Modify: `openclaw_watchdog/reporting.py`
+- Modify: `openclaw_watchdog/events.py`
+- Modify: `openclaw_watchdog/handoff.py`
+- Modify: `openclaw_watchdog/survival.py`
 - Create: `tests/test_run_context.py`
 
 **Phase:** 3
@@ -385,7 +385,7 @@ Expected:
 **Step 6: Commit**
 
 ```bash
-git add watchdog_v2/run_context.py watchdog_v2/engine.py watchdog_v2/reporting.py watchdog_v2/events.py watchdog_v2/handoff.py watchdog_v2/survival.py tests/test_run_context.py
+git add openclaw_watchdog/run_context.py openclaw_watchdog/engine.py openclaw_watchdog/reporting.py openclaw_watchdog/events.py openclaw_watchdog/handoff.py openclaw_watchdog/survival.py tests/test_run_context.py
 git commit -m "refactor: extract engine run context"
 ```
 
@@ -394,13 +394,13 @@ git commit -m "refactor: extract engine run context"
 ### Task 6: Split `run-once` logic into explicit legacy and survivability flows
 
 **Files:**
-- Create: `watchdog_v2/flows/__init__.py`
-- Create: `watchdog_v2/flows/legacy_run.py`
-- Create: `watchdog_v2/flows/survivability_run.py`
-- Modify: `watchdog_v2/engine.py`
-- Modify: `watchdog_v2/repair.py`
-- Modify: `watchdog_v2/health.py`
-- Modify: `watchdog_v2/survival.py`
+- Create: `openclaw_watchdog/flows/__init__.py`
+- Create: `openclaw_watchdog/flows/legacy_run.py`
+- Create: `openclaw_watchdog/flows/survivability_run.py`
+- Modify: `openclaw_watchdog/engine.py`
+- Modify: `openclaw_watchdog/repair.py`
+- Modify: `openclaw_watchdog/health.py`
+- Modify: `openclaw_watchdog/survival.py`
 - Create: `tests/test_legacy_flow.py`
 - Create: `tests/test_survivability_flow.py`
 
@@ -462,7 +462,7 @@ Expected:
 **Step 6: Commit**
 
 ```bash
-git add watchdog_v2/flows watchdog_v2/engine.py watchdog_v2/repair.py watchdog_v2/health.py watchdog_v2/survival.py tests/test_legacy_flow.py tests/test_survivability_flow.py
+git add openclaw_watchdog/flows openclaw_watchdog/engine.py openclaw_watchdog/repair.py openclaw_watchdog/health.py openclaw_watchdog/survival.py tests/test_legacy_flow.py tests/test_survivability_flow.py
 git commit -m "refactor: split watchdog run flows"
 ```
 
@@ -471,9 +471,9 @@ git commit -m "refactor: split watchdog run flows"
 ### Task 7: Break bootstrap into explicit step objects instead of one giant mutable workflow
 
 **Files:**
-- Create: `watchdog_v2/bootstrap_steps.py`
-- Modify: `watchdog_v2/bootstrap.py`
-- Modify: `watchdog_v2/config.py`
+- Create: `openclaw_watchdog/bootstrap_steps.py`
+- Modify: `openclaw_watchdog/bootstrap.py`
+- Modify: `openclaw_watchdog/config.py`
 - Create: `tests/test_bootstrap_steps.py`
 - Modify: `rehearsal/scripts/run-scenario.sh`
 - Verify against: `rehearsal/scenarios/bootstrap-missing-openclaw.expected.txt`
@@ -526,7 +526,7 @@ Expected:
 **Step 6: Commit**
 
 ```bash
-git add watchdog_v2/bootstrap_steps.py watchdog_v2/bootstrap.py watchdog_v2/config.py tests/test_bootstrap_steps.py rehearsal/scripts/run-scenario.sh rehearsal/scenarios/bootstrap-missing-openclaw.expected.txt rehearsal/scenarios/bootstrap-install-openclaw.expected.txt CHANGELOG.md
+git add openclaw_watchdog/bootstrap_steps.py openclaw_watchdog/bootstrap.py openclaw_watchdog/config.py tests/test_bootstrap_steps.py rehearsal/scripts/run-scenario.sh rehearsal/scenarios/bootstrap-missing-openclaw.expected.txt rehearsal/scenarios/bootstrap-install-openclaw.expected.txt CHANGELOG.md
 
 git commit -m "refactor: split bootstrap into ordered steps"
 ```
@@ -579,7 +579,7 @@ Update `docs/live-acceptance-checklist.md` so it mirrors the new validation stor
 
 Run:
 - `python3.11 -m unittest discover -s tests -v`
-- `python3.11 -m py_compile watchdog_v2/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py`
+- `python3.11 -m py_compile openclaw_watchdog/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py`
 - `bash rehearsal/scripts/run-scenario.sh bootstrap-missing-openclaw`
 - `bash rehearsal/scripts/run-scenario.sh watchdog-conversation-probe-ready`
 - `bash rehearsal/scripts/run-scenario.sh watchdog-failed-fallback`
@@ -599,7 +599,7 @@ git commit -m "test: expand watchdog orchestration regression coverage"
 
 ---
 
-### Task 9: Finish the refactor by reducing compatibility shims and documenting the new internal architecture
+### Task 9: Finish the refactor by removing legacy wrapper debt and documenting the new internal architecture
 
 **Files:**
 - Create: `docs/internal-architecture.md`
@@ -626,9 +626,9 @@ Create `docs/internal-architecture.md` describing:
 
 Refresh `README.md`, `docs/README.md`, and `docs/roadmap.md` so they describe the current architecture and the remaining non-goals honestly.
 
-**Step 3: Re-evaluate deprecated shims**
+**Step 3: Re-evaluate legacy wrapper debt**
 
-Review whether deprecated `-v2` wrappers should remain as-is, gain stronger deprecation wording, or get a removal target in the roadmap. Do not remove them in the same task unless migration impact is trivial and documented.
+Review whether any legacy wrapper references remain in docs or scripts and remove them from the active roadmap surface. Do not preserve outdated parallel entrypoints in the current installation path.
 
 **Step 4: Verify docs against the repo literally**
 
@@ -637,7 +637,7 @@ Manually follow the main paths in the docs and confirm every referenced file/com
 **Step 5: Commit**
 
 ```bash
-git add docs/internal-architecture.md README.md docs/README.md docs/roadmap.md CHANGELOG.md docs/compatibility-and-deprecations.md
+git add docs/internal-architecture.md README.md docs/README.md docs/roadmap.md CHANGELOG.md
 git commit -m "docs: publish post-refactor architecture"
 ```
 
@@ -675,9 +675,9 @@ Use these PR boundaries unless a smaller split is more natural:
 
 This roadmap is complete when all of the following are true:
 
-- `watchdog_v2/engine.py` is primarily a facade/delegator;
-- `watchdog_v2/bootstrap.py` is primarily a step coordinator;
-- `watchdog_v2/cli.py` is primarily parser + dispatch;
+- `openclaw_watchdog/engine.py` is primarily a facade/delegator;
+- `openclaw_watchdog/bootstrap.py` is primarily a step coordinator;
+- `openclaw_watchdog/cli.py` is primarily parser + dispatch;
 - stable report/metrics CLI contracts are enforced in tests;
 - local rehearsal no longer depends on a lucky `python3` symlink arrangement;
 - docs describe the actual package structure and validation story accurately.

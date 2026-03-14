@@ -1,6 +1,6 @@
 # OpenClaw Watchdog live acceptance checklist
 
-This checklist is the operator-facing closure for the fallback-first watchdog design.
+This checklist is the operator-facing closure for the OpenClaw fallback system design.
 
 ## Recommended validation order
 
@@ -11,11 +11,13 @@ Before running live acceptance on a host, keep this sequence:
 3. bounded rehearsal smoke scenarios from `rehearsal/scripts/run-scenario.sh`
 4. this live acceptance checklist on a real host
 
-Live acceptance is the final operator-facing gate, not the first regression check.
+Live acceptance is the final operator-facing gate, not the first regression check. It assumes the host already has OpenClaw and any desired rescue executors installed.
 
 ## One-command acceptance
 
 Before running the full acceptance script on a new host, the operator quick path should already look sane: `status --summary`, `report --message`, and `incidents current --json` should all be readable and internally consistent.
+
+The acceptance goal is to validate the OpenClaw fallback system that is already installed and configured, not to bootstrap missing software onto the host.
 
 ```bash
 ./scripts/openclaw-watchdog-live-acceptance.sh

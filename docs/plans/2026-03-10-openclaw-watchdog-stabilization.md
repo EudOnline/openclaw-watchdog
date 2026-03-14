@@ -6,7 +6,7 @@
 
 **Architecture:** Deliver the work in three weekly waves. Week 1 makes the project reliably runnable and automatically checked. Week 2 aligns docs/config semantics and creates a safer onboarding path. Week 3 reduces long-term maintenance cost by splitting orchestration responsibilities and adding focused regression coverage around the most failure-prone flows.
 
-**Tech Stack:** Python 3.11+, `argparse`, GitHub Actions, shell wrappers, existing rehearsal harness, existing `watchdog_v2` package.
+**Tech Stack:** Python 3.11+, `argparse`, GitHub Actions, shell wrappers, existing rehearsal harness, existing `openclaw_watchdog` package.
 
 ---
 
@@ -20,7 +20,7 @@ Start with runtime correctness, CI, and documentation consistency before touchin
 
 ### Option B: Refactor-first cleanup
 
-Start by splitting `watchdog_v2/engine.py` and `watchdog_v2/cli.py`, then circle back to CI and docs. This improves code health quickly, but it delays fixes for the issues most likely to block real users.
+Start by splitting `openclaw_watchdog/engine.py` and `openclaw_watchdog/cli.py`, then circle back to CI and docs. This improves code health quickly, but it delays fixes for the issues most likely to block real users.
 
 ### Option C: Feature-first expansion
 
@@ -101,8 +101,8 @@ git commit -m "fix: enforce supported python runtime"
 Use one Linux workflow that installs Python 3.11 and runs the smallest high-signal checks first.
 
 Recommended checks:
-- `python3.11 -m watchdog_v2 --help`
-- `python3.11 -m py_compile watchdog_v2/*.py rehearsal/lib/*.py rehearsal/tools/*.py`
+- `python3.11 -m openclaw_watchdog --help`
+- `python3.11 -m py_compile openclaw_watchdog/*.py rehearsal/lib/*.py rehearsal/tools/*.py`
 - one or two fast rehearsal scenarios that do not depend on missing Docker assets
 
 **Step 2: Create the workflow**
@@ -170,7 +170,7 @@ git commit -m "docs: remove rehearsal documentation drift"
 ### Task 4: Align config defaults, sample env, and operator expectations
 
 **Files:**
-- Modify: `watchdog_v2/config.py`
+- Modify: `openclaw_watchdog/config.py`
 - Modify: `config/openclaw-watchdog.env.example`
 - Modify: `README.md`
 - Modify: `docs/first-deployment.md`
@@ -180,7 +180,7 @@ git commit -m "docs: remove rehearsal documentation drift"
 
 **Step 1: Inventory mismatched defaults**
 
-Compare `watchdog_v2/config.py` defaults against `config/openclaw-watchdog.env.example`.
+Compare `openclaw_watchdog/config.py` defaults against `config/openclaw-watchdog.env.example`.
 
 Known examples to verify:
 - `WATCHDOG_ENABLE_PRE_REPAIR_BACKUP`
@@ -208,7 +208,7 @@ Run focused checks that print or inspect loaded config under:
 **Step 5: Commit**
 
 ```bash
-git add watchdog_v2/config.py config/openclaw-watchdog.env.example README.md docs/first-deployment.md docs/compatibility-and-deprecations.md
+git add openclaw_watchdog/config.py config/openclaw-watchdog.env.example README.md docs/first-deployment.md docs/compatibility-and-deprecations.md
 git commit -m "docs: align config defaults and sample env semantics"
 ```
 
@@ -264,9 +264,9 @@ git commit -m "docs: clarify minimal production rollout path"
 - Create: `tests/test_reporting.py`
 - Create: `tests/test_cli_smoke.py`
 - Modify: `pyproject.toml`
-- Verify with: `watchdog_v2/config.py`
-- Verify with: `watchdog_v2/reporting.py`
-- Verify with: `watchdog_v2/cli.py`
+- Verify with: `openclaw_watchdog/config.py`
+- Verify with: `openclaw_watchdog/reporting.py`
+- Verify with: `openclaw_watchdog/cli.py`
 
 **Week:** 2
 
@@ -303,20 +303,20 @@ git commit -m "test: add focused config and reporting coverage"
 ### Task 7: Thin the orchestration layer in `engine.py`
 
 **Files:**
-- Modify: `watchdog_v2/engine.py`
-- Create: `watchdog_v2/runtime.py`
-- Create: `watchdog_v2/state_store.py`
-- Verify with: `watchdog_v2/incidents.py`
-- Verify with: `watchdog_v2/reporting.py`
-- Verify with: `watchdog_v2/repair.py`
+- Modify: `openclaw_watchdog/engine.py`
+- Create: `openclaw_watchdog/runtime.py`
+- Create: `openclaw_watchdog/state_store.py`
+- Verify with: `openclaw_watchdog/incidents.py`
+- Verify with: `openclaw_watchdog/reporting.py`
+- Verify with: `openclaw_watchdog/repair.py`
 
 **Week:** 3
 
 **Step 1: Identify responsibilities to extract first**
 
 Recommended first split:
-- shell/subprocess execution and file capture helpers → `watchdog_v2/runtime.py`
-- run-state/event-history persistence helpers → `watchdog_v2/state_store.py`
+- shell/subprocess execution and file capture helpers → `openclaw_watchdog/runtime.py`
+- run-state/event-history persistence helpers → `openclaw_watchdog/state_store.py`
 
 Keep recovery decision logic in `engine.py` during the first refactor.
 
@@ -340,7 +340,7 @@ Then run the highest-signal rehearsal scenarios you rely on for regressions.
 **Step 5: Commit**
 
 ```bash
-git add watchdog_v2/engine.py watchdog_v2/runtime.py watchdog_v2/state_store.py tests/
+git add openclaw_watchdog/engine.py openclaw_watchdog/runtime.py openclaw_watchdog/state_store.py tests/
 git commit -m "refactor: extract runtime and state helpers from engine"
 ```
 
@@ -349,7 +349,7 @@ git commit -m "refactor: extract runtime and state helpers from engine"
 ### Task 8: Stabilize CLI surface and operator quick path
 
 **Files:**
-- Modify: `watchdog_v2/cli.py`
+- Modify: `openclaw_watchdog/cli.py`
 - Modify: `README.md`
 - Modify: `docs/faq.md`
 - Modify: `docs/live-acceptance-checklist.md`
@@ -383,7 +383,7 @@ Expected: top-level help is more scannable and advanced controls remain discover
 **Step 5: Commit**
 
 ```bash
-git add watchdog_v2/cli.py README.md docs/faq.md docs/live-acceptance-checklist.md
+git add openclaw_watchdog/cli.py README.md docs/faq.md docs/live-acceptance-checklist.md
 git commit -m "docs: highlight operator quick path in cli and docs"
 ```
 
@@ -392,7 +392,7 @@ git commit -m "docs: highlight operator quick path in cli and docs"
 ### Task 9: Add schema-stability notes for reports and metrics
 
 **Files:**
-- Modify: `watchdog_v2/reporting.py`
+- Modify: `openclaw_watchdog/reporting.py`
 - Create: `docs/reporting-contract.md`
 - Modify: `README.md`
 - Modify: `docs/README.md`
@@ -421,7 +421,7 @@ Ensure `docs/live-acceptance-checklist.md` and the new contract doc agree on the
 **Step 5: Commit**
 
 ```bash
-git add watchdog_v2/reporting.py docs/reporting-contract.md README.md docs/README.md
+git add openclaw_watchdog/reporting.py docs/reporting-contract.md README.md docs/README.md
  git commit -m "docs: define report and metrics compatibility contract"
 ```
 
@@ -473,7 +473,7 @@ Run these from smallest to broadest after each task cluster:
 1. `./scripts/openclaw-watchdog --help`
 2. `./scripts/openclaw-watchdog detect --help`
 3. `./scripts/openclaw-watchdog incidents --help`
-4. `python3.11 -m py_compile watchdog_v2/*.py rehearsal/lib/*.py rehearsal/tools/*.py`
+4. `python3.11 -m py_compile openclaw_watchdog/*.py rehearsal/lib/*.py rehearsal/tools/*.py`
 5. `pytest tests/test_config.py tests/test_reporting.py tests/test_cli_smoke.py -v`
 6. Selected rehearsal scenario commands that match changed behavior
 

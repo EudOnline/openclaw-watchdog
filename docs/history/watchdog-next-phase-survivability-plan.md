@@ -1,12 +1,12 @@
 # OpenClaw Watchdog Next-Phase Survivability Implementation Plan
 
-> Historical planning document retained for implementation context. References to `watchdog_v2` and old roadmap phase labels are intentional.
+> Historical planning document retained for implementation context. References to `openclaw_watchdog` and old roadmap phase labels are intentional.
 
-**Goal:** Reframe the next phase of `watchdog_v2` around one primary outcome: when OpenClaw is alone on a VPS and breaks because of config/plugin/extension/upgrade drift, watchdog should restore a usable conversation path as fast as possible.
+**Goal:** Reframe the next phase of `openclaw_watchdog` around one primary outcome: when OpenClaw is alone on a VPS and breaks because of config/plugin/extension/upgrade drift, watchdog should restore a usable conversation path as fast as possible.
 
 **Architecture:** Keep the current modular split (`engine.py`, `health.py`, `repair.py`, `handoff.py`, `reporting.py`, `incidents.py`) and evolve the watchdog loop from “process/service health + incident enrichment” into “conversation-aware probe -> conservative recovery priority tree -> verified last-good rollback -> survival mode -> escalation”. Existing incident / queue / report capabilities stay as supporting operator surfaces, not the project’s mainline.
 
-**Tech Stack:** Python 3, existing `watchdog_v2` package, Bash wrapper scripts, systemd user service/timer, JSON state/report/metrics snapshots, rehearsal shims/scenarios, live read-only acceptance scripts.
+**Tech Stack:** Python 3, existing `openclaw_watchdog` package, Bash wrapper scripts, systemd user service/timer, JSON state/report/metrics snapshots, rehearsal shims/scenarios, live read-only acceptance scripts.
 
 ---
 
@@ -60,12 +60,12 @@
 ### 2.5 以现有模块为主线，避免大拆大建
 
 - 延续当前模块边界：
-  - `watchdog_v2/health.py`：探针与状态归因
-  - `watchdog_v2/repair.py`：恢复动作与回滚工具
-  - `watchdog_v2/engine.py`：主状态机与动作排序
-  - `watchdog_v2/reporting.py`：report / metrics / notify 输出
-  - `watchdog_v2/incidents.py`：仅承载恢复上下文，不再扩张为工单系统
-- 仅当 `survival mode` 逻辑明显膨胀时，新增 `watchdog_v2/survival.py`；否则优先放在现有模块中演进。
+  - `openclaw_watchdog/health.py`：探针与状态归因
+  - `openclaw_watchdog/repair.py`：恢复动作与回滚工具
+  - `openclaw_watchdog/engine.py`：主状态机与动作排序
+  - `openclaw_watchdog/reporting.py`：report / metrics / notify 输出
+  - `openclaw_watchdog/incidents.py`：仅承载恢复上下文，不再扩张为工单系统
+- 仅当 `survival mode` 逻辑明显膨胀时，新增 `openclaw_watchdog/survival.py`；否则优先放在现有模块中演进。
 
 ### 2.6 验收优先级也要重排
 
@@ -104,7 +104,7 @@
 
 **背景**
 
-- 当前 `watchdog_v2/health.py` 已有 process-layer 和 service-layer probe。
+- 当前 `openclaw_watchdog/health.py` 已有 process-layer 和 service-layer probe。
 - 现状能回答“service active / gateway reachable”，但还不能稳定回答“最小可用对话链路是否已经恢复”。
 - 这会导致两类问题：
   - 误判健康：服务层看起来正常，但关键对话链路其实不可用；
@@ -121,22 +121,22 @@
 
 **修改点**
 
-- 修改 `watchdog_v2/health.py`
+- 修改 `openclaw_watchdog/health.py`
   - 新增 `conversation_probe(engine)`。
   - 在 `live_probe()` 中并入 conversation 层结果。
   - 把 `health_level` 与 `conversation_ready` 区分开：允许出现“service/process 恢复，但只达到 minimal-usable”的中间态。
-- 修改 `watchdog_v2/config.py`
+- 修改 `openclaw_watchdog/config.py`
   - 新增建议 env：
     - `WATCHDOG_ENABLE_CONVERSATION_PROBE`
     - `WATCHDOG_PRIMARY_CONVERSATION_TARGETS`
     - `WATCHDOG_MINIMAL_USABLE_ALLOW_OPTIONAL_FAILURES`
-- 修改 `watchdog_v2/engine.py`
+- 修改 `openclaw_watchdog/engine.py`
   - 将 `conversation_ready` / `minimal_usable_ready` 纳入恢复判定。
   - 健康快照晋升到 `last-good` 时，要求至少 `conversation_ready=true`，避免把“进程活着但不能对话”的状态提升成 last-good。
-- 修改 `watchdog_v2/reporting.py`
+- 修改 `openclaw_watchdog/reporting.py`
   - `report_payload()`、`metrics_payload()` 增加 conversation 层字段。
   - Prometheus 增加布尔 gauge。
-- 修改 `watchdog_v2/cli.py`
+- 修改 `openclaw_watchdog/cli.py`
   - `check --json` / `status --json` 输出上述字段。
   - `status --summary` 增加紧凑 token，如 `conv=ready|minimal|down`。
   - `report --message` 第一段优先写“对话状态”，而不是先写 incident 摘要。
@@ -145,15 +145,15 @@
 
 **涉及模块**
 
-- `watchdog_v2/health.py`
-- `watchdog_v2/config.py`
-- `watchdog_v2/engine.py`
-- `watchdog_v2/reporting.py`
-- `watchdog_v2/cli.py`
+- `openclaw_watchdog/health.py`
+- `openclaw_watchdog/config.py`
+- `openclaw_watchdog/engine.py`
+- `openclaw_watchdog/reporting.py`
+- `openclaw_watchdog/cli.py`
 - `rehearsal/shims/openclaw`
 - `rehearsal/scripts/apply-scenario.sh`
 - `rehearsal/scripts/run-scenario.sh`
-- `MIGRATION-v2.md`
+- `migration-legacy-rollout.md`
 - `rehearsal/README.md`
 
 **CLI / 状态 / 报告影响**
@@ -197,7 +197,7 @@
 
 **背景**
 
-- 当前 `watchdog_v2/engine.py` 的修复主线仍偏向“失败后跑 doctor repair + restart”。
+- 当前 `openclaw_watchdog/engine.py` 的修复主线仍偏向“失败后跑 doctor repair + restart”。
 - 这对“配置漂移、自改配置、插件损坏、错误升级”并不总是最佳路径。
 - 用户已经明确要求：**先诊断/重启/回滚/降级，再考虑更激进 repair**。
 
@@ -214,31 +214,31 @@
 
 **修改点**
 
-- 修改 `watchdog_v2/engine.py`
+- 修改 `openclaw_watchdog/engine.py`
   - 将当前内联恢复分支整理为显式步骤状态机。
   - 在 `run_state` 中记录：
     - `last_recovery_strategy`
     - `last_recovery_path`
     - `last_recovery_action_count`
     - `last_recovery_restored_conversation`
-- 修改 `watchdog_v2/repair.py`
+- 修改 `openclaw_watchdog/repair.py`
   - 新增“仅重启”分支与“是否优先回滚”的判断 helpers。
   - 把 `run_doctor_repair()` 位置后移；只在 restart/rollback/survival 都没恢复最小对话时再触发。
-- 修改 `watchdog_v2/reporting.py`
+- 修改 `openclaw_watchdog/reporting.py`
   - 在 `report` / `metrics` 中暴露恢复路径。
-- 修改 `watchdog_v2/cli.py`
+- 修改 `openclaw_watchdog/cli.py`
   - 文本 `status` / `report` 可读地显示 `recovery_strategy`。
 - 建议新增 feature flag：
   - `WATCHDOG_ENABLE_SURVIVABILITY_FLOW`
 
 **涉及模块**
 
-- `watchdog_v2/engine.py`
-- `watchdog_v2/repair.py`
-- `watchdog_v2/reporting.py`
-- `watchdog_v2/cli.py`
-- `watchdog_v2/config.py`
-- `MIGRATION-v2.md`
+- `openclaw_watchdog/engine.py`
+- `openclaw_watchdog/repair.py`
+- `openclaw_watchdog/reporting.py`
+- `openclaw_watchdog/cli.py`
+- `openclaw_watchdog/config.py`
+- `migration-legacy-rollout.md`
 
 **CLI / 状态 / 报告影响**
 
@@ -283,31 +283,31 @@
 
 **修改点**
 
-- 修改 `watchdog_v2/repair.py`
+- 修改 `openclaw_watchdog/repair.py`
   - 为 last-good 增加 generation / manifest 概念。
   - 在回滚前后记录：候选版本、差异摘要、选择原因。
   - 支持“当前 last-good 不可用时回退到更早一代”。
-- 修改 `watchdog_v2/engine.py`
+- 修改 `openclaw_watchdog/engine.py`
   - 只有在 `conversation_ready=true` 的稳定成功窗口后，才晋升新的 last-good。
   - 不再把“仅 process/service 恢复但对话未恢复”的状态写成新的锚点。
-- 修改 `watchdog_v2/config.py`
+- 修改 `openclaw_watchdog/config.py`
   - 新增建议 env：
     - `WATCHDOG_LAST_GOOD_MANIFEST_FILE`
     - `WATCHDOG_LAST_GOOD_GENERATIONS`
-- 修改 `watchdog_v2/handoff.py`
+- 修改 `openclaw_watchdog/handoff.py`
   - incident bundle 中纳入 manifest、候选列表、rollback 选中项。
-- 可选新增 `watchdog_v2/survival.py`
+- 可选新增 `openclaw_watchdog/survival.py`
   - 若 manifest / fingerprint 逻辑较多，可独立承载；否则继续在 `repair.py` 内部落地。
 
 **涉及模块**
 
-- `watchdog_v2/repair.py`
-- `watchdog_v2/engine.py`
-- `watchdog_v2/config.py`
-- `watchdog_v2/handoff.py`
-- `watchdog_v2/reporting.py`
-- `watchdog_v2/cli.py`
-- `MIGRATION-v2.md`
+- `openclaw_watchdog/repair.py`
+- `openclaw_watchdog/engine.py`
+- `openclaw_watchdog/config.py`
+- `openclaw_watchdog/handoff.py`
+- `openclaw_watchdog/reporting.py`
+- `openclaw_watchdog/cli.py`
+- `migration-legacy-rollout.md`
 
 **CLI / 状态 / 报告影响**
 
@@ -359,21 +359,21 @@
 
 **修改点**
 
-- 修改 `watchdog_v2/reporting.py`
+- 修改 `openclaw_watchdog/reporting.py`
   - 重排 `message_report_text()`，首段先写 conversation / mode / recovery path。
   - 把 incident/queue/attention 放到次级段落。
-- 修改 `watchdog_v2/engine.py`
+- 修改 `openclaw_watchdog/engine.py`
   - 在 `set_state()` 中写入恢复动作相关字段，供 message/report 消费。
-- 修改 `watchdog_v2/cli.py`
+- 修改 `openclaw_watchdog/cli.py`
   - 让 `status --summary` 与文本 `report` 的头部顺序也服从同一逻辑。
 - 更新 `docs/live-samples.md`
   - 增加恢复成功样例，明确 normal recovery 与 survival recovery 的输出差异。
 
 **涉及模块**
 
-- `watchdog_v2/reporting.py`
-- `watchdog_v2/engine.py`
-- `watchdog_v2/cli.py`
+- `openclaw_watchdog/reporting.py`
+- `openclaw_watchdog/engine.py`
+- `openclaw_watchdog/cli.py`
 - `docs/live-samples.md`
 - `docs/live-acceptance-checklist.md`
 
@@ -422,37 +422,37 @@
 
 **修改点**
 
-- 建议新增 `watchdog_v2/survival.py`
+- 建议新增 `openclaw_watchdog/survival.py`
   - 负责：
     - survival 配置模板生成
     - 可选扩展裁剪
     - survival 标志写入/清理
     - normal <-> survival 的退出条件
-- 修改 `watchdog_v2/config.py`
+- 修改 `openclaw_watchdog/config.py`
   - 新增建议 env：
     - `WATCHDOG_ENABLE_SURVIVAL_MODE`
     - `WATCHDOG_SURVIVAL_CONFIG_FILE`
     - `WATCHDOG_SURVIVAL_REQUIRED_CHANNELS`
     - `WATCHDOG_SURVIVAL_DISABLE_OPTIONAL_EXTENSIONS`
-- 修改 `watchdog_v2/engine.py`
+- 修改 `openclaw_watchdog/engine.py`
   - 在 restart / rollback 后仍未恢复最小对话时，进入 survival mode，再重新 probe。
   - 在连续稳定 healthy 窗口后自动退出 survival，或要求人工确认退出（待开放问题定）。
-- 修改 `watchdog_v2/health.py`
+- 修改 `openclaw_watchdog/health.py`
   - 允许 `current_mode=survival` 与 `minimal_usable_ready=true` 共存。
-- 修改 `watchdog_v2/reporting.py` / `watchdog_v2/cli.py`
+- 修改 `openclaw_watchdog/reporting.py` / `openclaw_watchdog/cli.py`
   - 在 `status` / `report` / `metrics` 中显示 survival 状态与禁用摘要。
 - 修改 `bootstrap.py`
   - 在安装/初始化流程里为 survival mode 预留最小模板或基础清单。
 
 **涉及模块**
 
-- `watchdog_v2/survival.py`（建议新增）
-- `watchdog_v2/engine.py`
-- `watchdog_v2/health.py`
-- `watchdog_v2/config.py`
-- `watchdog_v2/reporting.py`
-- `watchdog_v2/cli.py`
-- `watchdog_v2/bootstrap.py`
+- `openclaw_watchdog/survival.py`（建议新增）
+- `openclaw_watchdog/engine.py`
+- `openclaw_watchdog/health.py`
+- `openclaw_watchdog/config.py`
+- `openclaw_watchdog/reporting.py`
+- `openclaw_watchdog/cli.py`
+- `openclaw_watchdog/bootstrap.py`
 - `rehearsal/fixtures/healthy-openclaw-config.json`
 
 **CLI / 状态 / 报告影响**
@@ -499,35 +499,35 @@
 
 **修改点**
 
-- 修改 `watchdog_v2/repair.py` 或 `watchdog_v2/survival.py`
+- 修改 `openclaw_watchdog/repair.py` 或 `openclaw_watchdog/survival.py`
   - 新增 manifest / fingerprint 生成逻辑：
     - `OPENCLAW_CONFIG`
     - 关键插件/扩展目录
     - 关键 env 文件
     - systemd user unit（如相关）
-- 修改 `watchdog_v2/bootstrap.py`
+- 修改 `openclaw_watchdog/bootstrap.py`
   - 在 bootstrap / plugin install / config write 这些已知写路径前后写保护快照。
-- 修改 `watchdog_v2/config.py`
+- 修改 `openclaw_watchdog/config.py`
   - 新增建议 env：
     - `WATCHDOG_LAST_GOOD_MANIFEST_FILE`
     - `WATCHDOG_PROTECTED_PATHS`
     - `WATCHDOG_ENABLE_DRIFT_AUTO_ROLLBACK`
-- 可选修改 `watchdog_v2/cli.py`
+- 可选修改 `openclaw_watchdog/cli.py`
   - 仅在确有需要时增加轻量 `guard snapshot` / `guard verify`；
   - 若不用 CLI，也至少让 `status/report` 显示 drift 结果。
-- 修改 `watchdog_v2/reporting.py`
+- 修改 `openclaw_watchdog/reporting.py`
   - 输出 `config_drift_detected`、`drift_scope`、`drift_since_last_good`。
 
 **涉及模块**
 
-- `watchdog_v2/repair.py`
-- `watchdog_v2/survival.py`（若新增）
-- `watchdog_v2/bootstrap.py`
-- `watchdog_v2/config.py`
-- `watchdog_v2/reporting.py`
-- `watchdog_v2/cli.py`
+- `openclaw_watchdog/repair.py`
+- `openclaw_watchdog/survival.py`（若新增）
+- `openclaw_watchdog/bootstrap.py`
+- `openclaw_watchdog/config.py`
+- `openclaw_watchdog/reporting.py`
+- `openclaw_watchdog/cli.py`
 - `scripts/openclaw-watchdog`
-- `MIGRATION-v2.md`
+- `migration-legacy-rollout.md`
 
 **CLI / 状态 / 报告影响**
 
@@ -651,21 +651,21 @@
 
 **修改点**
 
-- 修改 `watchdog_v2/reporting.py`
+- 修改 `openclaw_watchdog/reporting.py`
   - 把 `recovery_strategy`、`survival_mode_active`、`rollback_reason`、`config_drift_detected` 接入 report/message/metrics。
-- 修改 `watchdog_v2/incidents.py`
+- 修改 `openclaw_watchdog/incidents.py`
   - 在 incident snapshot/detail 中加入上述字段，作为恢复上下文的一部分。
-- 修改 `watchdog_v2/cli.py`
+- 修改 `openclaw_watchdog/cli.py`
   - 让文本 `status/report/incidents show` 输出这些字段，但不增加新的 workflow 子命令。
-- 更新 `MIGRATION-v2.md`
+- 更新 `migration-legacy-rollout.md`
   - 用“survivability fields”而不是“operator workflow enhancements”来描述。
 
 **涉及模块**
 
-- `watchdog_v2/reporting.py`
-- `watchdog_v2/incidents.py`
-- `watchdog_v2/cli.py`
-- `MIGRATION-v2.md`
+- `openclaw_watchdog/reporting.py`
+- `openclaw_watchdog/incidents.py`
+- `openclaw_watchdog/cli.py`
+- `migration-legacy-rollout.md`
 
 **CLI / 状态 / 报告影响**
 

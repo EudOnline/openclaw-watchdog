@@ -1,9 +1,9 @@
 import unittest
 
-from watchdog_v2.presenters.bootstrap import render_bootstrap
-from watchdog_v2.presenters.incidents import render_incident_queue
-from watchdog_v2.presenters.report import render_report
-from watchdog_v2.presenters.status import render_status_summary
+from openclaw_watchdog.presenters.bootstrap import render_bootstrap
+from openclaw_watchdog.presenters.incidents import render_incident_queue
+from openclaw_watchdog.presenters.report import render_report
+from openclaw_watchdog.presenters.status import render_status_summary
 
 
 class CliPresentersTest(unittest.TestCase):
@@ -162,28 +162,28 @@ class CliPresentersTest(unittest.TestCase):
 
     def test_render_bootstrap_surfaces_detect_only_inventory(self) -> None:
         outcome = type('BootstrapOutcomeStub', (), {
-            'state': 'ready',
+            'state': 'attention',
             'summary': 'Bootstrap detection completed',
             'payload': {
-                'opencode': {'available': True, 'detected_binary': 'opencode', 'config_ready': True, 'config': {'path': 'state/opencode.json', 'configured_model': 'opencode/minimax-m2.5-free', 'changed': False, 'backup_path': ''}, 'watchdog_bin_available': True, 'desired_model': 'opencode/minimax-m2.5-free'},
+                'opencode': {'available': True, 'detected_binary': 'opencode', 'config_ready': True, 'config': {'path': 'state/opencode.json', 'configured_model': 'opencode/minimax-m2.5-free'}, 'watchdog_bin_available': True, 'desired_model': 'opencode/minimax-m2.5-free'},
                 'codex': {'available': False, 'detected_binary': ''},
                 'openclaw': {'available': False, 'binary': '', 'detect_returncode': 1},
                 'qq_plugin': {'installed': False},
-                'config': {'path': 'state/openclaw.json', 'changed': False, 'backup_path': '', 'placeholders_remaining': []},
+                'config': {'path': 'state/openclaw.json', 'placeholders_remaining': []},
                 'feishu_runtime': {'found': False},
-                'files_changed': [],
                 'flow': ['detect-opencode', 'detect-openclaw'],
             },
         })()
 
         text = render_bootstrap(outcome)
 
-        self.assertIn('state=ready', text)
+        self.assertIn('state=attention', text)
         self.assertIn('opencode_available=true', text)
         self.assertIn('openclaw_available=false', text)
         self.assertIn('bootstrap_flow=detect-opencode -> detect-openclaw', text)
-        self.assertNotIn('confirmation_required=', text)
-        self.assertNotIn('opencode_install_planned=', text)
+        self.assertNotIn('files_changed=', text)
+        self.assertNotIn('backup_path=', text)
+        self.assertNotIn('opencode_config_changed=', text)
 
 
 if __name__ == '__main__':

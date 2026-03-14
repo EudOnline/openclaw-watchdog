@@ -40,6 +40,7 @@ class RuntimeWrapperTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('Traceback', combined)
         self.assertIn('Python 3.11+', combined)
+        self.assertIn('python3.11 -m openclaw_watchdog --help', combined)
 
     def test_prefers_compatible_python_named_python313_when_python3_is_too_old(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

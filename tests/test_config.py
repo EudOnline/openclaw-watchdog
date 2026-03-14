@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from watchdog_v2.config import Config
+from openclaw_watchdog.config import Config
 
 
 class ConfigDefaultsTest(unittest.TestCase):
@@ -36,7 +36,9 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(config.watchdog_service_level_timeout_seconds, 12)
         self.assertEqual(config.watchdog_service_level_retry_grace_seconds, 8)
         self.assertEqual(config.watchdog_codex_workdir, expected_home)
-        self.assertEqual(config.watchdog_opencode_fallback_workdir, expected_home)
+        self.assertEqual(config.watchdog_claude_code_workdir, expected_home)
+        self.assertEqual(config.watchdog_gemini_cli_workdir, expected_home)
+        self.assertEqual(config.watchdog_opencode_workdir, expected_home)
         self.assertEqual(config.openclaw_config, expected_home / '.openclaw/openclaw.json')
         self.assertEqual(config.watchdog_state_dir, expected_home / '.openclaw-backup/watchdog')
         self.assertEqual(
@@ -49,9 +51,18 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(config.watchdog_rescue_candidate_rules_dir, expected_home / '.openclaw-backup/watchdog/rescue/candidate-rules')
         self.assertEqual(config.watchdog_rescue_rules_dir, expected_home / '.openclaw-backup/watchdog/rescue/rules')
         self.assertEqual(config.watchdog_rescue_reviews_dir, expected_home / '.openclaw-backup/watchdog/rescue/reviews')
+        self.assertEqual(
+            config.watchdog_rescue_editable_paths,
+            ('~/.openclaw/openclaw.json', '~/.openclaw-backup/watchdog/openclaw.survival.json'),
+        )
+        self.assertEqual(
+            config.watchdog_rescue_editable_keys,
+            ('channels', 'extensions', 'mcpServers', 'services', 'workers', 'schedules'),
+        )
         self.assertFalse(hasattr(config, 'watchdog_codex_last_trigger_file'))
         self.assertFalse(hasattr(config, 'watchdog_codex_min_failures'))
         self.assertFalse(hasattr(config, 'watchdog_codex_cooldown_seconds'))
+        self.assertFalse(hasattr(config, 'watchdog_opencode_fallback_workdir'))
 
     def test_parses_litellm_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_home:
@@ -94,6 +105,36 @@ class ConfigDefaultsTest(unittest.TestCase):
             config.watchdog_rescue_editable_keys,
             ('channels.qqbot.enabled', 'extensions', 'services'),
         )
+
+    def test_parses_executor_specific_runtime_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_home:
+            config = self._load_with_home(
+                temp_home,
+                '\n'.join(
+                    [
+                        'WATCHDOG_CLAUDE_CODE_BIN=claude-code-custom',
+                        'WATCHDOG_CLAUDE_CODE_WORKDIR=~/claude-work',
+                        'WATCHDOG_CLAUDE_CODE_TIMEOUT_SECONDS=41',
+                        'WATCHDOG_GEMINI_CLI_BIN=gemini-custom',
+                        'WATCHDOG_GEMINI_CLI_WORKDIR=~/gemini-work',
+                        'WATCHDOG_GEMINI_CLI_TIMEOUT_SECONDS=42',
+                        'WATCHDOG_OPENCODE_BIN=opencode-custom',
+                        'WATCHDOG_OPENCODE_WORKDIR=~/opencode-work',
+                        'WATCHDOG_OPENCODE_TIMEOUT_SECONDS=43',
+                    ]
+                ),
+            )
+
+        self.assertEqual(config.watchdog_claude_code_bin, 'claude-code-custom')
+        self.assertEqual(config.watchdog_claude_code_workdir, Path(temp_home) / 'claude-work')
+        self.assertEqual(config.watchdog_claude_code_timeout_seconds, 41)
+        self.assertEqual(config.watchdog_gemini_cli_bin, 'gemini-custom')
+        self.assertEqual(config.watchdog_gemini_cli_workdir, Path(temp_home) / 'gemini-work')
+        self.assertEqual(config.watchdog_gemini_cli_timeout_seconds, 42)
+        self.assertEqual(config.watchdog_opencode_bin, 'opencode-custom')
+        self.assertEqual(config.watchdog_opencode_workdir, Path(temp_home) / 'opencode-work')
+        self.assertEqual(config.watchdog_opencode_timeout_seconds, 43)
+
 
 
 if __name__ == '__main__':

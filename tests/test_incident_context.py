@@ -1,7 +1,7 @@
 import unittest
 
-from watchdog_v2.incident_context import build_incident_index_entry, build_report_incident_context
-from watchdog_v2.models import IncidentSummary
+from openclaw_watchdog.incident_context import build_incident_index_entry, build_report_incident_context
+from openclaw_watchdog.models import IncidentSummary
 
 
 class IncidentContextTest(unittest.TestCase):

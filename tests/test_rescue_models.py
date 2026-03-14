@@ -1,6 +1,6 @@
 import unittest
 
-from watchdog_v2.rescue_models import RescueAction, RescueContext, RescuePlan, RescueResult
+from openclaw_watchdog.rescue_models import RescueAction, RescueContext, RescuePlan, RescueResult
 
 
 class RescueModelTests(unittest.TestCase):

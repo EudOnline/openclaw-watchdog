@@ -38,7 +38,7 @@ case "$1" in
     shift || true
     exec rehearsal/scripts/apply-scenario.sh "$@"
     ;;
-  bootstrap|provision|run-once|check|status|maintenance)
+  bootstrap|run-once|check|status|maintenance)
     exec scripts/openclaw-watchdog --env rehearsal/env/openclaw-watchdog.rehearsal.env "$@"
     ;;
   *)

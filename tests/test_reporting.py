@@ -2,8 +2,9 @@ import tempfile
 from pathlib import Path
 import unittest
 from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
-from watchdog_v2.reporting import message_report_text, metrics_payload, prometheus_metrics_text, report_payload
+from openclaw_watchdog.reporting import message_report_text, metrics_payload, prometheus_metrics_text, report_payload
 
 
 STABLE_REPORT_KEYS = {
@@ -70,6 +71,7 @@ class FakeEngine:
         self.config = SimpleNamespace(
             watchdog_last_report_file=Path(temp_dir) / 'last-report.json',
             watchdog_last_metrics_file=Path(temp_dir) / 'last-metrics.json',
+            watchdog_incidents_dir=Path(temp_dir) / 'incidents',
         )
 
     def now_iso(self) -> str:
@@ -174,6 +176,83 @@ class FakeEngine:
 
 
 class ReportingTest(unittest.TestCase):
+    def _report_payload(self, engine, *, incident_limit: int = 5) -> dict[str, object]:
+        from openclaw_watchdog import report_payload_runtime
+
+        with patch('openclaw_watchdog.report_payload_runtime.health_ops.status_payload', side_effect=lambda runtime_engine: runtime_engine.status_payload()):
+            return report_payload_runtime.report_payload(engine, incident_limit=incident_limit)
+
+    def _metrics_payload(self, engine) -> dict[str, object]:
+        from openclaw_watchdog import metrics_runtime
+
+        with patch('openclaw_watchdog.metrics_runtime.health_ops.status_payload', side_effect=lambda runtime_engine: runtime_engine.status_payload()):
+            return metrics_runtime.metrics_payload(engine)
+
+    def test_report_and_metrics_payload_use_health_module_directly(self) -> None:
+        from openclaw_watchdog import metrics_runtime
+        from openclaw_watchdog import report_payload_runtime
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template_engine = FakeEngine(temp_dir)
+            status_payload = template_engine.status_payload()
+
+            class WrapperlessEngine:
+                def __init__(self) -> None:
+                    self.config = template_engine.config
+
+                def now_iso(self) -> str:
+                    return template_engine.now_iso()
+
+            engine = WrapperlessEngine()
+
+            incident_context = {
+                'recent_incidents': [],
+                'current_incident_id': '',
+                'current_incident_state': '',
+                'current_incident_owner': '',
+                'current_incident_acknowledged': False,
+                'current_incident_notes_count': 0,
+                'operator_attention_items': [],
+                'operator_attention_needed': False,
+                'operator_attention_count': 0,
+            }
+
+            with patch('openclaw_watchdog.report_payload_runtime.health_ops.status_payload', return_value=status_payload) as status_mock:
+                with patch('openclaw_watchdog.report_payload_runtime.incident_ops.list_incident_snapshots', return_value=[]):
+                    with patch('openclaw_watchdog.report_payload_runtime.incident_context_ops.build_report_incident_context', return_value=incident_context):
+                        with patch('openclaw_watchdog.report_payload_runtime.incident_ops.current_incident_payload', return_value={}):
+                            report = report_payload_runtime.report_payload(engine)
+                            metrics = metrics_runtime.metrics_payload(engine)
+
+        self.assertEqual(report['status'], 'healthy')
+        self.assertEqual(metrics['status'], 'healthy')
+        self.assertEqual(status_mock.call_count, 2)
+
+    def test_reporting_facade_delegates_to_runtime_modules(self) -> None:
+        from openclaw_watchdog import reporting
+
+        engine = object()
+        report_mock = Mock(return_value={'status': 'healthy'})
+        message_mock = Mock(return_value='ok')
+        metrics_mock = Mock(return_value={'status': 'healthy'})
+        prometheus_mock = Mock(return_value='metric 1\n')
+
+        with patch.object(reporting, 'report_payload_runtime', SimpleNamespace(report_payload=report_mock, message_report_text=message_mock), create=True):
+            report = reporting.report_payload(engine, incident_limit=7)
+            text = reporting.message_report_text({'status': 'healthy'})
+        with patch.object(reporting, 'metrics_runtime', SimpleNamespace(metrics_payload=metrics_mock, prometheus_metrics_text=prometheus_mock), create=True):
+            metrics = reporting.metrics_payload(engine)
+            prom = reporting.prometheus_metrics_text({'status': 'healthy'})
+
+        self.assertEqual(report, {'status': 'healthy'})
+        self.assertEqual(text, 'ok')
+        self.assertEqual(metrics, {'status': 'healthy'})
+        self.assertEqual(prom, 'metric 1\n')
+        report_mock.assert_called_once_with(engine, incident_limit=7)
+        message_mock.assert_called_once_with({'status': 'healthy'})
+        metrics_mock.assert_called_once_with(engine)
+        prometheus_mock.assert_called_once_with({'status': 'healthy'})
+
     def test_reporting_contract_document_lists_stable_keys(self) -> None:
         contract_doc = (Path(__file__).resolve().parents[1] / 'docs' / 'reporting-contract.md').read_text(encoding='utf-8')
 
@@ -251,7 +330,7 @@ class ReportingTest(unittest.TestCase):
 
 
     def test_report_payload_reads_extracted_run_state_fields(self) -> None:
-        from watchdog_v2 import run_state_service
+        from openclaw_watchdog import run_state_service
 
         with tempfile.TemporaryDirectory() as temp_dir:
             run_state_file = Path(temp_dir) / 'run-state.json'
@@ -278,7 +357,7 @@ class ReportingTest(unittest.TestCase):
                     )
                     return payload
 
-            report = report_payload(ServiceBackedEngine(temp_dir))
+            report = self._report_payload(ServiceBackedEngine(temp_dir))
 
         self.assertEqual(report['rescue_attempt_order'], ['codex', 'claude-code', 'litellm'])
         self.assertEqual(report['rescue_rejected_executors'], ['codex:unavailable', 'claude-code:no-plan'])
@@ -286,12 +365,12 @@ class ReportingTest(unittest.TestCase):
         self.assertEqual(report['rescue_mutation_scope'], ['restart_service'])
 
     def test_metrics_and_report_share_same_rescue_chain_fields(self) -> None:
-        from watchdog_v2.operator_snapshot import OPERATOR_SNAPSHOT_KEYS
+        from openclaw_watchdog.operator_snapshot import OPERATOR_SNAPSHOT_KEYS
 
         with tempfile.TemporaryDirectory() as temp_dir:
             engine = FakeEngine(temp_dir)
-            report = report_payload(engine)
-            metrics = metrics_payload(engine)
+            report = self._report_payload(engine)
+            metrics = self._metrics_payload(engine)
 
         shared_keys = {
             'last_recovery_strategy',
@@ -318,14 +397,14 @@ class ReportingTest(unittest.TestCase):
 
     def test_report_payload_enforces_contract_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            report = report_payload(FakeEngine(temp_dir))
+            report = self._report_payload(FakeEngine(temp_dir))
 
         self.assertTrue(STABLE_REPORT_KEYS.issubset(report.keys()))
         self.assertNotIn('recent_incident_summaries', report)
 
     def test_metrics_payload_enforces_contract_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            metrics = metrics_payload(FakeEngine(temp_dir))
+            metrics = self._metrics_payload(FakeEngine(temp_dir))
 
         self.assertTrue(STABLE_METRICS_KEYS.issubset(metrics.keys()))
         self.assertNotIn('current_incident_events_count', metrics)

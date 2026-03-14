@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from watchdog_v2.bootstrap import BootstrapOutcome, Bootstrapper
-from watchdog_v2.bootstrap_steps import PipelineResult, run_bootstrap_pipeline
-from watchdog_v2.models import BootstrapSummary
+from openclaw_watchdog.bootstrap import BootstrapOutcome, Bootstrapper
+from openclaw_watchdog.bootstrap_steps import PipelineResult, run_bootstrap_pipeline
+from openclaw_watchdog.models import BootstrapSummary
 
 
 class _Result:
@@ -16,13 +16,12 @@ class _Result:
 
 
 class FakeBootstrapper:
-    def __init__(self, *, dry_run: bool = False) -> None:
+    def __init__(self) -> None:
         self.allow_install = False
-        self.dry_run = dry_run
         self.config = SimpleNamespace(
             openclaw_config=Path('state/openclaw.json'),
             watchdog_codex_bin='codex',
-            watchdog_opencode_fallback_bin='opencode',
+            watchdog_opencode_bin='opencode',
             watchdog_litellm_enabled=False,
             watchdog_litellm_model='',
         )
@@ -99,18 +98,16 @@ class BootstrapStepsTest(unittest.TestCase):
 
         result = run_bootstrap_pipeline(
             bootstrapper,
-            BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False),
+            BootstrapSummary.initial(config_path='state/openclaw.json'),
         )
 
-        self.assertEqual(result.state, 'ready')
+        self.assertEqual(result.state, 'attention')
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.bootstrap_summary.executors['codex']['available'], True)
         self.assertEqual(result.bootstrap_summary.executors['claude-code']['available'], False)
         self.assertEqual(result.bootstrap_summary.executors['gemini-cli']['available'], True)
         self.assertEqual(result.bootstrap_summary.executors['opencode']['available'], False)
         self.assertEqual(result.bootstrap_summary.executors['litellm']['available'], False)
-        self.assertEqual(result.bootstrap_summary.files_changed, [])
-        self.assertEqual(result.bootstrap_summary.backup_files, [])
 
     def test_missing_openclaw_adds_manual_next_step_without_confirmation_stop(self) -> None:
         bootstrapper = FakeBootstrapper()
@@ -118,10 +115,10 @@ class BootstrapStepsTest(unittest.TestCase):
 
         result = run_bootstrap_pipeline(
             bootstrapper,
-            BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False),
+            BootstrapSummary.initial(config_path='state/openclaw.json'),
         )
 
-        self.assertEqual(result.state, 'ready')
+        self.assertEqual(result.state, 'attention')
         self.assertFalse(result.bootstrap_summary.openclaw['available'])
         self.assertIn('Install or expose OpenClaw on PATH before enabling live rescue flows.', result.bootstrap_summary.next_steps)
 
@@ -138,7 +135,7 @@ class BootstrapStepsTest(unittest.TestCase):
 
         result = run_bootstrap_pipeline(
             bootstrapper,
-            BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False),
+            BootstrapSummary.initial(config_path='state/openclaw.json'),
         )
 
         self.assertIn('fill placeholder credentials before enabling live traffic', result.bootstrap_summary.warnings)
@@ -152,29 +149,29 @@ class BootstrapStepsTest(unittest.TestCase):
         config = SimpleNamespace(
             openclaw_config=Path('state/openclaw.json'),
             watchdog_codex_bin='codex',
-            watchdog_opencode_fallback_bin='opencode',
+            watchdog_opencode_bin='opencode',
             watchdog_litellm_enabled=False,
             watchdog_litellm_model='',
         )
 
         class RecordingBootstrapper(Bootstrapper):
             def __init__(self) -> None:
-                super().__init__(config, dry_run=False)
+                super().__init__(config)
                 self.received_summary = None
 
             def finish(self, bootstrap_summary, *, state: str, summary: str, exit_code: int) -> BootstrapOutcome:
                 self.received_summary = bootstrap_summary
                 return BootstrapOutcome(exit_code=exit_code, state=state, summary=summary, payload={})
 
-        bootstrap_summary = BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False)
+        bootstrap_summary = BootstrapSummary.initial(config_path='state/openclaw.json')
         bootstrap_summary.executors = {'codex': {'available': True}}
         bootstrapper = RecordingBootstrapper()
 
         with patch(
-            'watchdog_v2.bootstrap.bootstrap_step_ops.run_bootstrap_pipeline',
+            'openclaw_watchdog.bootstrap.bootstrap_step_ops.run_bootstrap_pipeline',
             return_value=PipelineResult(
                 bootstrap_summary=bootstrap_summary,
-                state='ready',
+                state='attention',
                 message='ok',
                 exit_code=0,
             ),
@@ -187,12 +184,12 @@ class BootstrapStepsTest(unittest.TestCase):
         config = SimpleNamespace(
             openclaw_config=Path('state/openclaw.json'),
             watchdog_codex_bin='codex',
-            watchdog_opencode_fallback_bin='opencode',
+            watchdog_opencode_bin='opencode',
             watchdog_litellm_enabled=False,
             watchdog_litellm_model='',
         )
-        bootstrapper = Bootstrapper(config, dry_run=False)
-        bootstrap_summary = BootstrapSummary.initial(config_path='state/openclaw.json', dry_run=False)
+        bootstrapper = Bootstrapper(config)
+        bootstrap_summary = BootstrapSummary.initial(config_path='state/openclaw.json')
         bootstrap_summary.executors = {
             'codex': {'available': True, 'detected_binary': 'codex'},
             'claude-code': {'available': False, 'detected_binary': ''},
@@ -203,11 +200,12 @@ class BootstrapStepsTest(unittest.TestCase):
             'backup_path': '',
         }
 
-        outcome = bootstrapper.finish(bootstrap_summary, state='ready', summary='ok', exit_code=0)
+        outcome = bootstrapper.finish(bootstrap_summary, state='attention', summary='ok', exit_code=0)
 
-        self.assertEqual(outcome.payload['files_changed'], [])
-        self.assertEqual(outcome.payload['backup_files'], [])
-        self.assertEqual(outcome.payload['state'], 'ready')
+        self.assertNotIn('files_changed', outcome.payload)
+        self.assertNotIn('backup_files', outcome.payload)
+        self.assertNotIn('dry_run', outcome.payload)
+        self.assertEqual(outcome.payload['state'], 'attention')
         self.assertEqual(outcome.payload['summary'], 'ok')
         self.assertEqual(outcome.payload['exit_code'], 0)
         self.assertEqual(outcome.payload['executors']['codex']['available'], True)
@@ -216,11 +214,11 @@ class BootstrapStepsTest(unittest.TestCase):
         config = SimpleNamespace(
             openclaw_config=Path('state/openclaw.json'),
             watchdog_codex_bin='codex',
-            watchdog_opencode_fallback_bin='opencode-watchdog',
+            watchdog_opencode_bin='opencode-watchdog',
             watchdog_litellm_enabled=False,
             watchdog_litellm_model='',
         )
-        bootstrapper = Bootstrapper(config, dry_run=False)
+        bootstrapper = Bootstrapper(config)
 
         with patch.object(bootstrapper, 'detect_binary', side_effect=[(True, '/usr/local/bin/opencode', _Result(0)), (True, '/usr/local/bin/opencode-watchdog', _Result(0))]):
             with patch.object(bootstrapper, 'inspect_opencode_config', return_value={'path': 'state/opencode.json', 'ready': True}):

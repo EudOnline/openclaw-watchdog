@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
-from watchdog_v2.rescue_models import RescueContext
+from openclaw_watchdog.rescue_models import RescueContext
 
 
 class FakeLiteLLMClient:
@@ -18,7 +18,7 @@ class FakeLiteLLMClient:
 
 class LiteLLMAgentTests(unittest.TestCase):
     def test_agent_returns_structured_plan(self) -> None:
-        from watchdog_v2.rescue_agents.litellm_agent import LiteLLMSpecialistAgent
+        from openclaw_watchdog.rescue_agents.litellm_agent import LiteLLMSpecialistAgent
 
         client = FakeLiteLLMClient(
             response={
@@ -40,7 +40,7 @@ class LiteLLMAgentTests(unittest.TestCase):
         self.assertEqual(plan.plan_id, 'plan-1')
 
     def test_agent_payload_includes_openclaw_policy_and_learning_context(self) -> None:
-        from watchdog_v2.rescue_agents.litellm_agent import LiteLLMSpecialistAgent
+        from openclaw_watchdog.rescue_agents.litellm_agent import LiteLLMSpecialistAgent
 
         client = FakeLiteLLMClient(
             response={
@@ -80,7 +80,7 @@ class LiteLLMAgentTests(unittest.TestCase):
         self.assertIn('required_channels', payload['openclaw_policy'])
 
     def test_agent_refuses_freeform_shell_output(self) -> None:
-        from watchdog_v2.rescue_agents.litellm_agent import LiteLLMSpecialistAgent
+        from openclaw_watchdog.rescue_agents.litellm_agent import LiteLLMSpecialistAgent
 
         client = FakeLiteLLMClient(response={'shell': 'rm -rf /'})
         config = SimpleNamespace(

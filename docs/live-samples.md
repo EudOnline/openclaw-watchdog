@@ -1,7 +1,7 @@
 # OpenClaw Watchdog live samples
 
 Generated: 2026-03-09 10:24 CST
-Scope: P7-A real-host read-only acceptance for OpenClaw Watchdog (`watchdog_v2` internals)
+Scope: P7-A real-host read-only acceptance for the OpenClaw fallback system (`openclaw_watchdog` internals)
 Source files: `docs/p7a-live/*`
 
 ## One-command acceptance
@@ -123,3 +123,4 @@ incident_count=0
 - `metrics --prometheus` executed successfully and refreshed a scrape-ready text sample under `docs/p7a-live/metrics.prom`.
 - `openclaw status` output currently includes plugin/banner lines before the main status card; this does not affect watchdog status/report/metrics commands, but it is worth remembering when copying operator-facing samples verbatim.
 - This acceptance was read-only: no repair, restart, maintenance toggle, or incident mutation was performed.
+- These samples document the OpenClaw fallback system after host setup; they are not a bootstrap or software-installation path.

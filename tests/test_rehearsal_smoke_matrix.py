@@ -59,6 +59,13 @@ EXTENDED_SCENARIOS = [
 
 
 class RehearsalSmokeMatrixTest(unittest.TestCase):
+    def test_ci_workflow_uses_openclaw_watchdog_module_surface(self) -> None:
+        workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
+
+        self.assertIn('python -m openclaw_watchdog --help', workflow_text)
+        self.assertIn('python -m py_compile openclaw_watchdog/*.py', workflow_text)
+        self.assertNotIn('watchdog_v2', workflow_text)
+
     def test_ci_workflow_runs_critical_rehearsal_scenarios(self) -> None:
         workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
 

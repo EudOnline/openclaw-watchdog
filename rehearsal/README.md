@@ -1,6 +1,6 @@
-# OpenClaw Watchdog rehearsal harness
+# OpenClaw fallback rehearsal harness
 
-This harness exercises the OpenClaw Watchdog source tree in a deterministic, repo-local rehearsal environment.
+This harness exercises the OpenClaw fallback system in a deterministic, repo-local rehearsal environment.
 
 It still requires a compatible local Python 3.11+ interpreter. The rehearsal helper scripts prepare repo-local command shims for whichever supported `python3.11+` executable names are available on the host.
 
@@ -11,6 +11,7 @@ It still requires a compatible local Python 3.11+ interpreter. The rehearsal hel
 - Scenario setup scripts for bootstrap and watchdog paths.
 - No dependency on a real OpenClaw service or on the host machine's OpenClaw state.
 - All mutable state lives under `rehearsal/runtime`.
+- No automatic installation of rescue tools; each scenario only exposes the shims it explicitly needs.
 
 ## Layout
 
@@ -24,12 +25,12 @@ It still requires a compatible local Python 3.11+ interpreter. The rehearsal hel
 - `rehearsal/scenarios/`: scenario expectations.
 
 Implementation map:
-- `watchdog_v2/engine.py` remains the orchestration entrypoint for the unified OpenClaw rescue chain.
-- `watchdog_v2/incidents.py` contains incident snapshot/workflow logic delegated from the engine.
-- `watchdog_v2/reporting.py` contains report/message/metrics rendering delegated from the engine.
-- `watchdog_v2/repair.py` contains repair/rollback helpers delegated from the engine, including manifest-based `last-good` selection.
-- `watchdog_v2/health.py` contains service-level probing, conversation-aware probe aggregation, and status shaping delegated from the engine.
-- External executors now return structured rescue plans only; host mutation stays inside the local rescue action boundary.
+- `openclaw_watchdog/engine.py` remains the orchestration entrypoint for the unified OpenClaw rescue chain.
+- `openclaw_watchdog/incidents.py` contains incident snapshot/workflow logic delegated from the engine.
+- `openclaw_watchdog/reporting.py` contains report/message/metrics rendering delegated from the engine.
+- `openclaw_watchdog/doctor_runtime.py`, `openclaw_watchdog/last_good_runtime.py`, `openclaw_watchdog/rollback_runtime.py`, and `openclaw_watchdog/repair_action_runtime.py` contain the repair/rollback helpers used by the watchdog flow, including manifest-based `last-good` selection.
+- `openclaw_watchdog/health.py` contains service-level probing, conversation-aware probe aggregation, and status shaping delegated from the engine.
+- External executors now return structured rescue plans only; host mutation stays inside the local rescue action boundary and inside the configured OpenClaw mutation allowlist.
 
 ## Run locally
 
@@ -74,6 +75,12 @@ Run all scripted scenarios:
 bash rehearsal/scripts/run-scenario.sh all
 ```
 
+Run the release-gated critical fallback scenarios:
+
+```bash
+bash rehearsal/scripts/run-scenario.sh critical
+```
+
 Run the rehearsal entrypoint directly:
 
 ```bash
@@ -102,7 +109,7 @@ The rehearsal scenarios cover:
 - `bootstrap-missing-openclaw`: bootstrap stays detect-only, reports that OpenClaw is missing, and lists the rescue inventory without installing anything.
 - `bootstrap-openclaw-missing-plugin`: OpenClaw exists but the required plugin/config wiring is missing, so bootstrap reports the missing setup without trying to mutate the host.
 - `watchdog-recovery`: a straightforward unhealthy service becomes healthy after the normal restart path.
-- `watchdog-failed-fallback`: the service stays unhealthy through restart/repair attempts, so the watchdog records a failure and fallback context.
+- `watchdog-failed-fallback`: the service stays unhealthy through restart/repair attempts, so the watchdog records a failure and rescue-escalation context.
 - `watchdog-active-no-listener-grace`: the service is active while the listener is still warming up, so the watchdog stays patient instead of immediately restarting.
 - `watchdog-service-layer-degraded`: process health looks fine but the service-level probe is still degraded, so status/report output shows the degraded layer clearly.
 - `watchdog-service-layer-threshold-recovery`: a transient service-layer failure only triggers recovery after the configured threshold is crossed.
@@ -141,7 +148,7 @@ The rehearsal scenarios cover:
 - `WATCHDOG_ENABLE_SURVIVAL_MODE` is also kept `false` in the shared env files; the new P1 survival-mode rehearsal enables it only inside the scenario process.
 - `WATCHDOG_ENABLE_CONVERSATION_PROBE` remains on in rehearsal so conversation/minimal-usable state is always available to assertions.
 - `WATCHDOG_GUARD_MANIFEST_FILE` captures drift-guard snapshots and recent before/after validation events for bootstrap, rollback, and survival-mode config rewrites.
-- The repo now centers on one OpenClaw-specific rescue flow; rehearsal just constrains it with local shims and fixtures.
+- The repo now centers on one OpenClaw-specific fallback flow; rehearsal just constrains it with local shims and fixtures.
 - External CLI rescue rehearsal is explicit: each scenario installs only the local shim it needs, and the project no longer relies on automatic software installation.
 - `OpenClaw` must already be installed or otherwise available on PATH before the live rescue chain can act on it.
 - Expected outputs for stable scenarios live in `rehearsal/scenarios/`.
