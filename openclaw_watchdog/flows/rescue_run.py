@@ -11,16 +11,12 @@ def run(engine, ctx):
     start_ts = datetime.now().astimezone()
     ctx.last_run_started_at = start_ts
     ctx.run_ts = start_ts.strftime('%F %T %Z')
-    if hasattr(engine, 'write_run_state'):
-        engine.write_run_state({'last_run_started_at': start_ts.isoformat(timespec='seconds')})
-    if hasattr(engine, 'log'):
-        engine.log('INFO', 'watchdog rescue tick start')
+    engine.write_run_state({'last_run_started_at': start_ts.isoformat(timespec='seconds')})
+    engine.log('INFO', 'watchdog rescue tick start')
 
     try:
-        if hasattr(engine, 'reset_recovery_tracking'):
-            engine.reset_recovery_tracking()
-        if hasattr(engine, 'refresh_drift_context'):
-            engine.refresh_drift_context()
+        engine.reset_recovery_tracking()
+        engine.refresh_drift_context()
 
         phase_state = recovery_phases.baseline_probe_and_sync(engine)
         outcome = recovery_phases.finish_initial_state(engine, phase_state)
@@ -36,10 +32,9 @@ def run(engine, ctx):
         finish_ts = datetime.now().astimezone()
         ctx.last_run_finished_at = finish_ts
         duration_ms = max(0, int((finish_ts - start_ts).total_seconds() * 1000))
-        if hasattr(engine, 'write_run_state'):
-            engine.write_run_state(
-                {
-                    'last_run_finished_at': finish_ts.isoformat(timespec='seconds'),
-                    'last_run_duration_ms': duration_ms,
-                }
-            )
+        engine.write_run_state(
+            {
+                'last_run_finished_at': finish_ts.isoformat(timespec='seconds'),
+                'last_run_duration_ms': duration_ms,
+            }
+        )

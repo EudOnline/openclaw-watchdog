@@ -164,10 +164,7 @@ class RescueActionExecutor:
                 elif action.kind == 'restore_last_good':
                     rollback_runtime.restore_last_good(self.engine, reason='rescue-plan')
                 elif action.kind == 'enter_survival_mode':
-                    if hasattr(self.engine, 'enter_survival_mode'):
-                        self.engine.enter_survival_mode(reason='rescue-plan')
-                    else:
-                        survival_transition_runtime.enter_survival_mode(self.engine, reason='rescue-plan')
+                    survival_transition_runtime.enter_survival_mode(self.engine, reason='rescue-plan')
                 elif action.kind == 'run_doctor':
                     doctor_runtime.run_doctor(self.engine)
 

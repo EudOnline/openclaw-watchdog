@@ -40,8 +40,6 @@ def summary_from_probe(probe: dict[str, Any], *, fallback: str) -> str:
 
 
 def previous_service_probe_failures(engine) -> int:
-    if not hasattr(engine, 'read_run_state'):
-        return 0
     state = engine.read_run_state()
     return int(state.get('service_probe_failures', 0) or 0) if isinstance(state, dict) else 0
 
@@ -94,10 +92,7 @@ def phase_state_from_probe(engine, probe: dict[str, Any], *, config_invalid: boo
 def baseline_probe_and_sync(engine) -> RecoveryPhaseState:
     probe = dict(health_ops.live_probe(engine, include_doctor=True, apply_grace=True))
     config_invalid = bool(probe.get('config_invalid', False))
-    if hasattr(engine, 'sync_survival_mode'):
-        engine.sync_survival_mode(probe=probe, config_invalid=config_invalid)
-    else:
-        survival_transition_runtime.sync_survival_mode(engine, probe=probe, config_invalid=config_invalid)
+    survival_transition_runtime.sync_survival_mode(engine, probe=probe, config_invalid=config_invalid)
     return phase_state_from_probe(engine, probe, config_invalid=config_invalid)
 
 
@@ -107,15 +102,13 @@ def finish_initial_state(engine, state: RecoveryPhaseState):
 
     if state.health_level == 'healthy':
         finalize_runtime.refresh_last_good_if_ready(engine, state.probe)
-        if hasattr(engine, 'finalize_recovery_tracking'):
-            engine.finalize_recovery_tracking(strategy='none', restored_conversation=True)
+        engine.finalize_recovery_tracking(strategy='none', restored_conversation=True)
         summary = summary_from_probe(state.probe, fallback='conversation is ready')
         state_transition.set_state(engine, 'healthy', summary, health_level_override='healthy')
         return RunOutcome(exit_code=0, state='healthy', summary=summary)
 
     if state.health_level == 'degraded':
-        if hasattr(engine, 'finalize_recovery_tracking'):
-            engine.finalize_recovery_tracking(strategy='none', restored_conversation=False)
+        engine.finalize_recovery_tracking(strategy='none', restored_conversation=False)
         summary = summary_from_probe(state.probe, fallback='minimal conversation remains available')
         state_transition.set_state(engine, 'degraded', summary, health_level_override='degraded')
         return RunOutcome(exit_code=0, state='degraded', summary=summary)

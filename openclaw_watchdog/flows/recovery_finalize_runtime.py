@@ -67,8 +67,7 @@ def finalize_success(engine, *, strategy: str, probe: dict[str, Any], recovered_
 
     restored_conversation = bool(probe.get('conversation_ready', False))
     refresh_last_good_if_ready(engine, probe)
-    if hasattr(engine, 'finalize_recovery_tracking'):
-        engine.finalize_recovery_tracking(strategy=strategy, restored_conversation=restored_conversation)
+    engine.finalize_recovery_tracking(strategy=strategy, restored_conversation=restored_conversation)
     summary = summary_from_probe(probe, fallback=f'rescue restored via {strategy}')
     state = 'healthy' if restored_conversation and not recovered_from_failure else 'recovered' if recovered_from_failure else 'degraded'
     health_override = 'healthy' if state == 'healthy' else 'degraded'
@@ -79,8 +78,7 @@ def finalize_success(engine, *, strategy: str, probe: dict[str, Any], recovered_
 def finalize_failure(engine, *, summary: str):
     from openclaw_watchdog.engine import RunOutcome
 
-    if hasattr(engine, 'finalize_recovery_tracking'):
-        engine.finalize_recovery_tracking(strategy='failed', restored_conversation=False)
+    engine.finalize_recovery_tracking(strategy='failed', restored_conversation=False)
     state_transition.set_state(engine, 'failed', summary, health_level_override='failed')
     return RunOutcome(exit_code=1, state='failed', summary=summary)
 

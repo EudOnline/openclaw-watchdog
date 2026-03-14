@@ -56,10 +56,7 @@ def run_deterministic_recovery(engine, ctx, state: recovery_probe_runtime.Recove
     if outcome is not None:
         return outcome, state
 
-    if hasattr(engine, 'enter_survival_mode'):
-        survival_result = engine.enter_survival_mode(reason='rescue-flow')
-    else:
-        survival_result = survival_transition_runtime.enter_survival_mode(engine, reason='rescue-flow')
+    survival_result = survival_transition_runtime.enter_survival_mode(engine, reason='rescue-flow')
     survival_applied = bool((survival_result or {}).get('applied', False)) if isinstance(survival_result, dict) else bool(survival_result)
     record_step(engine, 'survival', 'applied' if survival_applied else 'failed')
     state = recovery_probe_runtime.phase_state_from_probe(

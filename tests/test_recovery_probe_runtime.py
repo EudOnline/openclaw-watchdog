@@ -69,7 +69,7 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
         fallback = recovery_probe_runtime.summary_from_probe({}, fallback='fallback summary')
         self.assertEqual(fallback, 'fallback summary')
 
-    def test_baseline_probe_and_sync_writes_run_state_and_syncs_survival_mode(self) -> None:
+    def test_baseline_probe_and_sync_writes_run_state_and_uses_survival_owner(self) -> None:
         from openclaw_watchdog.flows import recovery_probe_runtime
 
         probe = {
@@ -87,21 +87,23 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
         )
 
         with patch('openclaw_watchdog.flows.recovery_probe_runtime.health_ops.live_probe', return_value=probe) as live_probe_mock:
-            with patch(
-                'openclaw_watchdog.flows.recovery_probe_runtime.probe_run_state.service_probe_failures_for',
-                return_value=2,
-            ) as failures_mock:
+            with patch('openclaw_watchdog.flows.recovery_probe_runtime.survival_transition_runtime.sync_survival_mode') as sync_mock:
                 with patch(
-                    'openclaw_watchdog.flows.recovery_probe_runtime.probe_run_state.write_probe_run_state',
-                    return_value='failed',
-                ) as write_mock:
-                    state = recovery_probe_runtime.baseline_probe_and_sync(engine)
+                    'openclaw_watchdog.flows.recovery_probe_runtime.probe_run_state.service_probe_failures_for',
+                    return_value=2,
+                ) as failures_mock:
+                    with patch(
+                        'openclaw_watchdog.flows.recovery_probe_runtime.probe_run_state.write_probe_run_state',
+                        return_value='failed',
+                    ) as write_mock:
+                        state = recovery_probe_runtime.baseline_probe_and_sync(engine)
 
         self.assertEqual(state.probe, probe)
         self.assertFalse(state.config_invalid)
         self.assertEqual(state.health_level, 'failed')
         live_probe_mock.assert_called_once_with(engine, include_doctor=True, apply_grace=True)
-        engine.sync_survival_mode.assert_called_once_with(probe=probe, config_invalid=False)
+        engine.sync_survival_mode.assert_not_called()
+        sync_mock.assert_called_once_with(engine, probe=probe, config_invalid=False)
         failures_mock.assert_called_once_with(engine.config, probe, 1)
         write_mock.assert_called_once_with(
             engine,

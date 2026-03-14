@@ -30,7 +30,10 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
 
     def _build_engine(self, *, doctor_enabled: bool = True):
         engine = SimpleNamespace(
-            config=SimpleNamespace(watchdog_enable_doctor_repair=doctor_enabled),
+            config=SimpleNamespace(
+                watchdog_enable_doctor_repair=doctor_enabled,
+                watchdog_enable_survival_mode=False,
+            ),
             record_recovery_step=Mock(),
             enter_survival_mode=Mock(return_value={'applied': False}),
         )
@@ -132,7 +135,6 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
         from openclaw_watchdog.flows import recovery_probe_runtime
 
         engine = self._build_engine()
-        engine.enter_survival_mode.return_value = {'applied': True}
         ctx = SimpleNamespace(config_drift_detected=False)
         initial_state = self._initial_state()
         restart_state = self._phase_state(health_level='failed')
@@ -150,17 +152,22 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
                     with patch('openclaw_watchdog.repair_action_runtime.restart_service', return_value=False):
                         with patch('openclaw_watchdog.rollback_runtime.restore_last_good', return_value=False):
                             with patch(
-                                'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
-                                side_effect=[None, None, outcome],
-                            ) as finalize_mock:
-                                with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair') as doctor_mock:
-                                    from openclaw_watchdog.flows import deterministic_recovery_runtime
+                                'openclaw_watchdog.flows.deterministic_recovery_runtime.survival_transition_runtime.enter_survival_mode',
+                                return_value={'applied': True},
+                            ) as survival_mock:
+                                with patch(
+                                    'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
+                                    side_effect=[None, None, outcome],
+                                ) as finalize_mock:
+                                    with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair') as doctor_mock:
+                                        from openclaw_watchdog.flows import deterministic_recovery_runtime
 
-                                    result, final_state = deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
+                                        result, final_state = deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
 
         self.assertEqual(result, outcome)
         self.assertEqual(final_state, survival_state)
-        engine.enter_survival_mode.assert_called_once_with(reason='rescue-flow')
+        engine.enter_survival_mode.assert_not_called()
+        survival_mock.assert_called_once_with(engine, reason='rescue-flow')
         doctor_mock.assert_not_called()
         self.assertEqual(
             engine.record_recovery_step.call_args_list,
