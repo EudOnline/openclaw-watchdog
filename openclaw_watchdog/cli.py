@@ -5,6 +5,15 @@ import json
 from pathlib import Path
 
 from openclaw_watchdog.bootstrap import BootstrapOutcome, Bootstrapper
+from openclaw_watchdog.cli_commands import (
+    bootstrap_command,
+    incidents_command,
+    maintenance_command,
+    metrics_command,
+    report_command,
+    run_once_command,
+    status_command,
+)
 from openclaw_watchdog.config import Config, default_env_file
 from openclaw_watchdog.detect import detect_payload, print_detect, write_suggested_env
 from openclaw_watchdog.engine import WatchdogEngine
@@ -434,231 +443,77 @@ def main(argv: list[str] | None = None) -> int:
     config = Config.load(env_file)
 
     if args.command == "bootstrap":
-        outcome = Bootstrapper(config).run()
-        if args.json:
-            _print_json(outcome.payload)
-        else:
-            _print_bootstrap(outcome)
-        return outcome.exit_code
+        return bootstrap_command.run(
+            args=args,
+            config=config,
+            bootstrapper_type=Bootstrapper,
+            json_printer=_print_json,
+            bootstrap_printer=_print_bootstrap,
+        )
 
     with WatchdogEngine(config) as engine:
-        if args.command == "run-once":
-            if not engine.acquire_lock():
-                payload = {"state": "locked", "summary": f"lock busy: {config.watchdog_lock_file}"}
-                if args.json:
-                    _print_json(payload)
-                else:
-                    print(f"state={payload['state']}")
-                    print(f"summary={payload['summary']}")
-                return 0
-            outcome = engine.run_once()
-            if args.json:
-                _print_json({"state": outcome.state, "summary": outcome.summary, "exit_code": outcome.exit_code})
-            else:
-                _print_run_once(outcome)
-            return outcome.exit_code
-
-        if args.command == "check":
-            payload = health_ops.live_probe(engine, include_doctor=True)
-            if args.json:
-                _print_json(payload)
-            else:
-                _print_check(payload)
-            return 0 if payload["healthy"] else 1
-
-        if args.command == "detect":
-            payload = detect_payload(engine)
-            if getattr(args, "write_suggested_config", None):
-                written = write_suggested_env(payload, args.write_suggested_config)
-                payload["suggested_config_written"] = str(written)
-            if args.json:
-                _print_json(payload)
-            else:
-                print_detect(payload)
-                if payload.get("suggested_config_written"):
-                    print(f"suggested_config_written={payload['suggested_config_written']}")
-            return 0
+        if args.command in {"run-once", "check", "detect"}:
+            return run_once_command.run(
+                args=args,
+                engine=engine,
+                config=config,
+                health_ops=health_ops,
+                detect_payload_fn=detect_payload,
+                detect_printer=print_detect,
+                write_suggested_env_fn=write_suggested_env,
+                json_printer=_print_json,
+                run_once_printer=_print_run_once,
+                check_printer=_print_check,
+            )
 
         if args.command == "status":
-            payload = health_ops.status_payload(engine)
-            if args.json:
-                _print_json(payload)
-            elif getattr(args, "summary", False):
-                _print_status_summary(payload)
-            else:
-                _print_status(payload)
-            return 0
+            return status_command.run(
+                args=args,
+                engine=engine,
+                health_ops=health_ops,
+                json_printer=_print_json,
+                summary_printer=_print_status_summary,
+                status_printer=_print_status,
+            )
 
         if args.command == "report":
-            payload = reporting_ops.report_payload(engine, incident_limit=max(1, getattr(args, 'limit', 5)))
-            if args.json:
-                _print_json(payload)
-            elif getattr(args, "message", False):
-                print(payload.get("message_text", ""))
-            else:
-                _print_report(payload)
-            return 0
+            return report_command.run(
+                args=args,
+                engine=engine,
+                reporting_ops=reporting_ops,
+                json_printer=_print_json,
+                report_printer=_print_report,
+            )
 
         if args.command == "metrics":
-            payload = reporting_ops.metrics_payload(engine)
-            if getattr(args, "json", False):
-                _print_json(payload)
-            elif getattr(args, "prometheus", False):
-                print(reporting_ops.prometheus_metrics_text(payload), end="")
-            else:
-                _print_metrics(payload)
-            return 0
+            return metrics_command.run(
+                args=args,
+                engine=engine,
+                reporting_ops=reporting_ops,
+                json_printer=_print_json,
+                metrics_printer=_print_metrics,
+            )
 
         if args.command == "incidents":
-            if args.incidents_command == "list":
-                ack_arg = getattr(args, "ack", "all")
-                acknowledged = None if ack_arg == "all" else ack_arg == "yes"
-                notes_arg = getattr(args, "notes", "all")
-                has_notes = None if notes_arg == "all" else notes_arg == "yes"
-                payload = {
-                    "state_filter": getattr(args, "state", "all"),
-                    "owner_filter": getattr(args, "owner", ""),
-                    "ack_filter": ack_arg,
-                    "notes_filter": notes_arg,
-                    "attention_filter": getattr(args, "attention", "all"),
-                    "incidents": incident_ops.list_incident_snapshots(
-                        engine,
-                        limit=max(1, getattr(args, "limit", 10)),
-                        state=getattr(args, "state", "all"),
-                        owner=getattr(args, "owner", ""),
-                        acknowledged=acknowledged,
-                        has_notes=has_notes,
-                        attention_needed=None if getattr(args, "attention", "all") == "all" else getattr(args, "attention", "all") == "yes",
-                    ),
-                }
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incidents_list(payload)
-                return 0
-            if args.incidents_command == "show":
-                payload = incident_ops.incident_detail_payload(engine, args.incident_id)
-                if not payload:
-                    if getattr(args, "json", False):
-                        _print_json({"error": "incident-not-found", "incident_id": args.incident_id})
-                    else:
-                        print(f"incident_not_found={args.incident_id}")
-                    return 1
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incident_detail(payload, notes_all=getattr(args, "notes_all", False))
-                return 0
-            if args.incidents_command == "queue":
-                payload = incident_ops.incident_queue_payload(engine, limit=max(1, getattr(args, "limit", 10)))
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incident_queue(payload)
-                return 0
-            if args.incidents_command == "timeline":
-                limit = getattr(args, "limit", 0)
-                payload = incident_ops.incident_timeline_payload(engine, args.incident_id, limit=limit if limit > 0 else None)
-                if not payload:
-                    if getattr(args, "json", False):
-                        _print_json({"error": "incident-not-found", "incident_id": args.incident_id})
-                    else:
-                        print(f"incident_not_found={args.incident_id}")
-                    return 1
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incident_timeline(payload)
-                return 0
-            if args.incidents_command == "assign":
-                payload = incident_ops.set_incident_owner(engine, args.incident_id, args.owner)
-                if not payload:
-                    if getattr(args, "json", False):
-                        _print_json({"error": "incident-not-found", "incident_id": args.incident_id})
-                    else:
-                        print(f"incident_not_found={args.incident_id}")
-                    return 1
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incident_detail(payload)
-                return 0
-            if args.incidents_command == "unassign":
-                payload = incident_ops.clear_incident_owner(engine, args.incident_id)
-                if not payload:
-                    if getattr(args, "json", False):
-                        _print_json({"error": "incident-not-found", "incident_id": args.incident_id})
-                    else:
-                        print(f"incident_not_found={args.incident_id}")
-                    return 1
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incident_detail(payload)
-                return 0
-            if args.incidents_command == "ack":
-                payload = incident_ops.acknowledge_incident(engine, args.incident_id, acknowledged_by=args.by, note=args.note)
-                if not payload:
-                    if getattr(args, "json", False):
-                        _print_json({"error": "incident-not-found", "incident_id": args.incident_id})
-                    else:
-                        print(f"incident_not_found={args.incident_id}")
-                    return 1
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incident_detail(payload)
-                return 0
-            if args.incidents_command == "unack":
-                payload = incident_ops.clear_incident_acknowledgement(engine, args.incident_id)
-                if not payload:
-                    if getattr(args, "json", False):
-                        _print_json({"error": "incident-not-found", "incident_id": args.incident_id})
-                    else:
-                        print(f"incident_not_found={args.incident_id}")
-                    return 1
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incident_detail(payload)
-                return 0
-            if args.incidents_command == "note":
-                payload = incident_ops.add_incident_note(engine, args.incident_id, note_by=args.by, message=args.message)
-                if not payload:
-                    if getattr(args, "json", False):
-                        _print_json({"error": "incident-not-found", "incident_id": args.incident_id})
-                    else:
-                        print(f"incident_not_found={args.incident_id}")
-                    return 1
-                if getattr(args, "json", False):
-                    _print_json(payload)
-                else:
-                    _print_incident_detail(payload)
-                return 0
-            payload = incident_ops.current_incident_payload(engine)
-            if not payload:
-                if getattr(args, "json", False):
-                    _print_json({})
-                else:
-                    print("incident=none")
-                return 0
-            if getattr(args, "json", False):
-                _print_json(payload)
-            else:
-                _print_incident_detail(payload)
-            return 0
+            return incidents_command.run(
+                args=args,
+                engine=engine,
+                incident_ops=incident_ops,
+                json_printer=_print_json,
+                incidents_list_printer=_print_incidents_list,
+                incident_detail_printer=_print_incident_detail,
+                incident_queue_printer=_print_incident_queue,
+                incident_timeline_printer=_print_incident_timeline,
+            )
 
         if args.command == "maintenance":
-            if args.maintenance_command == "on":
-                payload = maintenance_runtime.maintenance_on(engine, reason=args.reason)
-            elif args.maintenance_command == "off":
-                payload = maintenance_runtime.maintenance_off(engine)
-            else:
-                payload = health_ops.maintenance_status_payload(engine)
-            if getattr(args, "json", False):
-                _print_json(payload)
-            else:
-                _print_maintenance(payload)
-            return 0
+            return maintenance_command.run(
+                args=args,
+                engine=engine,
+                health_ops=health_ops,
+                maintenance_runtime=maintenance_runtime,
+                json_printer=_print_json,
+                maintenance_printer=_print_maintenance,
+            )
 
     return 2

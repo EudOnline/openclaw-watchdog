@@ -2,6 +2,15 @@ import sys
 import unittest
 from unittest.mock import patch
 
+
+class _EngineStub:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
 @unittest.skipUnless(sys.version_info >= (3, 11), 'cli import requires Python 3.11+')
 class CliSmokeTest(unittest.TestCase):
     @staticmethod
@@ -67,20 +76,39 @@ class CliSmokeTest(unittest.TestCase):
         from openclaw_watchdog.cli import main
 
         config = object()
-        outcome = type('BootstrapOutcomeStub', (), {'exit_code': 17, 'payload': {'state': 'attention'}})()
         with patch('openclaw_watchdog.cli.Config.load', return_value=config) as config_load:
-            with patch('openclaw_watchdog.cli.Bootstrapper') as bootstrapper:
+            with patch('openclaw_watchdog.cli_commands.bootstrap_command.run', return_value=17) as run_command:
                 with patch('openclaw_watchdog.cli.WatchdogEngine') as engine_type:
-                    with patch('openclaw_watchdog.cli._print_json'):
-                        bootstrapper.return_value.run.return_value = outcome
-
-                        exit_code = main(['bootstrap', '--json'])
+                    exit_code = main(['bootstrap', '--json'])
 
         self.assertEqual(exit_code, 17)
         config_load.assert_called_once()
-        bootstrapper.assert_called_once_with(config)
-        bootstrapper.return_value.run.assert_called_once_with()
+        run_command.assert_called_once()
+        called_args = run_command.call_args.kwargs
+        self.assertIs(called_args['config'], config)
         engine_type.assert_not_called()
+
+    def test_engine_commands_dispatch_through_command_owner_modules(self) -> None:
+        from openclaw_watchdog.cli import main
+
+        cases = [
+            (['run-once'], 'openclaw_watchdog.cli_commands.run_once_command.run'),
+            (['status'], 'openclaw_watchdog.cli_commands.status_command.run'),
+            (['report'], 'openclaw_watchdog.cli_commands.report_command.run'),
+            (['metrics'], 'openclaw_watchdog.cli_commands.metrics_command.run'),
+            (['incidents', 'queue'], 'openclaw_watchdog.cli_commands.incidents_command.run'),
+            (['maintenance', 'status'], 'openclaw_watchdog.cli_commands.maintenance_command.run'),
+        ]
+
+        for argv, target in cases:
+            with self.subTest(argv=argv):
+                with patch('openclaw_watchdog.cli.Config.load', return_value=object()):
+                    with patch('openclaw_watchdog.cli.WatchdogEngine', return_value=_EngineStub()):
+                        with patch(target, return_value=23) as run_command:
+                            exit_code = main(argv)
+
+                self.assertEqual(exit_code, 23)
+                run_command.assert_called_once()
 
 
 if __name__ == '__main__':
