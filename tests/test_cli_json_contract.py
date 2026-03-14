@@ -270,6 +270,33 @@ class CliJsonContractTest(unittest.TestCase):
         metrics_mock.assert_called_once_with(engine)
         prometheus_mock.assert_called_once_with({'status': 'healthy'})
 
+    def test_incidents_current_json_keeps_workflow_fields(self) -> None:
+        stdout = io.StringIO()
+        fake_engine = _FakeEngine()
+
+        with patch('openclaw_watchdog.cli.Config.load', return_value=object()):
+            with patch('openclaw_watchdog.cli.WatchdogEngine', return_value=fake_engine):
+                with patch(
+                    'openclaw_watchdog.cli.incident_ops.current_incident_payload',
+                    return_value={
+                        'incident_id': 'incident-5',
+                        'state': 'open',
+                        'owner': 'alice',
+                        'acknowledged': True,
+                        'notes_count': 2,
+                        'attention_needed': False,
+                    },
+                ):
+                    with redirect_stdout(stdout):
+                        exit_code = main(['incidents', 'current', '--json'])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload['incident_id'], 'incident-5')
+        self.assertEqual(payload['owner'], 'alice')
+        self.assertTrue(payload['acknowledged'])
+        self.assertEqual(payload['notes_count'], 2)
+
 
 if __name__ == '__main__':
     unittest.main()

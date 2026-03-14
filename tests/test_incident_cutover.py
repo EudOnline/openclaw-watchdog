@@ -11,7 +11,93 @@ from unittest.mock import Mock, patch
 
 
 class IncidentCutoverTests(unittest.TestCase):
-    def test_incidents_module_uses_incident_service_helpers_directly(self) -> None:
+    def test_incident_service_facade_delegates_read_and_write_helpers_to_owner_runtimes(self) -> None:
+        from openclaw_watchdog import incident_service
+
+        read_mock = Mock(return_value={'state': 'open'})
+        write_mock = Mock()
+
+        with TemporaryDirectory() as temp_dir:
+            incident_dir = Path(temp_dir) / 'incident-1'
+            engine = SimpleNamespace(
+                ctx=SimpleNamespace(incident_id='incident-1', incident_dir=incident_dir),
+                now_iso=lambda: '2026-03-12T22:10:00+08:00',
+            )
+
+            with patch.object(
+                incident_service,
+                'incident_read_runtime',
+                SimpleNamespace(read_incident_state_payload=read_mock),
+                create=True,
+            ):
+                payload = incident_service.read_incident_state_payload(engine, incident_dir)
+            with patch.object(
+                incident_service,
+                'incident_write_runtime',
+                SimpleNamespace(update_incident_state=write_mock),
+                create=True,
+            ):
+                incident_service.update_incident_state(engine, 'open', 'gateway degraded')
+
+        self.assertEqual(payload, {'state': 'open'})
+        read_mock.assert_called_once_with(engine, incident_dir)
+        write_mock.assert_called_once_with(engine, 'open', 'gateway degraded', resolved=False)
+
+    def test_incidents_facade_delegates_read_and_workflow_owners(self) -> None:
+        from openclaw_watchdog import incidents
+
+        snapshot_mock = Mock(return_value={'incident_id': 'incident-9'})
+        queue_mock = Mock(return_value={'summary': {'open_total': 1}, 'incidents': []})
+        assign_mock = Mock(return_value={'incident_id': 'incident-9', 'owner': 'alice'})
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            incident_dir = root / 'incident-9'
+            incident_dir.mkdir()
+            engine = SimpleNamespace(
+                config=SimpleNamespace(
+                    watchdog_incidents_dir=root,
+                    watchdog_incident_index_file=root / 'incident-index.json',
+                    watchdog_incident_index_limit=20,
+                ),
+                read_run_state=lambda: {},
+                now_iso=lambda: '2026-03-12T22:11:00+08:00',
+                ctx=SimpleNamespace(
+                    run_ts='2026-03-12 22:11:00 CST',
+                    pre_repair_backup_result='not-run',
+                    rollback_occurred=False,
+                    rollback_summary_archive_file='',
+                    rollback_candidate_used='',
+                    rollback_reason='',
+                    last_recovery_strategy='none',
+                ),
+                recovery_path_text=lambda: 'none',
+            )
+
+            with patch.object(
+                incidents,
+                'incident_read_runtime',
+                SimpleNamespace(incident_snapshot=snapshot_mock, incident_queue_payload=queue_mock),
+                create=True,
+            ):
+                snapshot = incidents.incident_snapshot(engine, incident_dir)
+                queue = incidents.incident_queue_payload(engine, limit=5)
+            with patch.object(
+                incidents,
+                'incident_write_runtime',
+                SimpleNamespace(set_incident_owner=assign_mock),
+                create=True,
+            ):
+                assigned = incidents.set_incident_owner(engine, 'incident-9', 'alice')
+
+        self.assertEqual(snapshot['incident_id'], 'incident-9')
+        self.assertEqual(queue['summary']['open_total'], 1)
+        self.assertEqual(assigned['owner'], 'alice')
+        snapshot_mock.assert_called_once_with(engine, incident_dir)
+        queue_mock.assert_called_once_with(engine, limit=5)
+        assign_mock.assert_called_once_with(engine, 'incident-9', 'alice')
+
+    def test_incidents_module_uses_incident_read_runtime_directly(self) -> None:
         from openclaw_watchdog import incidents
 
         with TemporaryDirectory() as temp_dir:
@@ -20,11 +106,11 @@ class IncidentCutoverTests(unittest.TestCase):
             (incident_dir / 'artifact.txt').write_text('artifact', encoding='utf-8')
             engine = SimpleNamespace(config=SimpleNamespace())
 
-            with patch('openclaw_watchdog.incidents.incident_service_ops.read_incident_state_payload', return_value={'state': 'open', 'created_at': '2026-03-12T22:10:00+08:00'}) as state_mock:
-                with patch('openclaw_watchdog.incidents.incident_service_ops.read_incident_operator_summary_payload', return_value={'summary': 'gateway degraded', 'health_level': 'failed', 'active': 'inactive', 'main_pid': '0', 'listeners': 'none'}) as summary_mock:
-                    with patch('openclaw_watchdog.incidents.incident_service_ops.read_incident_operator_workflow_payload', return_value={'owner': '', 'acknowledged': False, 'notes': [], 'events': []}) as workflow_mock:
-                        with patch('openclaw_watchdog.incidents.incident_service_ops.read_incident_index', return_value=[]) as index_mock:
-                            with patch('openclaw_watchdog.incidents.incident_service_ops.incident_bool', side_effect=lambda value: bool(value)) as bool_mock:
+            with patch('openclaw_watchdog.incidents.incident_read_runtime.read_incident_state_payload', return_value={'state': 'open', 'created_at': '2026-03-12T22:10:00+08:00'}) as state_mock:
+                with patch('openclaw_watchdog.incidents.incident_read_runtime.read_incident_operator_summary_payload', return_value={'summary': 'gateway degraded', 'health_level': 'failed', 'active': 'inactive', 'main_pid': '0', 'listeners': 'none'}) as summary_mock:
+                    with patch('openclaw_watchdog.incidents.incident_read_runtime.read_incident_operator_workflow_payload', return_value={'owner': '', 'acknowledged': False, 'notes': [], 'events': []}) as workflow_mock:
+                        with patch('openclaw_watchdog.incidents.incident_read_runtime.read_incident_index', return_value=[]) as index_mock:
+                            with patch('openclaw_watchdog.incidents.incident_read_runtime.incident_bool', side_effect=lambda value: bool(value)) as bool_mock:
                                 snapshot = incidents.incident_snapshot(engine, incident_dir)
 
         self.assertEqual(snapshot['incident_id'], 'incident-1')
