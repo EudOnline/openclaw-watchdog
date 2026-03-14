@@ -85,6 +85,27 @@ class FakeBootstrapper:
 
 
 class BootstrapStepsTest(unittest.TestCase):
+    def test_bootstrap_inventory_facade_delegates_executor_detection_helpers(self) -> None:
+        from openclaw_watchdog import bootstrap_inventory
+
+        bootstrapper = SimpleNamespace(
+            config=SimpleNamespace(watchdog_opencode_bin='opencode'),
+            detect_binary=lambda candidate: (False, '', _Result(1)),
+            inspect_opencode_config=lambda: {'ready': False},
+        )
+        opencode_mock = unittest.mock.Mock(return_value={'available': True, 'detected_binary': 'opencode'})
+
+        with patch.object(
+            bootstrap_inventory,
+            'detect_executor_runtime',
+            SimpleNamespace(detect_opencode=opencode_mock),
+            create=True,
+        ):
+            payload = bootstrap_inventory.detect_opencode(bootstrapper)
+
+        self.assertEqual(payload['detected_binary'], 'opencode')
+        opencode_mock.assert_called_once_with(bootstrapper)
+
     def test_detect_only_bootstrap_reports_executor_inventory_without_installing(self) -> None:
         bootstrapper = FakeBootstrapper()
         bootstrapper._claude_code = {'available': False, 'detected_binary': ''}

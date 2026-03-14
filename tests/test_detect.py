@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
+from tempfile import TemporaryDirectory
 import unittest
 
 from openclaw_watchdog.detect import _gateway_probe
@@ -24,6 +26,75 @@ class DetectEngineDouble:
 
 
 class DetectTests(unittest.TestCase):
+    def test_gateway_probe_delegates_to_service_runtime_owner(self) -> None:
+        from openclaw_watchdog import detect
+
+        engine = DetectEngineDouble()
+        status_payload = {'gateway': {'url': 'http://127.0.0.1:5700'}}
+        gateway_mock = unittest.mock.Mock(return_value={'service': 'delegated'})
+
+        with unittest.mock.patch.object(
+            detect,
+            'detect_service_runtime',
+            SimpleNamespace(gateway_probe=gateway_mock),
+            create=True,
+        ):
+            payload = detect._gateway_probe(engine, status_payload)
+
+        self.assertEqual(payload, {'service': 'delegated'})
+        gateway_mock.assert_called_once_with(engine, status_payload)
+
+    def test_executor_inventory_and_payload_delegate_to_owner_runtimes(self) -> None:
+        from openclaw_watchdog import detect
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            engine = SimpleNamespace(
+                config=SimpleNamespace(
+                    watchdog_litellm_enabled=False,
+                    watchdog_litellm_model='',
+                    watchdog_service_level_timeout_seconds=1,
+                    openclaw_config=root / 'openclaw.json',
+                    env_file=None,
+                    repo_root=root,
+                    openclaw_gateway_service='openclaw-gateway.service',
+                    openclaw_gateway_port=5700,
+                    watchdog_state_dir=root / 'state',
+                    watchdog_log_file=root / 'state' / 'watchdog.log',
+                    watchdog_incidents_dir=root / 'incidents',
+                    watchdog_enable_service_level_probe=False,
+                    watchdog_enable_conversation_probe=False,
+                ),
+                run_command=lambda args, **kwargs: _result(args, returncode=1),
+            )
+            commands = {'codex': {'available': True, 'path': '/usr/bin/codex'}}
+            commands_mock = unittest.mock.Mock(return_value=commands)
+            inventory_mock = unittest.mock.Mock(return_value={'codex': {'available': True}})
+            payload_mock = unittest.mock.Mock(return_value={'detected_at': 'delegated'})
+
+            with unittest.mock.patch.object(
+                detect,
+                'detect_executor_runtime',
+                SimpleNamespace(detect_commands=commands_mock, executor_inventory=inventory_mock),
+                create=True,
+            ):
+                with unittest.mock.patch.object(
+                    detect,
+                    'detect_health_runtime',
+                    SimpleNamespace(detect_payload=payload_mock),
+                    create=True,
+                ):
+                    detected_commands = detect._detect_commands()
+                    executors = detect._executor_inventory(engine, commands)
+                    payload = detect.detect_payload(engine)
+
+        self.assertEqual(detected_commands, commands)
+        self.assertEqual(executors, {'codex': {'available': True}})
+        self.assertEqual(payload, {'detected_at': 'delegated'})
+        commands_mock.assert_called_once_with()
+        inventory_mock.assert_called_once_with(engine, commands)
+        payload_mock.assert_called_once_with(engine)
+
     def test_gateway_probe_does_not_require_engine_service_wrappers(self) -> None:
         engine = DetectEngineDouble()
         engine._responses[
