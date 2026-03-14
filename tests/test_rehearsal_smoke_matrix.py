@@ -14,6 +14,10 @@ CRITICAL_SCENARIOS = [
     'watchdog-rescue-chain-rule-agent',
     'watchdog-candidate-rule-auto-promotion',
     'watchdog-candidate-rule-review-pending',
+    'watchdog-conversation-probe-ready',
+    'watchdog-rollback-priority-before-doctor',
+    'watchdog-survival-mode-recovery',
+    'watchdog-config-drift-guard',
 ]
 
 EXTENDED_SCENARIOS = [
@@ -70,6 +74,21 @@ class RehearsalSmokeMatrixTest(unittest.TestCase):
         workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
 
         self.assertIn('bash rehearsal/scripts/run-scenario.sh critical', workflow_text)
+
+    def test_critical_tier_includes_core_survivability_scenarios(self) -> None:
+        scenarios_readme = Path('rehearsal/scenarios/README.md').read_text(encoding='utf-8')
+        run_script = Path('rehearsal/scripts/run-scenario.sh').read_text(encoding='utf-8')
+
+        for scenario in (
+            'watchdog-conversation-probe-ready',
+            'watchdog-rollback-priority-before-doctor',
+            'watchdog-survival-mode-recovery',
+            'watchdog-config-drift-guard',
+        ):
+            self.assertIn(scenario, CRITICAL_SCENARIOS)
+            self.assertIn(f'  {scenario}', run_script)
+            critical_section = scenarios_readme.split('## Extended tier', 1)[0]
+            self.assertIn(f'- `{scenario}`', critical_section)
 
     def test_ci_runs_only_critical_release_gate_scenarios(self) -> None:
         workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')

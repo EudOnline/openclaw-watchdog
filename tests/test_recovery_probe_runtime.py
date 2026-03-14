@@ -43,6 +43,23 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
             'degraded',
         )
 
+    def test_probe_state_uses_service_layer_degraded_when_survivability_flow_is_disabled(self) -> None:
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        self.assertEqual(
+            recovery_probe_runtime.probe_state(
+                {
+                    'process_layer_healthy': True,
+                    'service_layer_healthy': False,
+                    'conversation_ready': False,
+                    'minimal_usable_ready': False,
+                },
+                config_invalid=False,
+                survivability_enabled=False,
+            ),
+            'degraded',
+        )
+
     def test_summary_from_probe_prefers_probe_summaries_before_status(self) -> None:
         from openclaw_watchdog.flows import recovery_probe_runtime
 
@@ -141,6 +158,37 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
                         recovery_probe_runtime.baseline_probe_and_sync(engine)
 
         sync_mock.assert_called_once_with(engine, probe=probe, config_invalid=False)
+
+    def test_phase_state_from_probe_escalates_service_layer_failures_after_threshold_when_survivability_is_disabled(self) -> None:
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        probe = {
+            'process_layer_healthy': True,
+            'service_layer_healthy': False,
+            'conversation_ready': False,
+            'minimal_usable_ready': False,
+            'conversation_status': 'down',
+        }
+        engine = SimpleNamespace(
+            config=SimpleNamespace(
+                watchdog_enable_survivability_flow=False,
+                watchdog_service_level_failure_threshold=2,
+            ),
+            ctx=SimpleNamespace(),
+            read_run_state=Mock(return_value={'service_probe_failures': 1}),
+        )
+
+        with patch(
+            'openclaw_watchdog.flows.recovery_probe_runtime.probe_run_state.service_probe_failures_for',
+            return_value=2,
+        ):
+            with patch(
+                'openclaw_watchdog.flows.recovery_probe_runtime.probe_run_state.write_probe_run_state',
+                return_value='failed',
+            ):
+                state = recovery_probe_runtime.phase_state_from_probe(engine, probe, config_invalid=False)
+
+        self.assertEqual(state.health_level, 'failed')
 
     def test_finish_initial_state_returns_healthy_outcome_and_refreshes_last_good(self) -> None:
         from openclaw_watchdog.flows import recovery_probe_runtime

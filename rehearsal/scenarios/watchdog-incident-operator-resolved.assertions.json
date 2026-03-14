@@ -9,16 +9,13 @@
     "latest_note_by": "bob"
   },
   "contains": {
-    "resolution_summary": "service active and listener matches main pid",
+    "resolution_summary": "ready: gateway=up, channels=missing",
     "latest_note": "closed after healthy verification"
   },
   "includes": {
     "artifacts": [
-      "operator-summary.txt",
       "operator-workflow.json",
-      "incident-state.json",
-      "run-codex.sh",
-      "run-opencode-fallback.sh"
+      "incident-state.json"
     ]
   },
   "glob_file_contains": {

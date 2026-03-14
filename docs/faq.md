@@ -49,6 +49,8 @@ A good reading order is:
 
 If you just want the operator quick path, use `detect`, `check`, `status --summary`, `report --message`, and `incidents queue` before enabling unattended runs.
 
+For the first live host rollout, add `./scripts/openclaw-watchdog-live-acceptance.sh` before you enable or trust unattended timer runs.
+
 ## Are the incident and reporting features the main point of the project?
 
 They matter, but the project’s main purpose is fallback recovery: restoring a usable OpenClaw conversation path safely and quickly. Incident, metrics, and reporting features exist to support that operational goal, not to turn the project into a generic watchdog platform.

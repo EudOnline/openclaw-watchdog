@@ -13,7 +13,7 @@ from openclaw_watchdog.run_context import RunContext
 class FlowEngineDouble:
     def __init__(self) -> None:
         self.config = SimpleNamespace(
-            watchdog_enable_doctor_repair=True,
+            watchdog_enable_doctor_repair=False,
             watchdog_enable_survival_mode=False,
             watchdog_maintenance_file=Path('state/maintenance.flag'),
             watchdog_survival_stable_ready_runs=2,
@@ -271,6 +271,69 @@ class ValidationRollbackFlowEngineDouble(FlowEngineDouble):
         return RescueResult(status='rolled-back', executor=executor, plan_id=plan.plan_id, rollback_performed=True)
 
 
+class ExhaustedAfterAppliedPlanFlowEngineDouble(FlowEngineDouble):
+    def __init__(self) -> None:
+        super().__init__()
+        self._probes = [
+            {
+                'doctor_output': '',
+                'config_invalid': False,
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+                'service_probe_summary': 'down',
+                'conversation_probe_summary': 'down',
+                'service_probe_checked_at': '2026-03-11T10:00:00+08:00',
+                'doctor_rc': 0,
+            },
+            {
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+            },
+            {
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+            },
+            {
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+            },
+            {
+                'process_layer_healthy': False,
+                'service_layer_healthy': False,
+                'conversation_ready': False,
+                'minimal_usable_ready': False,
+                'conversation_status': 'down',
+                'service_active': False,
+                'service_main_pid': '0',
+                'listener_pids': [],
+            },
+        ]
+
+
 class DriftAwareFlowEngineDouble(FlowEngineDouble):
     def refresh_drift_context(self) -> dict[str, object]:
         self.ctx.config_drift_detected = True
@@ -441,7 +504,7 @@ class RescueFlowTests(unittest.TestCase):
         class WrapperlessFlowEngineDouble:
             def __init__(self) -> None:
                 self.config = SimpleNamespace(
-                    watchdog_enable_doctor_repair=True,
+                    watchdog_enable_doctor_repair=False,
                     watchdog_maintenance_file=Path('state/maintenance.flag'),
                     watchdog_rescue_knowledge_root=Path('knowledge'),
                     watchdog_survival_stable_ready_runs=2,
@@ -612,7 +675,7 @@ class RescueFlowTests(unittest.TestCase):
         pre_backup_mock.assert_called_once_with(engine)
         self.assertEqual(restart_mock.call_count, 1)
         restore_mock.assert_called_once_with(engine, reason='rescue-flow')
-        doctor_mock.assert_called_once_with(engine)
+        doctor_mock.assert_not_called()
         reset_tracking_mock.assert_called_once_with(engine.ctx, stable_required_runs=2)
         self.assertTrue(apply_drift_mock.called)
         self.assertTrue(finalize_tracking_mock.called)
@@ -855,6 +918,29 @@ class RescueFlowTests(unittest.TestCase):
             )
         )
 
+    def test_applied_rescue_plan_keeps_plan_result_when_flow_still_exhausts(self) -> None:
+        from openclaw_watchdog.flows import rescue_run
+
+        engine = ExhaustedAfterAppliedPlanFlowEngineDouble()
+        engine.config.watchdog_rescue_knowledge_root = Path('tmp/knowledge')
+        with patch(
+            'openclaw_watchdog.rescue_learning_service.record_learning_from_failure',
+            return_value={'case_ingest_result': 'recorded:applied-failure-case.json', 'candidate_rule_status': 'negative-evidence-recorded'},
+        ) as learning_mock:
+            outcome = self._run_flow(engine)
+
+        self.assertEqual(outcome.state, 'failed')
+        self.assertEqual(engine.ctx.rescue_plan_status, 'applied')
+        self.assertGreaterEqual(learning_mock.call_count, 1)
+        self.assertTrue(
+            any(
+                call.kwargs.get('recovery_kind') == 'rescue'
+                and getattr(call.kwargs.get('plan_result'), 'status', '') == 'applied'
+                and getattr(call.kwargs.get('plan_result'), 'plan_id', '') == 'plan-litellm'
+                for call in learning_mock.call_args_list
+            )
+        )
+
     def test_deterministic_repair_runs_before_agent_dispatch(self) -> None:
         from openclaw_watchdog.flows import rescue_run
 
@@ -877,6 +963,7 @@ class WatchdogEngineRescueContextSeamsTest(unittest.TestCase):
             'config',
             SimpleNamespace(
                 watchdog_rescue_knowledge_root=Path(temp_dir) / 'knowledge',
+                watchdog_incidents_dir=Path(temp_dir) / 'incidents',
                 watchdog_rescue_editable_paths=(str(Path(temp_dir) / 'openclaw.json'),),
                 watchdog_rescue_editable_keys=('channels.qqbot.enabled',),
                 watchdog_litellm_enabled=False,
@@ -887,6 +974,7 @@ class WatchdogEngineRescueContextSeamsTest(unittest.TestCase):
         )
         object.__setattr__(engine, 'ctx', RunContext.initial(stable_required_runs=2))
         object.__setattr__(engine, 'run_state_file', Path(temp_dir) / 'run-state.json')
+        object.__setattr__(engine, 'current_incident_marker', Path(temp_dir) / 'current-incident-id')
         return engine
 
     def test_build_rescue_context_keeps_normalized_signature_recent_cases_and_editable_bounds(self) -> None:
@@ -986,6 +1074,35 @@ class WatchdogEngineRescueContextSeamsTest(unittest.TestCase):
                 )
 
         self.assertEqual(context.available_executors, ('codex', 'opencode', 'rule-agent'))
+
+    def test_build_rescue_context_seeds_current_incident_context_for_new_rescue_flow(self) -> None:
+        import tempfile
+
+        from openclaw_watchdog import rescue_context_builder
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            engine = self._build_engine(temp_dir)
+
+            with patch(
+                'openclaw_watchdog.executor_registry.executor_available',
+                side_effect=lambda config, name, which=None: name == 'rule-agent',
+            ):
+                context = rescue_context_builder.build_rescue_context(
+                    engine,
+                    {
+                        'config_invalid': False,
+                        'process_layer_healthy': False,
+                        'service_layer_healthy': False,
+                        'minimal_usable_ready': False,
+                        'conversation_ready': False,
+                        'conversation_status': 'down',
+                        'service_active': False,
+                    },
+                )
+
+            self.assertEqual(engine.ctx.incident_id, context.incident_id)
+            self.assertEqual(engine.ctx.incident_dir, Path(temp_dir) / 'incidents' / context.incident_id)
+            self.assertEqual(engine.current_incident_marker.read_text(encoding='utf-8').strip(), context.incident_id)
 
 
 if __name__ == '__main__':

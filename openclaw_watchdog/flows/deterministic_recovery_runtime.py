@@ -45,10 +45,11 @@ def run_deterministic_recovery(engine, ctx, state: recovery_probe_runtime.Recove
     record_step(engine, 'rollback', 'applied' if rollback_ok else 'failed')
     if rollback_ok:
         repair_action_runtime.restart_service(engine)
+    rollback_config_invalid = False if rollback_ok else state.config_invalid
     state = recovery_probe_runtime.phase_state_from_probe(
         engine,
         dict(health_ops.live_probe(engine, include_doctor=False, apply_grace=True)),
-        config_invalid=state.config_invalid,
+        config_invalid=rollback_config_invalid,
     )
     outcome = recovery_finalize_runtime.maybe_finalize_recovery(
         engine,
@@ -62,6 +63,8 @@ def run_deterministic_recovery(engine, ctx, state: recovery_probe_runtime.Recove
     survival_result = survival_transition_runtime.enter_survival_mode(engine, reason='rescue-flow')
     survival_applied = bool((survival_result or {}).get('applied', False)) if isinstance(survival_result, dict) else bool(survival_result)
     record_step(engine, 'survival', 'applied' if survival_applied else 'failed')
+    if survival_applied:
+        repair_action_runtime.restart_service(engine)
     state = recovery_probe_runtime.phase_state_from_probe(
         engine,
         dict(health_ops.live_probe(engine, include_doctor=False, apply_grace=True)),
@@ -80,6 +83,21 @@ def run_deterministic_recovery(engine, ctx, state: recovery_probe_runtime.Recove
     if doctor_enabled:
         record_step(engine, 'doctor', 'applied')
         repair_action_runtime.run_doctor_repair(engine)
+        repair_action_runtime.restart_service(engine)
+        doctor_config_invalid = False
+        state = recovery_probe_runtime.phase_state_from_probe(
+            engine,
+            dict(health_ops.live_probe(engine, include_doctor=False, apply_grace=True)),
+            config_invalid=doctor_config_invalid,
+        )
+        outcome = recovery_finalize_runtime.maybe_finalize_recovery(
+            engine,
+            strategy='doctor',
+            recovery_kind='deterministic',
+            state=state,
+        )
+        if outcome is not None:
+            return outcome, state
     else:
         record_step(engine, 'doctor', 'skipped')
 

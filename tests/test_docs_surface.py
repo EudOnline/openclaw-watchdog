@@ -64,6 +64,18 @@ class DocsSurfaceTest(unittest.TestCase):
         self.assertIn('critical', rehearsal_text)
         self.assertIn('fallback system', acceptance_text)
 
+    def test_readme_points_first_rollout_to_first_deployment_and_live_acceptance(self) -> None:
+        readme_text = Path('README.md').read_text(encoding='utf-8')
+
+        self.assertIn('docs/first-deployment.md', readme_text)
+        self.assertIn('live acceptance', readme_text.lower())
+
+    def test_first_deployment_spells_out_the_operator_quick_path(self) -> None:
+        deployment_text = Path('docs/first-deployment.md').read_text(encoding='utf-8')
+
+        self.assertIn('detect -> check -> status --summary -> report --message', deployment_text)
+        self.assertIn('scripts/openclaw-watchdog-live-acceptance.sh', deployment_text)
+
     def test_changelog_roadmap_and_live_samples_match_fallback_system_positioning(self) -> None:
         changelog_text = Path('CHANGELOG.md').read_text(encoding='utf-8')
         roadmap_text = Path('docs/roadmap.md').read_text(encoding='utf-8')

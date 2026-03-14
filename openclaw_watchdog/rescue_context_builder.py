@@ -87,6 +87,12 @@ def build_rescue_context(engine, probe: dict[str, object]):
     }
     incident_id = engine.ctx.incident_id or f"incident-{datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}"
     engine.ctx.incident_id = incident_id
+    if getattr(engine.ctx, 'incident_dir', None) is None and hasattr(engine.config, 'watchdog_incidents_dir'):
+        engine.ctx.incident_dir = engine.config.watchdog_incidents_dir / incident_id
+    current_incident_marker = getattr(engine, 'current_incident_marker', None)
+    if current_incident_marker is not None:
+        current_incident_marker.parent.mkdir(parents=True, exist_ok=True)
+        current_incident_marker.write_text(f"{incident_id}\n", encoding='utf-8')
     return RescueContext(
         incident_id=incident_id,
         health_level=str(engine.read_run_state().get("health_level", "failed") or "failed"),

@@ -209,8 +209,8 @@ EOF
   "repair_fixes_invalid_config": false,
   "repair_message": "doctor could not restore service",
   "restart_mode": "inactive",
-  "restart_mode_sequence": ["inactive", "healthy"],
-  "restart_profile_sequence": ["down", "minimal"],
+  "restart_mode_sequence": ["inactive", "inactive", "healthy"],
+  "restart_profile_sequence": ["down", "down", "minimal"],
   "service_active": false,
   "service_level_reachable": false
 }
@@ -241,8 +241,8 @@ EOF
   "repair_fixes_invalid_config": false,
   "repair_message": "doctor could not restore service",
   "restart_mode": "inactive",
-  "restart_mode_sequence": ["inactive", "healthy"],
-  "restart_profile_sequence": ["down", "minimal"],
+  "restart_mode_sequence": ["inactive", "inactive", "healthy"],
+  "restart_profile_sequence": ["down", "down", "minimal"],
   "service_active": false,
   "service_level_reachable": false
 }
@@ -281,8 +281,8 @@ EOF
   "repair_fixes_invalid_config": false,
   "repair_message": "doctor could not restore service",
   "restart_mode": "inactive",
-  "restart_mode_sequence": ["inactive", "healthy"],
-  "restart_profile_sequence": ["down", "minimal"],
+  "restart_mode_sequence": ["inactive", "inactive", "healthy"],
+  "restart_profile_sequence": ["down", "down", "minimal"],
   "service_active": false,
   "service_level_reachable": false
 }
@@ -319,8 +319,8 @@ EOF
   "repair_fixes_invalid_config": false,
   "repair_message": "doctor could not restore service",
   "restart_mode": "inactive",
-  "restart_mode_sequence": ["inactive", "healthy"],
-  "restart_profile_sequence": ["down", "minimal"],
+  "restart_mode_sequence": ["inactive", "inactive", "healthy"],
+  "restart_profile_sequence": ["down", "down", "minimal"],
   "service_active": false,
   "service_level_reachable": false
 }
@@ -356,8 +356,8 @@ EOF
   "repair_fixes_invalid_config": false,
   "repair_message": "doctor could not restore service",
   "restart_mode": "inactive",
-  "restart_mode_sequence": ["inactive", "healthy"],
-  "restart_profile_sequence": ["down", "minimal"],
+  "restart_mode_sequence": ["inactive", "inactive", "healthy"],
+  "restart_profile_sequence": ["down", "down", "minimal"],
   "service_active": false,
   "service_level_reachable": false
 }
@@ -392,8 +392,8 @@ EOF
   "repair_fixes_invalid_config": false,
   "repair_message": "doctor could not restore service",
   "restart_mode": "inactive",
-  "restart_mode_sequence": ["inactive", "healthy"],
-  "restart_profile_sequence": ["down", "minimal"],
+  "restart_mode_sequence": ["inactive", "inactive", "healthy"],
+  "restart_profile_sequence": ["down", "down", "minimal"],
   "service_active": false,
   "service_level_reachable": false
 }
@@ -459,8 +459,8 @@ EOF
   "repair_fixes_invalid_config": false,
   "repair_message": "doctor could not restore service",
   "restart_mode": "inactive",
-  "restart_mode_sequence": ["inactive", "healthy"],
-  "restart_profile_sequence": ["down", "minimal"],
+  "restart_mode_sequence": ["inactive", "inactive", "healthy"],
+  "restart_profile_sequence": ["down", "down", "minimal"],
   "service_active": false,
   "service_level_reachable": false
 }
@@ -496,8 +496,8 @@ EOF
   "repair_fixes_invalid_config": false,
   "repair_message": "doctor could not restore service",
   "restart_mode": "inactive",
-  "restart_mode_sequence": ["inactive", "healthy"],
-  "restart_profile_sequence": ["down", "minimal"],
+  "restart_mode_sequence": ["inactive", "inactive", "healthy"],
+  "restart_profile_sequence": ["down", "down", "minimal"],
   "service_active": false,
   "service_level_reachable": false
 }

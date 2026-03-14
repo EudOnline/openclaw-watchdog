@@ -31,7 +31,7 @@ def render_status_summary(payload: dict[str, object]) -> str:
     return ' | '.join(
         [
             f"status={payload.get('last_status', payload.get('status', 'unknown'))}",
-            f"conv={snapshot.get('conversation_status', 'down')}",
+            f"conversation={snapshot.get('conversation_status', 'down')}",
             f"health={payload.get('health_level', 'unknown')}",
             f"mode={payload.get('current_mode', 'unknown')}",
             f"recovery={snapshot.get('last_recovery_strategy', 'none')}",

@@ -18,6 +18,17 @@ class RescueAgentAdapter(Protocol):
 
 
 Runner = Callable[..., CommandResult]
+ALLOWED_PLAN_TOP_LEVEL_KEYS = frozenset(
+    {
+        'plan_id',
+        'diagnosis',
+        'actions',
+        'validations',
+        'rollback_strategy',
+        'risk_level',
+        'rationale',
+    }
+)
 
 
 @dataclass
@@ -74,6 +85,11 @@ class StructuredCliAdapter:
 
     def command_args(self, prompt: str) -> list[str]:
         return [self.command, *self.prompt_args, prompt]
+
+    def _validate_plan_payload(self, payload: dict[str, Any]) -> None:
+        unknown_keys = sorted(set(payload) - ALLOWED_PLAN_TOP_LEVEL_KEYS)
+        if unknown_keys:
+            raise ValueError(f'{self.name} returned unexpected top-level keys: {", ".join(unknown_keys)}')
 
     def _extract_json_candidates(self, text: str) -> list[Any]:
         candidates: list[Any] = []
@@ -139,6 +155,7 @@ class StructuredCliAdapter:
             raise ValueError(f'{self.name} did not return a structured rescue plan')
         if 'shell' in payload:
             raise ValueError(f'{self.name} returned forbidden shell payload')
+        self._validate_plan_payload(payload)
         plan = RescuePlan.from_dict(payload)
         if not plan.actions:
             return None

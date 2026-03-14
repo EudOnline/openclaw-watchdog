@@ -130,6 +130,42 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
             ],
         )
 
+    def test_successful_rollback_reprobe_clears_stale_config_invalid_flag(self) -> None:
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        engine = self._build_engine()
+        ctx = SimpleNamespace(config_drift_detected=True)
+        initial_state = self._initial_state()
+        initial_state.config_invalid = True
+        restart_state = self._phase_state(health_level='failed')
+        restart_state.config_invalid = True
+        rollback_state = self._phase_state(health_level='healthy', conversation_ready=True, minimal_usable_ready=True)
+
+        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}]):
+            with patch.object(
+                recovery_probe_runtime,
+                'phase_state_from_probe',
+                side_effect=[restart_state, rollback_state],
+            ) as phase_state_mock:
+                with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup'):
+                    with patch('openclaw_watchdog.repair_action_runtime.restart_service', return_value=True):
+                        with patch('openclaw_watchdog.rollback_runtime.restore_last_good', return_value=True):
+                            with patch(
+                                'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
+                                side_effect=[None, object()],
+                            ):
+                                from openclaw_watchdog.flows import deterministic_recovery_runtime
+
+                                deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
+
+        self.assertEqual(
+            phase_state_mock.call_args_list,
+            [
+                call(engine, {}, config_invalid=True),
+                call(engine, {}, config_invalid=False),
+            ],
+        )
+
     def test_survival_branch_runs_before_doctor_and_can_end_recovery(self) -> None:
         from openclaw_watchdog.engine import RunOutcome
         from openclaw_watchdog.flows import recovery_probe_runtime
@@ -178,6 +214,45 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
             ],
         )
         self.assertEqual(finalize_mock.call_count, 3)
+
+    def test_survival_recovery_restarts_service_before_reprobe(self) -> None:
+        from openclaw_watchdog.engine import RunOutcome
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        engine = self._build_engine()
+        ctx = SimpleNamespace(config_drift_detected=False)
+        initial_state = self._initial_state()
+        restart_state = self._phase_state(health_level='failed')
+        rollback_state = self._phase_state(health_level='failed')
+        survival_state = self._phase_state(health_level='degraded', minimal_usable_ready=True)
+        outcome = RunOutcome(exit_code=0, state='recovered', summary='survival restored minimal usability')
+
+        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}, {}]):
+            with patch.object(
+                recovery_probe_runtime,
+                'phase_state_from_probe',
+                side_effect=[restart_state, rollback_state, survival_state],
+            ):
+                with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup'):
+                    with patch('openclaw_watchdog.repair_action_runtime.restart_service', side_effect=[False, True]) as restart_mock:
+                        with patch('openclaw_watchdog.rollback_runtime.restore_last_good', return_value=False):
+                            with patch(
+                                'openclaw_watchdog.flows.deterministic_recovery_runtime.survival_transition_runtime.enter_survival_mode',
+                                return_value={'applied': True},
+                            ):
+                                with patch(
+                                    'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
+                                    side_effect=[None, None, outcome],
+                                ):
+                                    with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair') as doctor_mock:
+                                        from openclaw_watchdog.flows import deterministic_recovery_runtime
+
+                                        result, final_state = deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
+
+        self.assertEqual(result, outcome)
+        self.assertEqual(final_state, survival_state)
+        self.assertEqual(restart_mock.call_count, 2)
+        doctor_mock.assert_not_called()
 
     def test_survival_branch_uses_transition_owner_when_engine_wrapper_is_absent(self) -> None:
         from openclaw_watchdog.engine import RunOutcome
@@ -235,18 +310,18 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
         initial_state = self._initial_state()
         failed_state = self._phase_state(health_level='failed')
 
-        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}, {}]):
+        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}, {}, {}]):
             with patch.object(
                 recovery_probe_runtime,
                 'phase_state_from_probe',
-                side_effect=[failed_state, failed_state, failed_state],
+                side_effect=[failed_state, failed_state, failed_state, failed_state],
             ):
                 with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup'):
                     with patch('openclaw_watchdog.repair_action_runtime.restart_service', return_value=False):
                         with patch('openclaw_watchdog.rollback_runtime.restore_last_good', return_value=False):
                             with patch(
                                 'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
-                                side_effect=[None, None, None],
+                                side_effect=[None, None, None, None],
                             ):
                                 with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair') as doctor_mock:
                                     from openclaw_watchdog.flows import deterministic_recovery_runtime
@@ -263,6 +338,91 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
                 call('rollback', 'failed', ''),
                 call('survival', 'failed', ''),
                 call('doctor', 'applied', ''),
+            ],
+        )
+
+    def test_doctor_reprobes_and_can_finish_recovery_when_repair_restores_conversation(self) -> None:
+        from openclaw_watchdog.engine import RunOutcome
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        engine = self._build_engine(doctor_enabled=True)
+        ctx = SimpleNamespace(config_drift_detected=False)
+        initial_state = self._initial_state()
+        failed_state = self._phase_state(health_level='failed')
+        recovered_state = self._phase_state(health_level='healthy', conversation_ready=True, minimal_usable_ready=True)
+        outcome = RunOutcome(exit_code=0, state='recovered', summary='doctor restored conversation')
+
+        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}, {}, {}]) as live_probe_mock:
+            with patch.object(
+                recovery_probe_runtime,
+                'phase_state_from_probe',
+                side_effect=[failed_state, failed_state, failed_state, recovered_state],
+            ) as phase_state_mock:
+                with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup'):
+                    with patch('openclaw_watchdog.repair_action_runtime.restart_service', side_effect=[False, True]) as restart_mock:
+                        with patch('openclaw_watchdog.rollback_runtime.restore_last_good', return_value=False):
+                            with patch(
+                                'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
+                                side_effect=[None, None, None, outcome],
+                            ) as finalize_mock:
+                                with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair') as doctor_mock:
+                                    from openclaw_watchdog.flows import deterministic_recovery_runtime
+
+                                    result, final_state = deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
+
+        self.assertEqual(result, outcome)
+        self.assertEqual(final_state, recovered_state)
+        doctor_mock.assert_called_once_with(engine)
+        self.assertEqual(restart_mock.call_count, 2)
+        self.assertEqual(live_probe_mock.call_count, 4)
+        self.assertEqual(phase_state_mock.call_count, 4)
+        self.assertEqual(finalize_mock.call_count, 4)
+        self.assertEqual(
+            engine.record_recovery_step.call_args_list,
+            [
+                call('restart', 'failed', ''),
+                call('rollback', 'failed', ''),
+                call('survival', 'failed', ''),
+                call('doctor', 'applied', ''),
+            ],
+        )
+
+    def test_doctor_reprobe_clears_stale_config_invalid_flag_after_repair(self) -> None:
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        engine = self._build_engine(doctor_enabled=True)
+        ctx = SimpleNamespace(config_drift_detected=False)
+        initial_state = self._initial_state()
+        initial_state.config_invalid = True
+        failed_state = self._phase_state(health_level='failed')
+        failed_state.config_invalid = True
+        recovered_state = self._phase_state(health_level='healthy', conversation_ready=True, minimal_usable_ready=True)
+
+        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}, {}, {}]):
+            with patch.object(
+                recovery_probe_runtime,
+                'phase_state_from_probe',
+                side_effect=[failed_state, failed_state, failed_state, recovered_state],
+            ) as phase_state_mock:
+                with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup'):
+                    with patch('openclaw_watchdog.repair_action_runtime.restart_service', side_effect=[False, True]):
+                        with patch('openclaw_watchdog.rollback_runtime.restore_last_good', return_value=False):
+                            with patch(
+                                'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
+                                side_effect=[None, None, None, object()],
+                            ):
+                                with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair'):
+                                    from openclaw_watchdog.flows import deterministic_recovery_runtime
+
+                                    deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
+
+        self.assertEqual(
+            phase_state_mock.call_args_list,
+            [
+                call(engine, {}, config_invalid=True),
+                call(engine, {}, config_invalid=True),
+                call(engine, {}, config_invalid=True),
+                call(engine, {}, config_invalid=False),
             ],
         )
 

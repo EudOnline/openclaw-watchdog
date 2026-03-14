@@ -110,6 +110,7 @@ def run_rescue_phase(engine, ctx, state: recovery_probe_runtime.RecoveryPhaseSta
     dispatch_result = dispatch_rescue(engine, context)
     mark_dispatch(engine, dispatch_result)
     plan = getattr(dispatch_result, 'plan', None)
+    plan_result = None
     if plan is not None:
         plan_result = execute_rescue_plan(
             engine,
@@ -157,7 +158,7 @@ def run_rescue_phase(engine, ctx, state: recovery_probe_runtime.RecoveryPhaseSta
         probe=state.probe,
         context=context,
         dispatch_result=dispatch_result,
-        plan_result=None,
+        plan_result=plan_result,
     )
     recovery_finalize_runtime.mark_learning(engine, learning_result)
     return recovery_finalize_runtime.finalize_failure(

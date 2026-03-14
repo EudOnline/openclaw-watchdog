@@ -15,6 +15,10 @@ CRITICAL_SCENARIOS=(
   watchdog-rescue-chain-rule-agent
   watchdog-candidate-rule-auto-promotion
   watchdog-candidate-rule-review-pending
+  watchdog-conversation-probe-ready
+  watchdog-rollback-priority-before-doctor
+  watchdog-survival-mode-recovery
+  watchdog-config-drift-guard
 )
 
 EXTENDED_SCENARIOS=(
@@ -25,16 +29,12 @@ EXTENDED_SCENARIOS=(
   watchdog-service-layer-degraded
   watchdog-service-layer-threshold-recovery
   watchdog-service-layer-transient-retry
-  watchdog-conversation-probe-ready
   watchdog-conversation-probe-minimal
   watchdog-conversation-probe-down
   watchdog-restart-priority-recovery
-  watchdog-rollback-priority-before-doctor
   watchdog-doctor-deferred-until-survival-fails
-  watchdog-survival-mode-recovery
   watchdog-survival-mode-sticky-until-stable
   watchdog-survival-mode-exit
-  watchdog-config-drift-guard
   watchdog-env-drift-rollback
   watchdog-plugin-drift-rollback
   watchdog-recovery-notify-normal
@@ -144,28 +144,28 @@ case "$SCENARIO" in
     run_exact "$SCENARIO" 0 scripts/openclaw-watchdog --env "$ENV_FILE" run-once
     ;;
   watchdog-rescue-chain-codex)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-codex.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=codex,rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-codex.assertions.json bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-rescue-chain-claude-code)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-claude-code.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=claude-code,rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-claude-code.assertions.json bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-rescue-chain-gemini-cli)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-gemini-cli.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=gemini-cli,rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-gemini-cli.assertions.json bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-rescue-chain-opencode)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-opencode.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=opencode,rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-opencode.assertions.json bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-rescue-chain-litellm)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-litellm.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=litellm,rule-agent WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-litellm.assertions.json env WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-rescue-chain-rule-agent)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-rule-agent.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=rule-agent WATCHDOG_LITELLM_ENABLED=false bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-rescue-chain-rule-agent.assertions.json bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-candidate-rule-auto-promotion)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-candidate-rule-auto-promotion.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=litellm,rule-agent WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-candidate-rule-auto-promotion.assertions.json env WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-candidate-rule-review-pending)
-    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-candidate-rule-review-pending.assertions.json env WATCHDOG_RESCUE_EXECUTOR_PRIORITY=litellm,rule-agent WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-candidate-rule-review-pending.assertions.json env WATCHDOG_LITELLM_ENABLED=true WATCHDOG_LITELLM_MODEL=openai/gpt-5 bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-failed-fallback)
     run_json "$SCENARIO" 1 rehearsal/scenarios/watchdog-failed-fallback.assertions.json scripts/openclaw-watchdog --env "$ENV_FILE" run-once --json

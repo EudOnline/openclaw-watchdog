@@ -1,16 +1,21 @@
 {
   "contains": {
-    "summary": "codex_result=codex-missing->launched"
+    "summary": "rescue flow exhausted without restoring minimal usability"
   },
   "equals": {
     "exit_code": 1,
     "state": "failed"
   },
+  "file_contains": {
+    "rehearsal/runtime/watchdog/last-report.txt": [
+      "rescue=executor:rule-agent | attempts=6 | plan=true/applied | tier=rule-based",
+      "rescue_chain=chain=codex -> claude-code -> gemini-cli -> opencode -> litellm -> rule-agent"
+    ]
+  },
   "glob_file_contains": {
-    "rehearsal/runtime/watchdog/incidents/*/operator-summary.txt": [
-      "codex_trigger_result=codex-missing->launched",
-      "opencode_fallback_trigger_result=launched"
+    "rehearsal/runtime/watchdog/incidents/*/incident-state.json": [
+      "\"state\": \"open\"",
+      "\"summary\": \"rescue flow exhausted without restoring minimal usability\""
     ]
   }
 }
-

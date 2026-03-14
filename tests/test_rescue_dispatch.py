@@ -19,6 +19,15 @@ class StubAdapter:
         return self._plan
 
 
+class FailingAdapter(StubAdapter):
+    def __init__(self, name: str, *, available: bool, error: Exception) -> None:
+        super().__init__(name, available=available, plan=None)
+        self._error = error
+
+    def propose_plan(self, context: RescueContext) -> RescuePlan | None:
+        raise self._error
+
+
 class RescueDispatchTests(unittest.TestCase):
     def test_dispatch_tries_executors_in_priority_order(self) -> None:
         from openclaw_watchdog.rescue_dispatch import RescueDispatcher
@@ -127,6 +136,33 @@ class RescueDispatchTests(unittest.TestCase):
         self.assertEqual(attempt.attempts[0].executor, 'litellm')
         self.assertEqual(attempt.attempts[0].status, 'unsafe-plan')
         self.assertIn('secrets.api_key', attempt.attempts[0].error)
+
+    def test_dispatch_continues_after_adapter_parse_failure(self) -> None:
+        from openclaw_watchdog.rescue_dispatch import RescueDispatcher
+
+        context = RescueContext(incident_id='incident-parse-failure', available_executors=('opencode', 'rule-agent'))
+        dispatcher = RescueDispatcher(
+            adapters=[
+                FailingAdapter('opencode', available=True, error=ValueError('unexpected top-level keys: unexpected')),
+                StubAdapter(
+                    'rule-agent',
+                    available=True,
+                    plan=RescuePlan(
+                        plan_id='plan-safe',
+                        diagnosis='restart locally',
+                        actions=[RescueAction(kind='restart_service', params={})],
+                        validations=['minimal_usable_ready'],
+                    ),
+                ),
+            ]
+        )
+
+        attempt = dispatcher.dispatch(context)
+
+        self.assertEqual(attempt.final_executor, 'rule-agent')
+        self.assertEqual(attempt.attempts[0].executor, 'opencode')
+        self.assertEqual(attempt.attempts[0].status, 'error')
+        self.assertIn('unexpected top-level keys', attempt.attempts[0].error)
 
 
 if __name__ == '__main__':

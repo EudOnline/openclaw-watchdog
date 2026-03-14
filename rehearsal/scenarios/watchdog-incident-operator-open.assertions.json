@@ -10,15 +10,12 @@
   },
   "contains": {
     "latest_note": "waiting for fallback result",
-    "summary": "codex_result=codex-missing->launched"
+    "summary": "rescue flow exhausted without restoring minimal usability"
   },
   "includes": {
     "artifacts": [
-      "operator-summary.txt",
       "operator-workflow.json",
-      "incident-state.json",
-      "run-codex.sh",
-      "run-opencode-fallback.sh"
+      "incident-state.json"
     ]
   },
   "glob_file_contains": {

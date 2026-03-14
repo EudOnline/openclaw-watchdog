@@ -17,12 +17,24 @@ class RecoveryPhaseState:
     health_level: str
 
 
-def probe_state(probe: dict[str, Any], *, config_invalid: bool) -> str:
+def probe_state(
+    probe: dict[str, Any],
+    *,
+    config_invalid: bool,
+    survivability_enabled: bool = True,
+    service_probe_failures: int = 0,
+    service_failure_threshold: int = 1,
+) -> str:
     process_layer_healthy = bool(probe.get('process_layer_healthy', False))
+    service_layer_healthy = bool(probe.get('service_layer_healthy', False))
     conversation_ready = bool(probe.get('conversation_ready', False))
     minimal_usable_ready = bool(probe.get('minimal_usable_ready', False))
     if config_invalid or not process_layer_healthy:
         return 'failed'
+    if not survivability_enabled:
+        if not service_layer_healthy and service_probe_failures >= max(1, service_failure_threshold):
+            return 'failed'
+        return 'healthy' if service_layer_healthy else 'degraded'
     if conversation_ready:
         return 'healthy'
     if minimal_usable_ready:
@@ -76,7 +88,9 @@ def write_probe_run_state(engine, probe: dict[str, Any], *, config_invalid: bool
 
 def phase_state_from_probe(engine, probe: dict[str, Any], *, config_invalid: bool) -> RecoveryPhaseState:
     resolved_config_invalid = bool(probe.get('config_invalid', config_invalid))
+    survivability_enabled = bool(getattr(getattr(engine, 'config', object()), 'watchdog_enable_survivability_flow', False))
     service_probe_failures = service_probe_failures_for(engine, probe)
+    service_failure_threshold = int(getattr(getattr(engine, 'config', object()), 'watchdog_service_level_failure_threshold', 1) or 1)
     write_probe_run_state(
         engine,
         probe,
@@ -86,7 +100,13 @@ def phase_state_from_probe(engine, probe: dict[str, Any], *, config_invalid: boo
     return RecoveryPhaseState(
         probe=probe,
         config_invalid=resolved_config_invalid,
-        health_level=probe_state(probe, config_invalid=resolved_config_invalid),
+        health_level=probe_state(
+            probe,
+            config_invalid=resolved_config_invalid,
+            survivability_enabled=survivability_enabled,
+            service_probe_failures=service_probe_failures,
+            service_failure_threshold=service_failure_threshold,
+        ),
     )
 
 

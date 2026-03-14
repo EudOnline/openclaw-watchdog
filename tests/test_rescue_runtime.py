@@ -11,6 +11,11 @@ from openclaw_watchdog.rescue_models import RescueAction, RescueContext, RescueP
 
 
 class RescueRuntimeTest(unittest.TestCase):
+    def test_rehearsal_run_script_does_not_use_legacy_priority_override(self) -> None:
+        script_text = Path('rehearsal/scripts/run-scenario.sh').read_text(encoding='utf-8')
+
+        self.assertNotIn('WATCHDOG_RESCUE_EXECUTOR_PRIORITY=', script_text)
+
     def test_build_rescue_adapters_uses_canonical_order_even_when_legacy_override_is_present(self) -> None:
         from openclaw_watchdog import rescue_runtime
 

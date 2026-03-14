@@ -114,7 +114,26 @@ def prune_last_good_generations(engine, manifest: dict[str, object]) -> dict[str
 
 def last_good_candidates(engine) -> list[dict[str, object]]:
     manifest = load_last_good_manifest(engine)
-    return [item for item in manifest.get('generations', []) if isinstance(item, dict)]
+    candidates = [item for item in manifest.get('generations', []) if isinstance(item, dict)]
+    if candidates:
+        return candidates
+
+    legacy_path = Path(str(manifest.get('current_file', engine.config.watchdog_last_good_config) or engine.config.watchdog_last_good_config))
+    if load_json_file(legacy_path) is None:
+        return []
+    return [
+        {
+            'generation_id': str(manifest.get('current_generation', '') or 'legacy-last-good'),
+            'path': str(legacy_path),
+            'fingerprint': config_fingerprint(legacy_path),
+            'validated_at': str(manifest.get('validated_at', '') or ''),
+            'conversation_ready': False,
+            'minimal_usable_ready': False,
+            'summary': '',
+            'health_level': 'unknown',
+            'protected_paths': [],
+        }
+    ]
 
 
 def last_good_status(engine) -> dict[str, object]:

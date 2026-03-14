@@ -1,2 +1,2 @@
 state=healthy
-summary=service active and listener matches main pid
+summary=ready: gateway=up, channels=missing

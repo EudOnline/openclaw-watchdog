@@ -1,9 +1,9 @@
 {
   "contains": {
-    "summary": "service active and listener matches main pid"
+    "summary": "ready: gateway=up, channels=missing"
   },
   "equals": {
     "exit_code": 0,
-    "state": "healthy"
+    "state": "recovered"
   }
 }

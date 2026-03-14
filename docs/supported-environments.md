@@ -57,6 +57,14 @@ At minimum, release validation should continue to cover:
 - `python -m py_compile openclaw_watchdog/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py`
 - bounded rehearsal scenarios that represent conversation readiness, remediation failure, incident workflow behavior, and rescue-chain selection
 
+The current critical rehearsal gate should continue to protect the product-defining survivability path, including:
+
+- rescue-chain selection across the canonical executor order
+- conversation-aware readiness probes
+- rollback before doctor repair
+- survival-mode recovery
+- config-drift rollback protection
+
 ## Explicitly unsupported today
 
 These environments are not currently part of the promised public support surface:

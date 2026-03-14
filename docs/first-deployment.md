@@ -6,6 +6,10 @@ This guide is for the first safe rollout of the OpenClaw fallback system on a ho
 
 Move from source checkout to a validated fallback deployment without immediately enabling aggressive repair behavior.
 
+Operator quick path for the first rollout:
+
+`detect -> check -> status --summary -> report --message -> scripts/openclaw-watchdog-live-acceptance.sh`
+
 ## Minimum safe rollout
 
 ### 1. Clone and prepare the repo
@@ -119,7 +123,15 @@ scripts/install-openclaw-watchdog-units.sh
 systemctl --user enable --now openclaw-watchdog.timer
 ```
 
-### 8. Confirm the timer-backed deployment
+### 8. Run live acceptance on the real host
+
+```bash
+./scripts/openclaw-watchdog-live-acceptance.sh
+```
+
+Use this only after the earlier read-only checks look sane. The live acceptance pass is still read-only from the operator perspective and is meant to confirm that `status`, `report`, `metrics`, and incident surfaces agree about the current fallback state.
+
+### 9. Confirm the timer-backed deployment
 
 ```bash
 systemctl --user status openclaw-watchdog.timer
@@ -137,3 +149,4 @@ If you want the full recovery sequence in one place before enabling live automat
 - the deployment path does not install missing rescue tools; install and verify each desired executor yourself before relying on that tier.
 - If the wrapper reports that no compatible interpreter was found, install Python 3.11+ before proceeding.
 - Only enable more aggressive automation after the conservative path above looks correct on the real host.
+- Treat the live acceptance output as the final rollout gate before you trust unattended timer runs on that host.

@@ -15,6 +15,10 @@ These scenarios are the release gate and must stay fast, stable, and directly al
 - `watchdog-rescue-chain-rule-agent`
 - `watchdog-candidate-rule-auto-promotion`
 - `watchdog-candidate-rule-review-pending`
+- `watchdog-conversation-probe-ready`
+- `watchdog-rollback-priority-before-doctor`
+- `watchdog-survival-mode-recovery`
+- `watchdog-config-drift-guard`
 
 Run locally with:
 
@@ -33,16 +37,12 @@ These scenarios are still valuable, but they are slower, broader, or more operat
 - `watchdog-service-layer-degraded`
 - `watchdog-service-layer-threshold-recovery`
 - `watchdog-service-layer-transient-retry`
-- `watchdog-conversation-probe-ready`
 - `watchdog-conversation-probe-minimal`
 - `watchdog-conversation-probe-down`
 - `watchdog-restart-priority-recovery`
-- `watchdog-rollback-priority-before-doctor`
 - `watchdog-doctor-deferred-until-survival-fails`
-- `watchdog-survival-mode-recovery`
 - `watchdog-survival-mode-sticky-until-stable`
 - `watchdog-survival-mode-exit`
-- `watchdog-config-drift-guard`
 - `watchdog-env-drift-rollback`
 - `watchdog-plugin-drift-rollback`
 - `watchdog-recovery-notify-normal`

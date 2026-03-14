@@ -5,6 +5,11 @@ All notable changes to this public repository will be documented here.
 ## Unreleased
 
 ### Changed
+- align the rehearsal harness with the fixed rescue-order contract by removing legacy priority-override injection from repo-local scenarios
+- promote core survivability scenarios such as conversation readiness, rollback-before-doctor, survival recovery, and drift guard into the critical rehearsal gate
+- make deterministic recovery stop carrying stale `config_invalid` state past a successful rollback and restart the service after survival-mode activation before re-probing
+- tighten external rescue adapter parsing so plans with unexpected top-level keys are rejected instead of being treated as valid structured rescue plans
+- align `status --summary` wording with live-acceptance checks by using `conversation=...` in the compact operator summary
 - split CLI text rendering into `openclaw_watchdog/presenters/` so parser/dispatch stay separate from human-readable formatting
 - extract mutable per-run engine state into `openclaw_watchdog/run_context.py`; runtime state now lives under `engine.ctx` without a legacy attribute bridge
 - move `run-once` orchestration into `openclaw_watchdog/flows/` so OpenClaw fallback behavior is explicit and directly testable

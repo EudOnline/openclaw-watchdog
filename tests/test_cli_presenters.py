@@ -29,7 +29,7 @@ class CliPresentersTest(unittest.TestCase):
         )
 
         self.assertIn('status=healthy', text)
-        self.assertIn('conv=ready', text)
+        self.assertIn('conversation=ready', text)
         self.assertIn('litellm', text)
         self.assertIn('order=codex>claude-code>litellm', text)
         self.assertIn('reject=codex:unavailable,claude-code:no-plan', text)

@@ -9,6 +9,26 @@ from unittest.mock import Mock, patch
 
 
 class RollbackRuntimeTests(unittest.TestCase):
+    def test_last_good_candidates_fall_back_to_legacy_last_good_file_without_manifest(self) -> None:
+        from openclaw_watchdog import generation_runtime
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            last_good_config = root / 'openclaw.last-good.json'
+            last_good_config.write_text(json.dumps({'channels': {'qqbot': {'enabled': True}}}), encoding='utf-8')
+            engine = SimpleNamespace(
+                config=SimpleNamespace(
+                    watchdog_last_good_manifest_file=root / 'last-good-manifest.json',
+                    watchdog_last_good_config=last_good_config,
+                )
+            )
+
+            candidates = generation_runtime.last_good_candidates(engine)
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]['generation_id'], 'legacy-last-good')
+        self.assertEqual(candidates[0]['path'], str(last_good_config))
+
     def test_restore_last_good_uses_generation_runtime_candidates_directly(self) -> None:
         from openclaw_watchdog import rollback_runtime
 

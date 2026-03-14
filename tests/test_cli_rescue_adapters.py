@@ -18,6 +18,24 @@ class FakeRunner:
 
 
 class CliRescueAdaptersTest(unittest.TestCase):
+    def test_codex_adapter_extracts_structured_plan_from_noisy_stdout(self) -> None:
+        from openclaw_watchdog.rescue_agents.codex_adapter import CodexAdapter
+
+        runner = FakeRunner(
+            CommandResult(
+                args=['codex'],
+                returncode=0,
+                stdout='planning rescue...\n{"plan_id":"plan-codex-noisy","diagnosis":"codex restart","actions":[{"kind":"restart_service","params":{}}],"validations":["minimal_usable_ready"]}\n',
+                stderr='',
+            )
+        )
+        adapter = CodexAdapter(available=True, runner=runner, timeout_seconds=30, cwd=Path('.'))
+
+        plan = adapter.propose_plan(RescueContext(incident_id='incident-noisy', health_level='failed'))
+
+        self.assertEqual(plan.plan_id, 'plan-codex-noisy')
+        self.assertEqual(plan.actions[0].kind, 'restart_service')
+
     def test_codex_adapter_parses_structured_plan_from_stdout(self) -> None:
         from openclaw_watchdog.rescue_agents.codex_adapter import CodexAdapter
 
@@ -73,6 +91,22 @@ class CliRescueAdaptersTest(unittest.TestCase):
             adapter.propose_plan(RescueContext(incident_id='incident-3', health_level='failed'))
 
         self.assertEqual(runner.calls[0][0][:2], ['gemini', '-p'])
+
+    def test_opencode_adapter_rejects_unknown_top_level_keys(self) -> None:
+        from openclaw_watchdog.rescue_agents.opencode_adapter import OpenCodeAdapter
+
+        runner = FakeRunner(
+            CommandResult(
+                args=['opencode'],
+                returncode=0,
+                stdout='{"plan_id":"plan-opencode","diagnosis":"restart","actions":[{"kind":"restart_service","params":{}}],"validations":["minimal_usable_ready"],"unexpected":"value"}',
+                stderr='',
+            )
+        )
+        adapter = OpenCodeAdapter(available=True, runner=runner, timeout_seconds=30, cwd=Path('.'))
+
+        with self.assertRaises(ValueError):
+            adapter.propose_plan(RescueContext(incident_id='incident-unknown-keys', health_level='failed'))
 
     def test_opencode_adapter_returns_none_for_empty_actions(self) -> None:
         from openclaw_watchdog.rescue_agents.opencode_adapter import OpenCodeAdapter

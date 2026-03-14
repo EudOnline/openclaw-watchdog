@@ -1,2 +1,2 @@
 state=degraded
-summary=service layer degraded: gateway.reachable=false; retried 1s later: gateway.reachable=false (1/2)
+summary=down: gateway=down, channels=missing

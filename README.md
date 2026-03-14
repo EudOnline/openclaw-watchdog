@@ -157,6 +157,8 @@ The controlled mutation surface is intentionally narrow:
 
 Operator quick path for the first live rollout: `detect` -> `check` -> `status --summary` -> `report --message` -> `incidents queue` -> `maintenance on|off`.
 
+For the first real host rollout, follow `detect -> check -> status --summary -> report --message -> ./scripts/openclaw-watchdog-live-acceptance.sh` before enabling unattended timer runs. The fuller step-by-step path lives in `docs/first-deployment.md`.
+
 ```bash
 # one remediation pass
 scripts/openclaw-watchdog run-once
