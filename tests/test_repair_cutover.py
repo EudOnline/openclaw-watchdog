@@ -171,9 +171,9 @@ class RepairCutoverTests(unittest.TestCase):
                 log=lambda level, message: None,
             )
 
-            with patch('openclaw_watchdog.survival.guard_runtime.protected_paths_snapshot', return_value=[{'label': 'openclaw_config'}]) as snapshot_mock:
-                with patch('openclaw_watchdog.survival.guard_runtime.record_guard_event') as event_mock:
-                    with patch('openclaw_watchdog.survival.guard_runtime.fingerprint_path', return_value='fp-1') as fingerprint_mock:
+            with patch('openclaw_watchdog.survival_transition_runtime.guard_runtime.protected_paths_snapshot', return_value=[{'label': 'openclaw_config'}]) as snapshot_mock:
+                with patch('openclaw_watchdog.survival_transition_runtime.guard_runtime.record_guard_event') as event_mock:
+                    with patch('openclaw_watchdog.survival_transition_runtime.guard_runtime.fingerprint_path', return_value='fp-1') as fingerprint_mock:
                         result = survival.enter_survival_mode(engine, reason='unit-test')
 
         self.assertTrue(result['applied'])

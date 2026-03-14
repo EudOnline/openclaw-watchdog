@@ -201,6 +201,33 @@ class RescueActionTests(unittest.TestCase):
             restored = json.loads(config_file.read_text(encoding='utf-8'))
             self.assertTrue(restored['channels']['qqbot']['enabled'])
 
+    def test_enter_survival_mode_action_uses_transition_owner_when_engine_wrapper_is_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / 'openclaw.json'
+            config_file.write_text(json.dumps({'channels': {'qqbot': {'enabled': True}}}), encoding='utf-8')
+            executor = self._build_executor(
+                config_file,
+                probes=[
+                    {'minimal_usable_ready': True, 'conversation_ready': True},
+                    {'minimal_usable_ready': True, 'conversation_ready': True},
+                ],
+            )
+            plan = RescuePlan(
+                plan_id='plan-survival-fallback',
+                diagnosis='enter survival mode through owner runtime',
+                actions=[RescueAction(kind='enter_survival_mode', params={})],
+                validations=['minimal_usable_ready'],
+            )
+
+            with patch(
+                'openclaw_watchdog.rescue_actions.survival_transition_runtime.enter_survival_mode',
+                return_value={'applied': True},
+            ) as survival_mock:
+                result = self._apply_plan(executor, plan)
+
+        self.assertEqual(result.status, 'applied')
+        survival_mock.assert_called_once_with(executor.engine, reason='rescue-plan')
+
     def test_update_openclaw_config_rejects_non_object_json_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_file = Path(temp_dir) / 'openclaw.json'

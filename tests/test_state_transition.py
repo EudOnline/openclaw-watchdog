@@ -117,6 +117,31 @@ class StateTransitionTests(unittest.TestCase):
     def test_watchdog_engine_no_longer_exposes_set_state_wrapper(self) -> None:
         self.assertFalse(hasattr(WatchdogEngine, 'set_state'))
 
+    def test_state_transition_reads_survival_fields_from_state_runtime_owner(self) -> None:
+        from openclaw_watchdog import state_transition
+
+        with TemporaryDirectory() as temp_dir:
+            engine = StateTransitionEngineDouble(temp_dir)
+            engine.last_status_file.write_text('healthy', encoding='utf-8')
+            engine.ctx.incident_id = 'incident-3'
+            engine.ctx.incident_dir = Path(temp_dir) / 'incident-3'
+            write_event_mock = Mock(side_effect=lambda probe_engine, status, summary: probe_engine.event_writes.append((status, summary)))
+            report_mock = Mock(return_value={'message_text': 'operator summary'})
+
+            with patch('openclaw_watchdog.state_transition.last_good_runtime.guard_status', return_value={'guard_manifest_file': 'guard.json', 'guard_last_operation': 'validate', 'guard_last_phase': 'after', 'guard_last_time': '2026-03-12T18:19:00+08:00', 'guard_last_summary': 'ok'}):
+                with patch(
+                    'openclaw_watchdog.state_transition.survival_state_runtime.run_state_fields',
+                    return_value={'survival_mode_reason': 'owner-state'},
+                ) as survival_fields_mock:
+                    with patch('openclaw_watchdog.state_transition.incident_service_ops.update_incident_state'):
+                        with patch('openclaw_watchdog.state_transition.incident_service_ops.refresh_current_incident_index'):
+                            with patch.object(state_transition, 'event_runtime', SimpleNamespace(write_event=write_event_mock), create=True):
+                                with patch.object(state_transition, 'reporting_ops', SimpleNamespace(report_payload=report_mock), create=True):
+                                    state_transition.set_state(engine, 'failed', 'still down', health_level_override='failed')
+
+        survival_fields_mock.assert_called_once_with(engine)
+        self.assertEqual(engine.run_state_writes[-1]['survival_mode_reason'], 'owner-state')
+
     def test_healthy_transition_resolves_incident_and_clears_context(self) -> None:
         from openclaw_watchdog import state_transition
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from openclaw_watchdog import health as health_ops
 from openclaw_watchdog import repair_action_runtime
 from openclaw_watchdog import rollback_runtime
+from openclaw_watchdog import survival_transition_runtime
 from openclaw_watchdog.flows import recovery_finalize_runtime
 from openclaw_watchdog.flows import recovery_probe_runtime
 
@@ -57,21 +58,23 @@ def run_deterministic_recovery(engine, ctx, state: recovery_probe_runtime.Recove
 
     if hasattr(engine, 'enter_survival_mode'):
         survival_result = engine.enter_survival_mode(reason='rescue-flow')
-        survival_applied = bool((survival_result or {}).get('applied', False)) if isinstance(survival_result, dict) else bool(survival_result)
-        record_step(engine, 'survival', 'applied' if survival_applied else 'failed')
-        state = recovery_probe_runtime.phase_state_from_probe(
-            engine,
-            dict(health_ops.live_probe(engine, include_doctor=False, apply_grace=True)),
-            config_invalid=state.config_invalid,
-        )
-        outcome = recovery_finalize_runtime.maybe_finalize_recovery(
-            engine,
-            strategy='survival',
-            recovery_kind='deterministic',
-            state=state,
-        )
-        if outcome is not None:
-            return outcome, state
+    else:
+        survival_result = survival_transition_runtime.enter_survival_mode(engine, reason='rescue-flow')
+    survival_applied = bool((survival_result or {}).get('applied', False)) if isinstance(survival_result, dict) else bool(survival_result)
+    record_step(engine, 'survival', 'applied' if survival_applied else 'failed')
+    state = recovery_probe_runtime.phase_state_from_probe(
+        engine,
+        dict(health_ops.live_probe(engine, include_doctor=False, apply_grace=True)),
+        config_invalid=state.config_invalid,
+    )
+    outcome = recovery_finalize_runtime.maybe_finalize_recovery(
+        engine,
+        strategy='survival',
+        recovery_kind='deterministic',
+        state=state,
+    )
+    if outcome is not None:
+        return outcome, state
 
     doctor_enabled = bool(getattr(getattr(engine, 'config', object()), 'watchdog_enable_doctor_repair', False))
     if doctor_enabled:

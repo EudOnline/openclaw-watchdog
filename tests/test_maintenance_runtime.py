@@ -37,6 +37,10 @@ class MaintenanceRuntimeTests(unittest.TestCase):
         self.assertFalse(hasattr(WatchdogEngine, 'maintenance_on'))
         self.assertFalse(hasattr(WatchdogEngine, 'maintenance_off'))
 
+    def test_watchdog_engine_no_longer_exposes_survival_transition_helpers(self) -> None:
+        self.assertFalse(hasattr(WatchdogEngine, 'sync_survival_mode'))
+        self.assertFalse(hasattr(WatchdogEngine, 'enter_survival_mode'))
+
     def test_maintenance_on_writes_reason_and_returns_status_payload(self) -> None:
         from openclaw_watchdog import maintenance_runtime
 

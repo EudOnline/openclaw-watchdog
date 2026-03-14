@@ -11,6 +11,7 @@ from openclaw_watchdog import last_good_runtime
 from openclaw_watchdog import repair_action_runtime
 from openclaw_watchdog import rescue_policy
 from openclaw_watchdog import rollback_runtime
+from openclaw_watchdog import survival_transition_runtime
 from openclaw_watchdog.rescue_models import RescuePlan, RescueResult
 
 
@@ -162,8 +163,11 @@ class RescueActionExecutor:
                     repair_action_runtime.restart_service(self.engine)
                 elif action.kind == 'restore_last_good':
                     rollback_runtime.restore_last_good(self.engine, reason='rescue-plan')
-                elif action.kind == 'enter_survival_mode' and hasattr(self.engine, 'enter_survival_mode'):
-                    self.engine.enter_survival_mode(reason='rescue-plan')
+                elif action.kind == 'enter_survival_mode':
+                    if hasattr(self.engine, 'enter_survival_mode'):
+                        self.engine.enter_survival_mode(reason='rescue-plan')
+                    else:
+                        survival_transition_runtime.enter_survival_mode(self.engine, reason='rescue-plan')
                 elif action.kind == 'run_doctor':
                     doctor_runtime.run_doctor(self.engine)
 

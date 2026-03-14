@@ -10,7 +10,6 @@ from openclaw_watchdog import repair_action_runtime
 from openclaw_watchdog import rollback_runtime
 from openclaw_watchdog import recovery_tracking
 from openclaw_watchdog import run_state_service
-from openclaw_watchdog import survival as survival_ops
 from openclaw_watchdog.config import Config
 from openclaw_watchdog.runtime import CommandResult, run_capture_to_file, run_command
 from openclaw_watchdog.run_context import RunContext
@@ -151,12 +150,6 @@ class WatchdogEngine:
 
     def refresh_drift_context(self) -> dict[str, object]:
         return last_good_runtime.apply_drift_context(self)
-
-    def sync_survival_mode(self, *, probe: dict[str, object], config_invalid: bool) -> dict[str, object]:
-        return survival_ops.sync_survival_mode(self, probe=probe, config_invalid=config_invalid)
-
-    def enter_survival_mode(self, *, reason: str) -> dict[str, object]:
-        return survival_ops.enter_survival_mode(self, reason=reason)
 
     def kill_stray_listeners(self, main_pid: str) -> None:
         repair_action_runtime.kill_stray_listeners(self, main_pid)

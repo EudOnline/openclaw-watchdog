@@ -110,6 +110,36 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
             service_probe_failures=2,
         )
 
+    def test_baseline_probe_and_sync_uses_survival_transition_owner_when_engine_wrapper_is_absent(self) -> None:
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        probe = {
+            'config_invalid': False,
+            'process_layer_healthy': False,
+            'conversation_ready': False,
+            'minimal_usable_ready': False,
+            'conversation_status': 'down',
+        }
+        engine = SimpleNamespace(
+            config=SimpleNamespace(),
+            ctx=SimpleNamespace(),
+            read_run_state=Mock(return_value={'service_probe_failures': 1}),
+        )
+
+        with patch('openclaw_watchdog.flows.recovery_probe_runtime.health_ops.live_probe', return_value=probe):
+            with patch('openclaw_watchdog.flows.recovery_probe_runtime.survival_transition_runtime.sync_survival_mode') as sync_mock:
+                with patch(
+                    'openclaw_watchdog.flows.recovery_probe_runtime.probe_run_state.service_probe_failures_for',
+                    return_value=2,
+                ):
+                    with patch(
+                        'openclaw_watchdog.flows.recovery_probe_runtime.probe_run_state.write_probe_run_state',
+                        return_value='failed',
+                    ):
+                        recovery_probe_runtime.baseline_probe_and_sync(engine)
+
+        sync_mock.assert_called_once_with(engine, probe=probe, config_invalid=False)
+
     def test_finish_initial_state_returns_healthy_outcome_and_refreshes_last_good(self) -> None:
         from openclaw_watchdog.flows import recovery_probe_runtime
 

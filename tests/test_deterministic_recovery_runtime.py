@@ -172,6 +172,54 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(finalize_mock.call_count, 3)
 
+    def test_survival_branch_uses_transition_owner_when_engine_wrapper_is_absent(self) -> None:
+        from openclaw_watchdog.engine import RunOutcome
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        engine = SimpleNamespace(
+            config=SimpleNamespace(watchdog_enable_doctor_repair=False),
+            record_recovery_step=Mock(),
+        )
+        ctx = SimpleNamespace(config_drift_detected=False)
+        initial_state = self._initial_state()
+        restart_state = self._phase_state(health_level='failed')
+        rollback_state = self._phase_state(health_level='failed')
+        survival_state = self._phase_state(health_level='degraded', minimal_usable_ready=True)
+        outcome = RunOutcome(exit_code=0, state='recovered', summary='survival restored minimal usability')
+
+        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}, {}]):
+            with patch.object(
+                recovery_probe_runtime,
+                'phase_state_from_probe',
+                side_effect=[restart_state, rollback_state, survival_state],
+            ):
+                with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup'):
+                    with patch('openclaw_watchdog.repair_action_runtime.restart_service', return_value=False):
+                        with patch('openclaw_watchdog.rollback_runtime.restore_last_good', return_value=False):
+                            with patch(
+                                'openclaw_watchdog.flows.deterministic_recovery_runtime.survival_transition_runtime.enter_survival_mode',
+                                return_value={'applied': True},
+                            ) as survival_mock:
+                                with patch(
+                                    'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
+                                    side_effect=[None, None, outcome],
+                                ):
+                                    from openclaw_watchdog.flows import deterministic_recovery_runtime
+
+                                    result, final_state = deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
+
+        self.assertEqual(result, outcome)
+        self.assertEqual(final_state, survival_state)
+        survival_mock.assert_called_once_with(engine, reason='rescue-flow')
+        self.assertEqual(
+            engine.record_recovery_step.call_args_list,
+            [
+                call('restart', 'failed', ''),
+                call('rollback', 'failed', ''),
+                call('survival', 'applied', ''),
+            ],
+        )
+
     def test_doctor_runs_when_enabled_after_all_other_steps_fail(self) -> None:
         from openclaw_watchdog.flows import recovery_probe_runtime
 

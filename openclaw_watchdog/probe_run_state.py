@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from openclaw_watchdog import survival as survival_ops
+from openclaw_watchdog import survival_state_runtime
 
 
 def service_probe_failures_for(config, probe: dict[str, object], previous_failures: int) -> int:
@@ -47,7 +47,7 @@ def write_probe_run_state(engine, probe: dict[str, object], *, config_invalid: b
             "minimal_usable_ready": minimal_usable_ready,
             "conversation_status": str(probe.get("conversation_status", "down") or "down"),
             "conversation_probe_summary": str(probe.get("conversation_probe_summary", "") or ""),
-            **survival_ops.run_state_fields(engine),
+            **survival_state_runtime.run_state_fields(engine),
         }
     )
     return initial_health_level

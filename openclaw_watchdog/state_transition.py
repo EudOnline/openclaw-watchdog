@@ -4,7 +4,7 @@ from openclaw_watchdog import event_runtime
 from openclaw_watchdog import incident_service as incident_service_ops
 from openclaw_watchdog import last_good_runtime
 from openclaw_watchdog import reporting as reporting_ops
-from openclaw_watchdog import survival as survival_ops
+from openclaw_watchdog import survival_state_runtime
 
 
 def _health_level_for(new_state: str, health_level_override: str | None) -> str:
@@ -47,7 +47,7 @@ def _base_run_state_updates(engine, new_state: str, *, health_level: str) -> dic
         'rescue_rejected_executors': list(engine.ctx.rescue_rejected_executors),
         'rescue_learning_summary': engine.ctx.rescue_learning_summary,
         'rescue_mutation_scope': list(engine.ctx.rescue_mutation_scope),
-        **survival_ops.run_state_fields(engine),
+        **survival_state_runtime.run_state_fields(engine),
         'last_good_validated_at': engine.ctx.last_good_validated_at,
         'last_good_generation_id': engine.ctx.last_good_generation_id,
         'last_good_generation_count': engine.ctx.last_good_generation_count,

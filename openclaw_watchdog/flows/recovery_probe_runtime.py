@@ -5,6 +5,7 @@ from typing import Any
 
 from openclaw_watchdog import health as health_ops
 from openclaw_watchdog import probe_run_state
+from openclaw_watchdog import survival_transition_runtime
 from openclaw_watchdog import state_transition
 
 
@@ -95,6 +96,8 @@ def baseline_probe_and_sync(engine) -> RecoveryPhaseState:
     config_invalid = bool(probe.get('config_invalid', False))
     if hasattr(engine, 'sync_survival_mode'):
         engine.sync_survival_mode(probe=probe, config_invalid=config_invalid)
+    else:
+        survival_transition_runtime.sync_survival_mode(engine, probe=probe, config_invalid=config_invalid)
     return phase_state_from_probe(engine, probe, config_invalid=config_invalid)
 
 
