@@ -5,6 +5,7 @@ from typing import Any
 
 from openclaw_watchdog import health as health_ops
 from openclaw_watchdog import probe_run_state
+from openclaw_watchdog import recovery_tracking
 from openclaw_watchdog import survival_transition_runtime
 from openclaw_watchdog import state_transition
 
@@ -96,19 +97,27 @@ def baseline_probe_and_sync(engine) -> RecoveryPhaseState:
     return phase_state_from_probe(engine, probe, config_invalid=config_invalid)
 
 
+def finalize_recovery_tracking(engine, *, strategy: str, restored_conversation: bool) -> None:
+    helper = getattr(engine, 'finalize_recovery_tracking', None)
+    if callable(helper):
+        helper(strategy=strategy, restored_conversation=restored_conversation)
+        return
+    recovery_tracking.finalize(engine.ctx, strategy=strategy, restored_conversation=restored_conversation)
+
+
 def finish_initial_state(engine, state: RecoveryPhaseState):
     from openclaw_watchdog.engine import RunOutcome
     from openclaw_watchdog.flows import recovery_finalize_runtime as finalize_runtime
 
     if state.health_level == 'healthy':
         finalize_runtime.refresh_last_good_if_ready(engine, state.probe)
-        engine.finalize_recovery_tracking(strategy='none', restored_conversation=True)
+        finalize_recovery_tracking(engine, strategy='none', restored_conversation=True)
         summary = summary_from_probe(state.probe, fallback='conversation is ready')
         state_transition.set_state(engine, 'healthy', summary, health_level_override='healthy')
         return RunOutcome(exit_code=0, state='healthy', summary=summary)
 
     if state.health_level == 'degraded':
-        engine.finalize_recovery_tracking(strategy='none', restored_conversation=False)
+        finalize_recovery_tracking(engine, strategy='none', restored_conversation=False)
         summary = summary_from_probe(state.probe, fallback='minimal conversation remains available')
         state_transition.set_state(engine, 'degraded', summary, health_level_override='degraded')
         return RunOutcome(exit_code=0, state='degraded', summary=summary)

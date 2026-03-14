@@ -5,6 +5,14 @@ from pathlib import Path
 
 from openclaw_watchdog import incident_context as incident_context_ops
 from openclaw_watchdog import incident_read_runtime
+from openclaw_watchdog import recovery_tracking
+
+
+def _recovery_path_text(engine) -> str:
+    helper = getattr(engine, 'recovery_path_text', None)
+    if callable(helper):
+        return str(helper() or 'none')
+    return recovery_tracking.path_text(engine.ctx)
 
 
 def incident_operator_summary(engine, *, summary: str, active: str, main_pid: str, listeners: str) -> str:
@@ -24,7 +32,7 @@ def incident_operator_summary(engine, *, summary: str, active: str, main_pid: st
         f"rollback_candidate_used={engine.ctx.rollback_candidate_used or 'none'}",
         f"rollback_reason={engine.ctx.rollback_reason or 'none'}",
         f'last_recovery_strategy={engine.ctx.last_recovery_strategy}',
-        f'last_recovery_path={engine.recovery_path_text()}',
+        f'last_recovery_path={_recovery_path_text(engine)}',
     ]
     return '\n'.join(lines) + '\n'
 
@@ -66,7 +74,7 @@ def incident_index_entry(
         rollback_candidate_used=engine.ctx.rollback_candidate_used,
         rollback_reason=engine.ctx.rollback_reason,
         last_recovery_strategy=engine.ctx.last_recovery_strategy,
-        last_recovery_path=engine.recovery_path_text(),
+        last_recovery_path=_recovery_path_text(engine),
     )
 
 

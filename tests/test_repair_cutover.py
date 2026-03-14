@@ -78,35 +78,17 @@ class RepairCutoverTests(unittest.TestCase):
         self.assertFalse(hasattr(WatchdogEngine, 'restart_service'))
         self.assertFalse(hasattr(WatchdogEngine, 'run_doctor_repair'))
 
-    def test_engine_remaining_repair_helpers_delegate_to_runtime_modules(self) -> None:
-        engine = object.__new__(WatchdogEngine)
-        engine.config = object()
-
-        with patch('openclaw_watchdog.engine.rollback_runtime.capture_rollback_summary') as capture_mock:
-            engine.capture_rollback_summary(Path('/tmp/current.json'), Path('/tmp/baseline.json'))
-
-        out: list[str] = []
-        with patch('openclaw_watchdog.engine.rollback_runtime.walk_json_diff') as walk_mock:
-            engine._walk_json_diff({'a': 1}, {'a': 2}, '', out, limit=5)
-
-        with patch('openclaw_watchdog.engine.rollback_runtime.prune_rollback_archives') as prune_mock:
-            engine.prune_rollback_archives()
-
-        with patch('openclaw_watchdog.engine.last_good_runtime.drift_context', return_value={'detected': True}) as drift_mock:
-            self.assertEqual(engine.drift_context(), {'detected': True})
-
-        with patch('openclaw_watchdog.engine.last_good_runtime.apply_drift_context', return_value={'detected': True}) as apply_mock:
-            self.assertEqual(engine.refresh_drift_context(), {'detected': True})
-
-        with patch('openclaw_watchdog.engine.repair_action_runtime.kill_stray_listeners') as kill_mock:
-            engine.kill_stray_listeners('123')
-
-        capture_mock.assert_called_once_with(engine, Path('/tmp/current.json'), Path('/tmp/baseline.json'))
-        walk_mock.assert_called_once_with({'a': 1}, {'a': 2}, '', out, limit=5)
-        prune_mock.assert_called_once_with(engine)
-        drift_mock.assert_called_once_with(engine)
-        apply_mock.assert_called_once_with(engine)
-        kill_mock.assert_called_once_with(engine, '123')
+    def test_watchdog_engine_no_longer_exposes_recovery_tracking_and_domain_wrappers(self) -> None:
+        self.assertFalse(hasattr(WatchdogEngine, 'reset_recovery_tracking'))
+        self.assertFalse(hasattr(WatchdogEngine, 'record_recovery_step'))
+        self.assertFalse(hasattr(WatchdogEngine, 'recovery_path_text'))
+        self.assertFalse(hasattr(WatchdogEngine, 'finalize_recovery_tracking'))
+        self.assertFalse(hasattr(WatchdogEngine, 'capture_rollback_summary'))
+        self.assertFalse(hasattr(WatchdogEngine, '_walk_json_diff'))
+        self.assertFalse(hasattr(WatchdogEngine, 'prune_rollback_archives'))
+        self.assertFalse(hasattr(WatchdogEngine, 'drift_context'))
+        self.assertFalse(hasattr(WatchdogEngine, 'refresh_drift_context'))
+        self.assertFalse(hasattr(WatchdogEngine, 'kill_stray_listeners'))
 
     def test_rescue_actions_guard_helpers_delegate_to_last_good_runtime(self) -> None:
         from openclaw_watchdog.rescue_actions import RescueActionExecutor

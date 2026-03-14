@@ -506,12 +506,6 @@ class RescueFlowTests(unittest.TestCase):
             def log(self, level: str, message: str) -> None:
                 return None
 
-            def reset_recovery_tracking(self) -> None:
-                return None
-
-            def refresh_drift_context(self) -> dict[str, object]:
-                return {'detected': False, 'scope': [], 'since_last_good': '', 'summary': ''}
-
             def sync_survival_mode(self, *, probe: dict[str, object], config_invalid: bool) -> None:
                 return None
 
@@ -520,10 +514,6 @@ class RescueFlowTests(unittest.TestCase):
 
             def enter_survival_mode(self, *, reason: str) -> dict[str, object]:
                 return {'applied': False}
-
-            def finalize_recovery_tracking(self, *, strategy: str, restored_conversation: bool) -> None:
-                self.ctx.last_recovery_strategy = strategy
-                self.ctx.last_recovery_restored_conversation = restored_conversation
 
             def read_run_state(self) -> dict[str, object]:
                 return dict(self._run_state)
@@ -557,6 +547,21 @@ class RescueFlowTests(unittest.TestCase):
         restart_mock = Mock(return_value=False)
         restore_mock = Mock(return_value=False)
         doctor_mock = Mock()
+        reset_tracking_mock = Mock(side_effect=lambda ctx, *, stable_required_runs: setattr(ctx, 'recovery_steps', []))
+        apply_drift_mock = Mock(
+            side_effect=lambda current_engine: {
+                'detected': False,
+                'scope': [],
+                'since_last_good': '',
+                'summary': '',
+            }
+        )
+        finalize_tracking_mock = Mock(
+            side_effect=lambda ctx, *, strategy, restored_conversation: (
+                setattr(ctx, 'last_recovery_strategy', strategy),
+                setattr(ctx, 'last_recovery_restored_conversation', restored_conversation),
+            )
+        )
 
         with patch('openclaw_watchdog.probe_run_state.service_probe_failures_for', return_value=0) as failures_mock:
             with patch('openclaw_watchdog.probe_run_state.write_probe_run_state', return_value='failed') as write_mock:
@@ -578,18 +583,22 @@ class RescueFlowTests(unittest.TestCase):
                                         side_effect=lambda probe_engine, state, summary, health_level_override=None: probe_engine.state_records.append((state, summary))
                                     )
                                     with patch('openclaw_watchdog.state_transition.set_state', set_state_mock):
-                                        with patch(
-                                            'openclaw_watchdog.flows.recovery_probe_runtime.survival_transition_runtime.sync_survival_mode'
-                                        ) as sync_mock:
-                                            with patch(
-                                                'openclaw_watchdog.flows.deterministic_recovery_runtime.survival_transition_runtime.enter_survival_mode',
-                                                return_value={'applied': False},
-                                            ) as survival_mock:
-                                                with patch('openclaw_watchdog.rollback_runtime.restore_last_good', restore_mock):
-                                                    with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup', pre_backup_mock):
-                                                        with patch('openclaw_watchdog.repair_action_runtime.restart_service', restart_mock):
-                                                            with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair', doctor_mock):
-                                                                outcome = rescue_run.run(engine, engine.ctx)
+                                        with patch('openclaw_watchdog.flows.rescue_run.recovery_tracking.reset', reset_tracking_mock):
+                                            with patch('openclaw_watchdog.flows.rescue_run.last_good_runtime.apply_drift_context', apply_drift_mock):
+                                                with patch('openclaw_watchdog.flows.recovery_probe_runtime.recovery_tracking.finalize', finalize_tracking_mock):
+                                                    with patch('openclaw_watchdog.flows.recovery_finalize_runtime.recovery_tracking.finalize', finalize_tracking_mock):
+                                                        with patch(
+                                                            'openclaw_watchdog.flows.recovery_probe_runtime.survival_transition_runtime.sync_survival_mode'
+                                                        ) as sync_mock:
+                                                            with patch(
+                                                                'openclaw_watchdog.flows.deterministic_recovery_runtime.survival_transition_runtime.enter_survival_mode',
+                                                                return_value={'applied': False},
+                                                            ) as survival_mock:
+                                                                with patch('openclaw_watchdog.rollback_runtime.restore_last_good', restore_mock):
+                                                                    with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup', pre_backup_mock):
+                                                                        with patch('openclaw_watchdog.repair_action_runtime.restart_service', restart_mock):
+                                                                            with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair', doctor_mock):
+                                                                                outcome = rescue_run.run(engine, engine.ctx)
 
         self.assertEqual(outcome.state, 'recovered')
         context_mock.assert_called_once()
@@ -604,6 +613,9 @@ class RescueFlowTests(unittest.TestCase):
         self.assertEqual(restart_mock.call_count, 1)
         restore_mock.assert_called_once_with(engine, reason='rescue-flow')
         doctor_mock.assert_called_once_with(engine)
+        reset_tracking_mock.assert_called_once_with(engine.ctx, stable_required_runs=2)
+        self.assertTrue(apply_drift_mock.called)
+        self.assertTrue(finalize_tracking_mock.called)
         self.assertTrue(set_state_mock.called)
 
     def test_run_delegates_deterministic_path_to_recovery_phase_helpers(self) -> None:
@@ -688,30 +700,44 @@ class RescueFlowTests(unittest.TestCase):
         deterministic_mock.assert_called_once_with(engine, engine.ctx, baseline_state)
         rescue_mock.assert_called_once_with(engine, engine.ctx, baseline_state)
 
-    def test_run_requires_refresh_drift_context_on_engine(self) -> None:
+    def test_run_uses_last_good_runtime_when_refresh_wrapper_is_absent(self) -> None:
         from openclaw_watchdog.flows import rescue_run
 
         class IncompleteEngine:
             def __init__(self) -> None:
-                self.config = SimpleNamespace()
+                self.config = SimpleNamespace(watchdog_survival_stable_ready_runs=2)
                 self.ctx = RunContext.initial(stable_required_runs=2)
+                self.run_state_writes: list[dict[str, object]] = []
 
             def write_run_state(self, updates: dict[str, object]) -> dict[str, object]:
+                self.run_state_writes.append(dict(updates))
                 return dict(updates)
 
             def log(self, level: str, message: str) -> None:
                 return None
 
-            def reset_recovery_tracking(self) -> None:
-                return None
-
         engine = IncompleteEngine()
+        baseline_state = SimpleNamespace(probe={'conversation_status': 'down'}, config_invalid=False, health_level='failed')
 
-        with patch('openclaw_watchdog.flows.rescue_run.recovery_phases.baseline_probe_and_sync') as baseline_mock:
-            with self.assertRaises(AttributeError):
-                rescue_run.run(engine, engine.ctx)
+        with patch('openclaw_watchdog.flows.rescue_run.recovery_tracking.reset') as reset_mock:
+            with patch(
+                'openclaw_watchdog.flows.rescue_run.last_good_runtime.apply_drift_context',
+                return_value={},
+            ) as drift_mock:
+                with patch(
+                    'openclaw_watchdog.flows.rescue_run.recovery_phases.baseline_probe_and_sync',
+                    return_value=baseline_state,
+                ) as baseline_mock:
+                    with patch(
+                        'openclaw_watchdog.flows.rescue_run.recovery_phases.finish_initial_state',
+                        return_value=SimpleNamespace(exit_code=0, state='healthy', summary='ready'),
+                    ):
+                        outcome = rescue_run.run(engine, engine.ctx)
 
-        baseline_mock.assert_not_called()
+        self.assertEqual(outcome.state, 'healthy')
+        reset_mock.assert_called_once_with(engine.ctx, stable_required_runs=2)
+        drift_mock.assert_called_once_with(engine)
+        baseline_mock.assert_called_once_with(engine)
 
     def test_run_calls_phase_helpers_in_order_before_rescue(self) -> None:
         from openclaw_watchdog.engine import RunOutcome

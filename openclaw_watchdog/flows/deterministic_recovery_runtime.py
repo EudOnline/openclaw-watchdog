@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from openclaw_watchdog import health as health_ops
 from openclaw_watchdog import repair_action_runtime
+from openclaw_watchdog import recovery_tracking
 from openclaw_watchdog import rollback_runtime
 from openclaw_watchdog import survival_transition_runtime
 from openclaw_watchdog.flows import recovery_finalize_runtime
@@ -12,6 +13,8 @@ def record_step(engine, step: str, outcome: str, detail: str = '') -> None:
     recorder = getattr(engine, 'record_recovery_step', None)
     if callable(recorder):
         recorder(step, outcome, detail)
+        return
+    recovery_tracking.record_step(engine.ctx, step, outcome, detail)
 
 
 def run_deterministic_recovery(engine, ctx, state: recovery_probe_runtime.RecoveryPhaseState) -> tuple[object | None, recovery_probe_runtime.RecoveryPhaseState]:

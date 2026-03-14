@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from openclaw_watchdog import recovery_tracking
 from openclaw_watchdog import event_runtime
 from openclaw_watchdog import incident_service as incident_service_ops
 from openclaw_watchdog import last_good_runtime
@@ -17,6 +18,13 @@ def _health_level_for(new_state: str, health_level_override: str | None) -> str:
     return 'failed'
 
 
+def _recovery_path_text(engine) -> str:
+    helper = getattr(engine, 'recovery_path_text', None)
+    if callable(helper):
+        return str(helper() or 'none')
+    return recovery_tracking.path_text(engine.ctx)
+
+
 def _base_run_state_updates(engine, new_state: str, *, health_level: str) -> dict[str, object]:
     run_state_updates: dict[str, object] = {
         'current_mode': engine.current_mode(
@@ -31,7 +39,7 @@ def _base_run_state_updates(engine, new_state: str, *, health_level: str) -> dic
         'rollback_reason': engine.ctx.rollback_reason,
         'config_drift_detected': engine.ctx.config_drift_detected,
         'last_recovery_strategy': engine.ctx.last_recovery_strategy,
-        'last_recovery_path': engine.recovery_path_text(),
+        'last_recovery_path': _recovery_path_text(engine),
         'last_recovery_action_count': engine.ctx.last_recovery_action_count,
         'last_recovery_restored_conversation': engine.ctx.last_recovery_restored_conversation,
         'rescue_attempt_count': engine.ctx.rescue_attempt_count,

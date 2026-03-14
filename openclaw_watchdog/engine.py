@@ -5,10 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from openclaw_watchdog import engine_support_runtime
-from openclaw_watchdog import last_good_runtime
-from openclaw_watchdog import repair_action_runtime
-from openclaw_watchdog import rollback_runtime
-from openclaw_watchdog import recovery_tracking
 from openclaw_watchdog import run_state_service
 from openclaw_watchdog.config import Config
 from openclaw_watchdog.runtime import CommandResult, run_capture_to_file, run_command
@@ -77,25 +73,6 @@ class WatchdogEngine:
     def append_rollback_summary(self, text: str) -> str:
         return engine_support_runtime.append_rollback_summary(self, text)
 
-    def reset_recovery_tracking(self) -> None:
-        recovery_tracking.reset(
-            self.ctx,
-            stable_required_runs=self.config.watchdog_survival_stable_ready_runs,
-        )
-
-    def record_recovery_step(self, step: str, outcome: str, detail: str = "") -> None:
-        recovery_tracking.record_step(self.ctx, step, outcome, detail)
-
-    def recovery_path_text(self) -> str:
-        return recovery_tracking.path_text(self.ctx)
-
-    def finalize_recovery_tracking(self, *, strategy: str, restored_conversation: bool) -> None:
-        recovery_tracking.finalize(
-            self.ctx,
-            strategy=strategy,
-            restored_conversation=restored_conversation,
-        )
-
     def read_failure_count(self) -> int:
         return engine_support_runtime.read_failure_count(self)
 
@@ -135,24 +112,6 @@ class WatchdogEngine:
 
     def sibling_json_path(self, path: Path) -> Path:
         return engine_support_runtime.sibling_json_path(path)
-
-    def capture_rollback_summary(self, current: Path, baseline: Path) -> None:
-        rollback_runtime.capture_rollback_summary(self, current, baseline)
-
-    def _walk_json_diff(self, current, baseline, path: str, out: list[str], *, limit: int) -> None:
-        rollback_runtime.walk_json_diff(current, baseline, path, out, limit=limit)
-
-    def prune_rollback_archives(self) -> None:
-        rollback_runtime.prune_rollback_archives(self)
-
-    def drift_context(self) -> dict[str, object]:
-        return last_good_runtime.drift_context(self)
-
-    def refresh_drift_context(self) -> dict[str, object]:
-        return last_good_runtime.apply_drift_context(self)
-
-    def kill_stray_listeners(self, main_pid: str) -> None:
-        repair_action_runtime.kill_stray_listeners(self, main_pid)
 
     def run_once(self) -> RunOutcome:
         from openclaw_watchdog.flows import rescue_run

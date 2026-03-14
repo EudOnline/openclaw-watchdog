@@ -13,7 +13,6 @@ class RecoveryFinalizeRuntimeTests(unittest.TestCase):
                 candidate_rule_status='none',
                 rescue_learning_summary='',
             ),
-            finalize_recovery_tracking=Mock(),
         )
 
     def test_refresh_last_good_if_ready_only_runs_when_conversation_is_ready(self) -> None:
@@ -78,12 +77,15 @@ class RecoveryFinalizeRuntimeTests(unittest.TestCase):
             with patch(
                 'openclaw_watchdog.flows.recovery_finalize_runtime.state_transition.set_state'
             ) as set_state_mock:
-                outcome = recovery_finalize_runtime.maybe_finalize_recovery(
-                    engine,
-                    strategy='restart',
-                    recovery_kind='deterministic',
-                    state=state,
-                )
+                with patch(
+                    'openclaw_watchdog.flows.recovery_finalize_runtime.recovery_tracking.finalize'
+                ) as finalize_mock:
+                    outcome = recovery_finalize_runtime.maybe_finalize_recovery(
+                        engine,
+                        strategy='restart',
+                        recovery_kind='deterministic',
+                        state=state,
+                    )
 
         self.assertEqual(outcome.exit_code, 0)
         self.assertEqual(outcome.state, 'recovered')
@@ -92,7 +94,7 @@ class RecoveryFinalizeRuntimeTests(unittest.TestCase):
         self.assertEqual(engine.ctx.candidate_rule_status, 'candidate-recorded')
         self.assertEqual(engine.ctx.rescue_learning_summary, 'recorded:case.json / candidate-recorded')
         learning_mock.assert_called_once()
-        engine.finalize_recovery_tracking.assert_called_once_with(strategy='restart', restored_conversation=False)
+        finalize_mock.assert_called_once_with(engine.ctx, strategy='restart', restored_conversation=False)
         set_state_mock.assert_called_once_with(
             engine,
             'recovered',
@@ -108,12 +110,15 @@ class RecoveryFinalizeRuntimeTests(unittest.TestCase):
         with patch(
             'openclaw_watchdog.flows.recovery_finalize_runtime.state_transition.set_state'
         ) as set_state_mock:
-            outcome = recovery_finalize_runtime.finalize_failure(engine, summary='rescue exhausted')
+            with patch(
+                'openclaw_watchdog.flows.recovery_finalize_runtime.recovery_tracking.finalize'
+            ) as finalize_mock:
+                outcome = recovery_finalize_runtime.finalize_failure(engine, summary='rescue exhausted')
 
         self.assertEqual(outcome.exit_code, 1)
         self.assertEqual(outcome.state, 'failed')
         self.assertEqual(outcome.summary, 'rescue exhausted')
-        engine.finalize_recovery_tracking.assert_called_once_with(strategy='failed', restored_conversation=False)
+        finalize_mock.assert_called_once_with(engine.ctx, strategy='failed', restored_conversation=False)
         set_state_mock.assert_called_once_with(
             engine,
             'failed',

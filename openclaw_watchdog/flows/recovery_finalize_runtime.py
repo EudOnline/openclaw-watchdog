@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from openclaw_watchdog import last_good_runtime
+from openclaw_watchdog import recovery_tracking
 from openclaw_watchdog import rescue_learning_service
 from openclaw_watchdog import state_transition
 from openclaw_watchdog.flows.recovery_probe_runtime import RecoveryPhaseState, summary_from_probe
@@ -62,12 +63,20 @@ def refresh_last_good_if_ready(engine, probe: dict[str, Any]) -> None:
     last_good_runtime.backup_last_good(engine, validation=probe)
 
 
+def finalize_recovery_tracking(engine, *, strategy: str, restored_conversation: bool) -> None:
+    helper = getattr(engine, 'finalize_recovery_tracking', None)
+    if callable(helper):
+        helper(strategy=strategy, restored_conversation=restored_conversation)
+        return
+    recovery_tracking.finalize(engine.ctx, strategy=strategy, restored_conversation=restored_conversation)
+
+
 def finalize_success(engine, *, strategy: str, probe: dict[str, Any], recovered_from_failure: bool):
     from openclaw_watchdog.engine import RunOutcome
 
     restored_conversation = bool(probe.get('conversation_ready', False))
     refresh_last_good_if_ready(engine, probe)
-    engine.finalize_recovery_tracking(strategy=strategy, restored_conversation=restored_conversation)
+    finalize_recovery_tracking(engine, strategy=strategy, restored_conversation=restored_conversation)
     summary = summary_from_probe(probe, fallback=f'rescue restored via {strategy}')
     state = 'healthy' if restored_conversation and not recovered_from_failure else 'recovered' if recovered_from_failure else 'degraded'
     health_override = 'healthy' if state == 'healthy' else 'degraded'
@@ -78,7 +87,7 @@ def finalize_success(engine, *, strategy: str, probe: dict[str, Any], recovered_
 def finalize_failure(engine, *, summary: str):
     from openclaw_watchdog.engine import RunOutcome
 
-    engine.finalize_recovery_tracking(strategy='failed', restored_conversation=False)
+    finalize_recovery_tracking(engine, strategy='failed', restored_conversation=False)
     state_transition.set_state(engine, 'failed', summary, health_level_override='failed')
     return RunOutcome(exit_code=1, state='failed', summary=summary)
 

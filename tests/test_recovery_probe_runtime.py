@@ -146,7 +146,7 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
         from openclaw_watchdog.flows import recovery_probe_runtime
 
         engine = SimpleNamespace(
-            finalize_recovery_tracking=Mock(),
+            ctx=SimpleNamespace(),
         )
         state = recovery_probe_runtime.RecoveryPhaseState(
             probe={
@@ -163,13 +163,16 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
             with patch(
                 'openclaw_watchdog.flows.recovery_probe_runtime.state_transition.set_state'
             ) as set_state_mock:
-                outcome = recovery_probe_runtime.finish_initial_state(engine, state)
+                with patch(
+                    'openclaw_watchdog.flows.recovery_probe_runtime.recovery_tracking.finalize'
+                ) as finalize_mock:
+                    outcome = recovery_probe_runtime.finish_initial_state(engine, state)
 
         self.assertEqual(outcome.exit_code, 0)
         self.assertEqual(outcome.state, 'healthy')
         self.assertEqual(outcome.summary, 'conversation is ready')
         refresh_mock.assert_called_once_with(engine, state.probe)
-        engine.finalize_recovery_tracking.assert_called_once_with(strategy='none', restored_conversation=True)
+        finalize_mock.assert_called_once_with(engine.ctx, strategy='none', restored_conversation=True)
         set_state_mock.assert_called_once_with(
             engine,
             'healthy',
@@ -181,7 +184,7 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
         from openclaw_watchdog.flows import recovery_probe_runtime
 
         engine = SimpleNamespace(
-            finalize_recovery_tracking=Mock(),
+            ctx=SimpleNamespace(),
         )
         state = recovery_probe_runtime.RecoveryPhaseState(
             probe={
@@ -199,13 +202,16 @@ class RecoveryProbeRuntimeTests(unittest.TestCase):
             with patch(
                 'openclaw_watchdog.flows.recovery_probe_runtime.state_transition.set_state'
             ) as set_state_mock:
-                outcome = recovery_probe_runtime.finish_initial_state(engine, state)
+                with patch(
+                    'openclaw_watchdog.flows.recovery_probe_runtime.recovery_tracking.finalize'
+                ) as finalize_mock:
+                    outcome = recovery_probe_runtime.finish_initial_state(engine, state)
 
         self.assertEqual(outcome.exit_code, 0)
         self.assertEqual(outcome.state, 'degraded')
         self.assertEqual(outcome.summary, 'minimal conversation remains available')
         refresh_mock.assert_not_called()
-        engine.finalize_recovery_tracking.assert_called_once_with(strategy='none', restored_conversation=False)
+        finalize_mock.assert_called_once_with(engine.ctx, strategy='none', restored_conversation=False)
         set_state_mock.assert_called_once_with(
             engine,
             'degraded',
