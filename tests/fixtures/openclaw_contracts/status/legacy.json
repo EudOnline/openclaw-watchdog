@@ -1,0 +1,11 @@
+{
+  "gateway": {
+    "url": "http://127.0.0.1:5700",
+    "reachable": "configured",
+    "misconfigured": "not-configured"
+  },
+  "conversation": {
+    "status": "minimal",
+    "minimalUsable": true
+  }
+}

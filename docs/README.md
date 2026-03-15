@@ -7,6 +7,7 @@ This directory is split into two layers:
 These are the documents new users and operators should start with when treating this repo as the OpenClaw fallback system:
 
 - [internal-architecture.md](internal-architecture.md)
+- [upstream-tracking.md](upstream-tracking.md)
 - [supported-environments.md](supported-environments.md)
 - [first-deployment.md](first-deployment.md)
 - [release-readiness.md](release-readiness.md)
@@ -39,7 +40,8 @@ These documents are retained only for historical and implementation context:
 6. Read [faq.md](faq.md) if you want the quick orientation version
 7. Use [live-acceptance-checklist.md](live-acceptance-checklist.md) and [live-samples.md](live-samples.md) for validation work
 8. Read [internal-architecture.md](internal-architecture.md) if you are changing internals or tests
-9. Read [rehearsal/README.md](../rehearsal/README.md) if you want the repo-local rehearsal flow
-10. Use [release-v0.2.0-runbook.md](release-v0.2.0-runbook.md) for the copy-paste release execution path
-11. Use [release-notes-v0.2.0-draft.md](release-notes-v0.2.0-draft.md) when assembling the next public release notes
-12. Only consult [history/migration-legacy-rollout.md](history/migration-legacy-rollout.md) or `history/` if you need migration background
+9. Read [upstream-tracking.md](upstream-tracking.md) if you are touching OpenClaw payload parsing or scout automation
+10. Read [rehearsal/README.md](../rehearsal/README.md) if you want the repo-local rehearsal flow
+11. Use [release-v0.2.0-runbook.md](release-v0.2.0-runbook.md) for the copy-paste release execution path
+12. Use [release-notes-v0.2.0-draft.md](release-notes-v0.2.0-draft.md) when assembling the next public release notes
+13. Only consult [history/migration-legacy-rollout.md](history/migration-legacy-rollout.md) or `history/` if you need migration background

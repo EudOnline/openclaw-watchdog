@@ -1,0 +1,4 @@
+Usage: openclaw doctor [options]
+
+Options:
+  --repair

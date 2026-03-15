@@ -1,0 +1,11 @@
+{
+  "gateway": {
+    "url": "http://127.0.0.1:3000",
+    "reachable": true,
+    "misconfigured": false
+  },
+  "conversation": {
+    "status": "ready",
+    "ready": true
+  }
+}
