@@ -90,6 +90,28 @@ class StructuredCliAdapter:
         unknown_keys = sorted(set(payload) - ALLOWED_PLAN_TOP_LEVEL_KEYS)
         if unknown_keys:
             raise ValueError(f'{self.name} returned unexpected top-level keys: {", ".join(unknown_keys)}')
+        if 'actions' not in payload:
+            raise ValueError(f'{self.name} returned a plan without actions')
+        if 'validations' not in payload:
+            raise ValueError(f'{self.name} returned a plan without validations')
+        if not str(payload.get('plan_id', '') or '').strip():
+            raise ValueError(f'{self.name} returned an empty plan_id')
+        if not str(payload.get('diagnosis', '') or '').strip():
+            raise ValueError(f'{self.name} returned an empty diagnosis')
+        actions = payload.get('actions', [])
+        if not isinstance(actions, list):
+            raise ValueError(f'{self.name} returned non-list actions')
+        validations = payload.get('validations', [])
+        if 'validations' in payload and not isinstance(validations, list):
+            raise ValueError(f'{self.name} returned non-list validations')
+        for index, action in enumerate(actions):
+            if not isinstance(action, dict):
+                raise ValueError(f'{self.name} returned non-object action at index {index}')
+            if not str(action.get('kind', '') or '').strip():
+                raise ValueError(f'{self.name} returned an action without kind at index {index}')
+            params = action.get('params', {})
+            if 'params' in action and not isinstance(params, dict):
+                raise ValueError(f'{self.name} returned non-dict params for action {index}')
 
     def _extract_json_candidates(self, text: str) -> list[Any]:
         candidates: list[Any] = []
@@ -108,13 +130,13 @@ class StructuredCliAdapter:
         if isinstance(value, dict):
             if 'shell' in value:
                 return value
-            if 'plan_id' in value and 'actions' in value:
-                return value
             for key in ('response', 'result', 'content', 'text', 'message'):
                 nested = value.get(key)
                 found = self._find_plan_payload(nested)
                 if found is not None:
                     return found
+            if set(value).intersection(ALLOWED_PLAN_TOP_LEVEL_KEYS):
+                return value
             for nested in value.values():
                 found = self._find_plan_payload(nested)
                 if found is not None:
@@ -146,17 +168,25 @@ class StructuredCliAdapter:
         )
         if result.returncode != 0:
             raise ValueError(f'{self.name} command failed: rc={result.returncode} output={result.output.strip()}')
-        payload = None
+        payloads: list[dict[str, Any]] = []
         for candidate in self._extract_json_candidates(result.output):
             payload = self._find_plan_payload(candidate)
-            if payload is not None:
-                break
-        if payload is None:
+            if isinstance(payload, dict):
+                payloads.append(payload)
+        if not payloads:
             raise ValueError(f'{self.name} did not return a structured rescue plan')
-        if 'shell' in payload:
-            raise ValueError(f'{self.name} returned forbidden shell payload')
-        self._validate_plan_payload(payload)
-        plan = RescuePlan.from_dict(payload)
-        if not plan.actions:
-            return None
-        return plan
+        validation_error: ValueError | None = None
+        for payload in reversed(payloads):
+            try:
+                if 'shell' in payload:
+                    raise ValueError(f'{self.name} returned forbidden shell payload')
+                self._validate_plan_payload(payload)
+                plan = RescuePlan.from_dict(payload)
+            except ValueError as exc:
+                validation_error = exc
+                continue
+            if plan.actions:
+                return plan
+        if validation_error is not None:
+            raise validation_error
+        return None

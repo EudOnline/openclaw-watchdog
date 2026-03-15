@@ -216,6 +216,55 @@ class RescuePhaseRuntimeTests(unittest.TestCase):
         )
         backup_mock.assert_not_called()
 
+    def test_run_rescue_phase_converts_plan_execution_exception_into_failure(self) -> None:
+        from openclaw_watchdog.engine import RunOutcome
+
+        engine = self._engine()
+        state = self._failed_state()
+        context = RescueContext(incident_id='incident-1', health_level='failed', available_executors=('rule-agent',))
+        plan = RescuePlan(
+            plan_id='plan-rule-agent',
+            diagnosis='rule fallback',
+            actions=[RescueAction(kind='restart_service', params={})],
+            validations=['minimal_usable_ready'],
+        )
+        dispatch_result = DispatchResult(final_executor='rule-agent', plan=plan)
+        failure_outcome = RunOutcome(exit_code=1, state='failed', summary='execution failed')
+
+        with patch('openclaw_watchdog.rescue_context_builder.build_rescue_context', return_value=context):
+            with patch('openclaw_watchdog.rescue_runtime.dispatch_rescue', return_value=dispatch_result):
+                with patch(
+                    'openclaw_watchdog.rescue_runtime.execute_rescue_plan',
+                    side_effect=RuntimeError('executor crashed'),
+                ):
+                    with patch(
+                        'openclaw_watchdog.rescue_learning_service.record_learning_from_failure',
+                        return_value={
+                            'case_ingest_result': 'recorded:execution-error-case.json',
+                            'candidate_rule_status': 'negative-evidence-recorded',
+                        },
+                    ) as learning_mock:
+                        with patch(
+                            'openclaw_watchdog.flows.recovery_finalize_runtime.finalize_failure',
+                            return_value=failure_outcome,
+                        ) as finalize_failure_mock:
+                            from openclaw_watchdog.flows import rescue_phase_runtime
+
+                            result = rescue_phase_runtime.run_rescue_phase(engine, engine.ctx, state)
+
+        self.assertEqual(result, failure_outcome)
+        self.assertEqual(engine.ctx.rescue_plan_status, 'failed')
+        self.assertEqual(engine.ctx.case_ingest_result, 'recorded:execution-error-case.json')
+        self.assertEqual(engine.ctx.candidate_rule_status, 'negative-evidence-recorded')
+        learning_mock.assert_called_once()
+        self.assertEqual(learning_mock.call_args.kwargs['strategy'], 'rule-agent')
+        self.assertEqual(learning_mock.call_args.kwargs['recovery_kind'], 'rescue')
+        self.assertIsNone(learning_mock.call_args.kwargs['plan_result'])
+        finalize_failure_mock.assert_called_once_with(
+            engine,
+            summary='rescue plan execution raised an exception',
+        )
+
     def test_run_rescue_phase_preserves_plan_result_when_applied_plan_still_fails_probe(self) -> None:
         from openclaw_watchdog.engine import RunOutcome
         from openclaw_watchdog.flows import recovery_probe_runtime

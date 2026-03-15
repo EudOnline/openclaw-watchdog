@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from openclaw_watchdog.rescue_models import RescueAction, RescueContext, RescuePlan
+from openclaw_watchdog.runtime import CommandResult
 
 
 class StubAdapter:
@@ -163,6 +164,46 @@ class RescueDispatchTests(unittest.TestCase):
         self.assertEqual(attempt.attempts[0].executor, 'opencode')
         self.assertEqual(attempt.attempts[0].status, 'error')
         self.assertIn('unexpected top-level keys', attempt.attempts[0].error)
+
+    def test_dispatch_continues_after_real_adapter_returns_malformed_output(self) -> None:
+        from openclaw_watchdog.rescue_agents.codex_adapter import CodexAdapter
+        from openclaw_watchdog.rescue_dispatch import RescueDispatcher
+
+        runner_calls: list[list[str]] = []
+
+        def runner(args: list[str], **kwargs) -> CommandResult:
+            runner_calls.append(list(args))
+            return CommandResult(
+                args=args,
+                returncode=0,
+                stdout='{"plan_id":"plan-bad","diagnosis":"missing actions"}',
+                stderr='',
+            )
+
+        context = RescueContext(incident_id='incident-real-parse-failure', available_executors=('codex', 'rule-agent'))
+        dispatcher = RescueDispatcher(
+            adapters=[
+                CodexAdapter(available=True, runner=runner, timeout_seconds=30, cwd=Path('.')),
+                StubAdapter(
+                    'rule-agent',
+                    available=True,
+                    plan=RescuePlan(
+                        plan_id='plan-safe',
+                        diagnosis='restart locally',
+                        actions=[RescueAction(kind='restart_service', params={})],
+                        validations=['minimal_usable_ready'],
+                    ),
+                ),
+            ]
+        )
+
+        attempt = dispatcher.dispatch(context)
+
+        self.assertEqual(attempt.final_executor, 'rule-agent')
+        self.assertEqual(attempt.attempts[0].executor, 'codex')
+        self.assertEqual(attempt.attempts[0].status, 'error')
+        self.assertIn('actions', attempt.attempts[0].error)
+        self.assertEqual(runner_calls[0][:2], ['codex', 'exec'])
 
 
 if __name__ == '__main__':

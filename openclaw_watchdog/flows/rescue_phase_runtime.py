@@ -112,11 +112,28 @@ def run_rescue_phase(engine, ctx, state: recovery_probe_runtime.RecoveryPhaseSta
     plan = getattr(dispatch_result, 'plan', None)
     plan_result = None
     if plan is not None:
-        plan_result = execute_rescue_plan(
-            engine,
-            plan,
-            executor=str(getattr(dispatch_result, 'final_executor', '') or 'rescue'),
-        )
+        try:
+            plan_result = execute_rescue_plan(
+                engine,
+                plan,
+                executor=str(getattr(dispatch_result, 'final_executor', '') or 'rescue'),
+            )
+        except Exception:
+            ctx.rescue_plan_status = 'failed'
+            learning_result = record_learning_from_failure(
+                engine,
+                strategy=str(getattr(dispatch_result, 'final_executor', '') or 'rescue'),
+                recovery_kind='rescue',
+                probe=state.probe,
+                context=context,
+                dispatch_result=dispatch_result,
+                plan_result=None,
+            )
+            recovery_finalize_runtime.mark_learning(engine, learning_result)
+            return recovery_finalize_runtime.finalize_failure(
+                engine,
+                summary='rescue plan execution raised an exception',
+            )
         ctx.rescue_plan_status = str(getattr(plan_result, 'status', 'unknown') or 'unknown')
         if ctx.rescue_plan_status == 'rolled-back':
             learning_result = record_learning_from_failure(

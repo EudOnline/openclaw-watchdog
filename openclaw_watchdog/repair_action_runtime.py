@@ -73,9 +73,9 @@ def restart_service(engine) -> bool:
     return False
 
 
-def run_doctor_repair(engine) -> None:
+def run_doctor_repair(engine) -> bool:
     if not engine.config.watchdog_enable_doctor_repair:
-        return
+        return False
     engine.log('INFO', 'running openclaw doctor --repair --non-interactive --yes')
     result = engine.run_command(
         ['openclaw', 'doctor', '--repair', '--non-interactive', '--yes'],
@@ -87,5 +87,7 @@ def run_doctor_repair(engine) -> None:
             handle.write(result.output)
     if result.returncode == 0:
         engine.log('INFO', 'doctor repair completed')
+        return True
     else:
         engine.log('WARN', f'doctor repair exited rc={result.returncode}')
+        return False

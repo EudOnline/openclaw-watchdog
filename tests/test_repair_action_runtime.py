@@ -136,16 +136,48 @@ class RepairActionRuntimeTests(unittest.TestCase):
                 log=lambda level, message: logs.append((level, message)),
             )
 
-            repair_action_runtime.run_doctor_repair(engine)
+            repaired = repair_action_runtime.run_doctor_repair(engine)
 
             log_file_text = engine.config.watchdog_log_file.read_text(encoding='utf-8')
 
+        self.assertFalse(repaired)
         self.assertIn('doctor failed', log_file_text)
         self.assertEqual(
             logs,
             [
                 ('INFO', 'running openclaw doctor --repair --non-interactive --yes'),
                 ('WARN', 'doctor repair exited rc=9'),
+            ],
+        )
+
+    def test_run_doctor_repair_returns_true_on_success(self) -> None:
+        from openclaw_watchdog import repair_action_runtime
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logs: list[tuple[str, str]] = []
+
+            def run_command(args: list[str], *, timeout: int, merge_stderr: bool = False):
+                return SimpleNamespace(returncode=0, output='doctor fixed config\n')
+
+            engine = SimpleNamespace(
+                config=SimpleNamespace(
+                    watchdog_enable_doctor_repair=True,
+                    watchdog_doctor_timeout_seconds=20,
+                    watchdog_log_file=root / 'watchdog.log',
+                ),
+                run_command=run_command,
+                log=lambda level, message: logs.append((level, message)),
+            )
+
+            repaired = repair_action_runtime.run_doctor_repair(engine)
+
+        self.assertTrue(repaired)
+        self.assertEqual(
+            logs,
+            [
+                ('INFO', 'running openclaw doctor --repair --non-interactive --yes'),
+                ('INFO', 'doctor repair completed'),
             ],
         )
 

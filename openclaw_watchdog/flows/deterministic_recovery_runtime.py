@@ -81,8 +81,10 @@ def run_deterministic_recovery(engine, ctx, state: recovery_probe_runtime.Recove
 
     doctor_enabled = bool(getattr(getattr(engine, 'config', object()), 'watchdog_enable_doctor_repair', False))
     if doctor_enabled:
-        record_step(engine, 'doctor', 'applied')
-        repair_action_runtime.run_doctor_repair(engine)
+        doctor_ok = bool(repair_action_runtime.run_doctor_repair(engine))
+        record_step(engine, 'doctor', 'applied' if doctor_ok else 'failed')
+        if not doctor_ok:
+            return None, state
         repair_action_runtime.restart_service(engine)
         doctor_config_invalid = False
         state = recovery_probe_runtime.phase_state_from_probe(

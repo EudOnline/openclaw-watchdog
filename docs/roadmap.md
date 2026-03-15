@@ -5,7 +5,7 @@ This roadmap now assumes the current internal seams are in place: typed models, 
 ## Near-term follow-up
 
 - deepen direct flow coverage for restart, rollback, survival, and rescue-dispatch branches
-- improve the external CLI adapters so `Codex`, `Claude Code`, `Gemini CLI`, and `OpenCode` can return structured rescue plans without arbitrary shell access
+- improve the external CLI adapters so `Codex`, `Claude Code`, `Gemini CLI`, and `OpenCode` return strict structured rescue plans, reject malformed fields cleanly, and fall through without arbitrary shell access
 - expand rehearsal smoke coverage only for scenarios that represent real operator risk
 - keep report / metrics operationally useful and remove stale fields whenever they stop serving the OpenClaw rescue chain
 - continue improving deployment docs and host onboarding guidance

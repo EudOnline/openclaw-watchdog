@@ -341,6 +341,49 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
             ],
         )
 
+    def test_doctor_failure_does_not_restart_service_or_reprobe(self) -> None:
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        engine = self._build_engine(doctor_enabled=True)
+        ctx = SimpleNamespace(config_drift_detected=False)
+        initial_state = self._initial_state()
+        failed_state = self._phase_state(health_level='failed')
+
+        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}, {}]) as live_probe_mock:
+            with patch.object(
+                recovery_probe_runtime,
+                'phase_state_from_probe',
+                side_effect=[failed_state, failed_state, failed_state],
+            ) as phase_state_mock:
+                with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup'):
+                    with patch('openclaw_watchdog.repair_action_runtime.restart_service', return_value=False) as restart_mock:
+                        with patch('openclaw_watchdog.rollback_runtime.restore_last_good', return_value=False):
+                            with patch(
+                                'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
+                                side_effect=[None, None, None],
+                            ) as finalize_mock:
+                                with patch('openclaw_watchdog.repair_action_runtime.run_doctor_repair', return_value=False) as doctor_mock:
+                                    from openclaw_watchdog.flows import deterministic_recovery_runtime
+
+                                    result, final_state = deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
+
+        self.assertIsNone(result)
+        self.assertEqual(final_state, failed_state)
+        doctor_mock.assert_called_once_with(engine)
+        self.assertEqual(restart_mock.call_count, 1)
+        self.assertEqual(live_probe_mock.call_count, 3)
+        self.assertEqual(phase_state_mock.call_count, 3)
+        self.assertEqual(finalize_mock.call_count, 3)
+        self.assertEqual(
+            engine.record_recovery_step.call_args_list,
+            [
+                call('restart', 'failed', ''),
+                call('rollback', 'failed', ''),
+                call('survival', 'failed', ''),
+                call('doctor', 'failed', ''),
+            ],
+        )
+
     def test_doctor_reprobes_and_can_finish_recovery_when_repair_restores_conversation(self) -> None:
         from openclaw_watchdog.engine import RunOutcome
         from openclaw_watchdog.flows import recovery_probe_runtime
