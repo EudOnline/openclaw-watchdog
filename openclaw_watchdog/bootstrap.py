@@ -139,12 +139,7 @@ class Bootstrapper:
         return self.detect_binary('openclaw')
 
     def detect_openclaw(self) -> dict[str, Any]:
-        available, detected_binary, detect_result = self._detect_openclaw_binary()
-        return {
-            'available': available,
-            'binary': detected_binary,
-            'detect_returncode': detect_result.returncode,
-        }
+        return bootstrap_inventory.detect_openclaw(self)
 
     def detect_first_available(self, *candidates: str) -> dict[str, Any]:
         return bootstrap_inventory.detect_first_available(self, *candidates)

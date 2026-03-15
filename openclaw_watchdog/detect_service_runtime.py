@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from urllib.parse import urlparse
-
+from openclaw_watchdog.openclaw_runtime import adapter as openclaw_runtime_adapter
 from openclaw_watchdog import service_runtime
 
 
@@ -31,10 +30,7 @@ def coerce_bool(value: object) -> bool | None:
 
 
 def gateway_probe(engine, status_payload: dict[str, object] | None) -> dict[str, object]:
-    gateway = status_payload.get("gateway") if isinstance(status_payload, dict) else {}
-    gateway = gateway if isinstance(gateway, dict) else {}
-    url = str(gateway.get("url", "") or "")
-    parsed = urlparse(url) if url else None
+    gateway_contract = openclaw_runtime_adapter.default_adapter().detect_gateway_contract(engine, status_payload)
     supervisor = getattr(getattr(engine, 'platform', None), 'supervisor', None)
     if supervisor is not None and hasattr(supervisor, 'describe_service'):
         info = supervisor.describe_service(engine)
@@ -57,11 +53,11 @@ def gateway_probe(engine, status_payload: dict[str, object] | None) -> dict[str,
         "service_active": service_runtime.service_active(engine),
         "service_main_pid": service_runtime.service_main_pid(engine),
         "listener_pids": service_runtime.listener_pids(engine),
-        "configured_port": engine.config.openclaw_gateway_port,
-        "detected_port": parsed.port if parsed and parsed.port else engine.config.openclaw_gateway_port,
-        "url": url,
-        "reachable": bool(gateway.get("reachable", False)),
-        "misconfigured": bool(gateway.get("misconfigured", False)),
+        "configured_port": gateway_contract.configured_port,
+        "detected_port": gateway_contract.detected_port,
+        "url": gateway_contract.url,
+        "reachable": gateway_contract.reachable,
+        "misconfigured": gateway_contract.misconfigured,
     }
 
 

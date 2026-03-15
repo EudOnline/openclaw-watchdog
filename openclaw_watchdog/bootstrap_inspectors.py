@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
+
+from openclaw_watchdog.openclaw_runtime import adapter as openclaw_runtime_adapter
+from openclaw_watchdog.openclaw_runtime import config_runtime as openclaw_config_runtime
 
 QQ_PLUGIN_PACKAGE = '@sliverp/qqbot@latest'
 OPENCODE_CONFIG_SCHEMA_URL = 'https://opencode.ai/config.json'
@@ -111,99 +113,21 @@ def inspect_default_channel_config(bootstrapper) -> dict[str, Any]:
 
 def load_json_object(bootstrapper, path: Path, *, label: str, allow_jsonc: bool) -> dict[str, Any]:
     try:
-        text = path.read_text(encoding='utf-8')
-    except OSError as exc:
-        raise bootstrapper.bootstrap_error(f'failed to read {label}: {exc}') from exc
-    if allow_jsonc:
-        text = normalize_jsonc(text)
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise bootstrapper.bootstrap_error(f'failed to parse {label}: {exc}') from exc
-    if not isinstance(payload, dict):
-        raise bootstrapper.bootstrap_error(f'{label} must be a JSON object')
-    return payload
+        return openclaw_runtime_adapter.default_adapter().load_json_object(path, label=label, allow_jsonc=allow_jsonc)
+    except openclaw_config_runtime.ConfigLoadError as exc:
+        raise bootstrapper.bootstrap_error(str(exc)) from exc
 
 
 def normalize_jsonc(text: str) -> str:
-    return strip_trailing_commas(strip_jsonc_comments(text))
+    return openclaw_config_runtime.normalize_jsonc(text)
 
 
 def strip_jsonc_comments(text: str) -> str:
-    result: list[str] = []
-    index = 0
-    length = len(text)
-    in_string = False
-    escape = False
-    while index < length:
-        char = text[index]
-        next_char = text[index + 1] if index + 1 < length else ''
-        if in_string:
-            result.append(char)
-            if escape:
-                escape = False
-            elif char == '\\':
-                escape = True
-            elif char == '"':
-                in_string = False
-            index += 1
-            continue
-        if char == '"':
-            in_string = True
-            result.append(char)
-            index += 1
-            continue
-        if char == '/' and next_char == '/':
-            index += 2
-            while index < length and text[index] not in {'\n', '\r'}:
-                index += 1
-            continue
-        if char == '/' and next_char == '*':
-            index += 2
-            while index + 1 < length and not (text[index] == '*' and text[index + 1] == '/'):
-                index += 1
-            index += 2
-            continue
-        result.append(char)
-        index += 1
-    return ''.join(result)
+    return openclaw_config_runtime.strip_jsonc_comments(text)
 
 
 def strip_trailing_commas(text: str) -> str:
-    result: list[str] = []
-    in_string = False
-    escape = False
-    index = 0
-    length = len(text)
-    while index < length:
-        char = text[index]
-        if in_string:
-            result.append(char)
-            if escape:
-                escape = False
-            elif char == '\\':
-                escape = True
-            elif char == '"':
-                in_string = False
-            index += 1
-            continue
-        if char == '"':
-            in_string = True
-            result.append(char)
-            index += 1
-            continue
-        if char in '}]':
-            cursor = len(result) - 1
-            while cursor >= 0 and result[cursor].isspace():
-                cursor -= 1
-            if cursor >= 0 and result[cursor] == ',':
-                del result[cursor]
-            result.append(char)
-            index += 1
-            continue
-        result.append(char)
-        index += 1
-    return ''.join(result)
+    return openclaw_config_runtime.strip_trailing_commas(text)
 
 
 def detect_feishu_runtime_markers(bootstrapper) -> dict[str, Any]:
@@ -249,19 +173,7 @@ def log_candidates(bootstrapper) -> list[Path]:
 
 
 def read_logging_file_from_config(bootstrapper) -> Path | None:
-    if not bootstrapper.config.openclaw_config.exists():
-        return None
-    try:
-        current = load_json_object(bootstrapper, bootstrapper.config.openclaw_config, label='existing OpenClaw config', allow_jsonc=False)
-    except bootstrapper.bootstrap_error:
-        return None
-    logging = current.get('logging')
-    if not isinstance(logging, dict):
-        return None
-    file_value = logging.get('file')
-    if not isinstance(file_value, str) or not file_value.strip():
-        return None
-    return Path(file_value).expanduser()
+    return openclaw_runtime_adapter.default_adapter().read_logging_file_from_config(bootstrapper.config.openclaw_config)
 
 
 def read_tail(path: Path, max_bytes: int = 262144) -> str:

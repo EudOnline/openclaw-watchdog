@@ -1,14 +1,11 @@
 from __future__ import annotations
 
+from openclaw_watchdog.openclaw_runtime import doctor_runtime as openclaw_doctor_runtime
+
 
 def run_doctor(engine) -> tuple[int, str]:
-    result = engine.run_command(
-        ['openclaw', 'doctor', '--non-interactive'],
-        timeout=engine.config.watchdog_doctor_timeout_seconds,
-        merge_stderr=True,
-    )
-    return result.returncode, result.output
+    return openclaw_doctor_runtime.run_doctor(engine)
 
 
 def config_invalid(engine, doctor_output: str) -> bool:
-    return 'Config invalid' in doctor_output
+    return openclaw_doctor_runtime.config_invalid(engine, doctor_output)
