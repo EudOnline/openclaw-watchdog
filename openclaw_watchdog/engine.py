@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from openclaw_watchdog import engine_support_runtime
+from openclaw_watchdog.platforms import resolver
 from openclaw_watchdog import run_state_service
 from openclaw_watchdog.config import Config
 from openclaw_watchdog.runtime import CommandResult, run_capture_to_file, run_command
@@ -29,6 +30,7 @@ class WatchdogEngine:
         self.tmpdir: Path | None = None
         self.lock_handle = None
         self.ctx = RunContext.initial(stable_required_runs=self.config.watchdog_survival_stable_ready_runs)
+        self.platform = resolver.resolve_platform()
         self._prepare_state_dirs()
 
     def __enter__(self) -> "WatchdogEngine":

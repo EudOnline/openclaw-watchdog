@@ -35,18 +35,22 @@ def gateway_probe(engine, status_payload: dict[str, object] | None) -> dict[str,
     gateway = gateway if isinstance(gateway, dict) else {}
     url = str(gateway.get("url", "") or "")
     parsed = urlparse(url) if url else None
-    show = engine.run_command(
-        [
-            "systemctl",
-            "--user",
-            "show",
-            "-p",
-            "LoadState,UnitFileState,FragmentPath,ActiveState,SubState",
-            engine.config.openclaw_gateway_service,
-        ],
-        timeout=15,
-    )
-    info = parse_kv_output(show.output)
+    supervisor = getattr(getattr(engine, 'platform', None), 'supervisor', None)
+    if supervisor is not None and hasattr(supervisor, 'describe_service'):
+        info = supervisor.describe_service(engine)
+    else:
+        show = engine.run_command(
+            [
+                "systemctl",
+                "--user",
+                "show",
+                "-p",
+                "LoadState,UnitFileState,FragmentPath,ActiveState,SubState",
+                engine.config.openclaw_gateway_service,
+            ],
+            timeout=15,
+        )
+        info = parse_kv_output(show.output)
     return {
         "service": engine.config.openclaw_gateway_service,
         "show": info,

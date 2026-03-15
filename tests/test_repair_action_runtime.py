@@ -78,6 +78,17 @@ class RepairActionRuntimeTests(unittest.TestCase):
         )
         sleep_mock.assert_called_once_with(2)
 
+    def test_restart_service_delegates_to_platform_supervisor_when_present(self) -> None:
+        from openclaw_watchdog import repair_action_runtime
+
+        supervisor = SimpleNamespace(restart_service=unittest.mock.Mock(return_value=True))
+        engine = SimpleNamespace(platform=SimpleNamespace(supervisor=supervisor))
+
+        restarted = repair_action_runtime.restart_service(engine)
+
+        self.assertTrue(restarted)
+        supervisor.restart_service.assert_called_once_with(engine)
+
     def test_kill_stray_listeners_does_not_require_engine_listener_wrapper(self) -> None:
         from openclaw_watchdog import repair_action_runtime
 

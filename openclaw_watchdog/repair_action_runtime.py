@@ -63,6 +63,9 @@ def kill_stray_listeners(engine, main_pid: str) -> None:
 
 
 def restart_service(engine) -> bool:
+    supervisor = getattr(getattr(engine, 'platform', None), 'supervisor', None)
+    if supervisor is not None:
+        return supervisor.restart_service(engine)
     engine.log('INFO', f'restarting {engine.config.openclaw_gateway_service}')
     engine.run_command(['systemctl', '--user', 'reset-failed', engine.config.openclaw_gateway_service], timeout=15)
     result = engine.run_command(['systemctl', '--user', 'restart', engine.config.openclaw_gateway_service], timeout=30)

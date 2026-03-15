@@ -86,6 +86,33 @@ class ServiceRuntimeTests(unittest.TestCase):
 
         self.assertEqual(service_runtime.listener_pids(engine), ['11', '42'])
 
+    def test_service_runtime_delegates_to_platform_adapter_when_present(self) -> None:
+        from openclaw_watchdog import service_runtime
+
+        platform = SimpleNamespace(
+            supervisor=SimpleNamespace(
+                service_active=unittest.mock.Mock(return_value=True),
+                service_main_pid=unittest.mock.Mock(return_value='222'),
+            ),
+            listeners=SimpleNamespace(
+                listener_pids=unittest.mock.Mock(return_value=['222']),
+                listener_contains_pid=unittest.mock.Mock(return_value=True),
+                listener_matches_service_tree=unittest.mock.Mock(return_value=(True, 'direct', '222')),
+            ),
+        )
+        engine = SimpleNamespace(platform=platform)
+
+        self.assertTrue(service_runtime.service_active(engine))
+        self.assertEqual(service_runtime.service_main_pid(engine), '222')
+        self.assertEqual(service_runtime.listener_pids(engine), ['222'])
+        self.assertTrue(service_runtime.listener_contains_pid(engine, '222'))
+        self.assertEqual(service_runtime.listener_matches_service_tree(engine, '222'), (True, 'direct', '222'))
+        platform.supervisor.service_active.assert_called_once_with(engine)
+        platform.supervisor.service_main_pid.assert_called_once_with(engine)
+        platform.listeners.listener_pids.assert_called_once_with(engine)
+        platform.listeners.listener_contains_pid.assert_called_once_with(engine, '222')
+        platform.listeners.listener_matches_service_tree.assert_called_once_with(engine, '222')
+
     def test_pid_descends_from_walks_parent_chain(self) -> None:
         from openclaw_watchdog import service_runtime
 

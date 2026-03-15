@@ -142,6 +142,40 @@ class DetectTests(unittest.TestCase):
         self.assertTrue(payload['reachable'])
         self.assertFalse(payload['misconfigured'])
 
+    def test_gateway_probe_prefers_platform_supervisor_description_when_present(self) -> None:
+        supervisor = SimpleNamespace(
+            describe_service=unittest.mock.Mock(return_value={'ActiveState': 'active', 'SubState': 'running'}),
+            service_active=unittest.mock.Mock(return_value=True),
+            service_main_pid=unittest.mock.Mock(return_value='123'),
+        )
+        listeners = SimpleNamespace(
+            listener_pids=unittest.mock.Mock(return_value=['123']),
+        )
+        engine = SimpleNamespace(
+            config=SimpleNamespace(
+                openclaw_gateway_service='openclaw-gateway.service',
+                openclaw_gateway_port=5700,
+            ),
+            platform=SimpleNamespace(supervisor=supervisor, listeners=listeners),
+        )
+
+        payload = _gateway_probe(
+            engine,
+            {
+                'gateway': {
+                    'url': 'http://127.0.0.1:5700',
+                    'reachable': True,
+                    'misconfigured': False,
+                }
+            },
+        )
+
+        self.assertEqual(payload['show'], {'ActiveState': 'active', 'SubState': 'running'})
+        self.assertTrue(payload['service_active'])
+        self.assertEqual(payload['service_main_pid'], '123')
+        self.assertEqual(payload['listener_pids'], ['123'])
+        supervisor.describe_service.assert_called_once_with(engine)
+
 
 if __name__ == '__main__':
     unittest.main()
