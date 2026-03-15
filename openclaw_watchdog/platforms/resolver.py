@@ -10,6 +10,7 @@ from openclaw_watchdog.platforms.base import NoopSupervisorAdapter
 from openclaw_watchdog.platforms.base import ResolvedPlatform
 from openclaw_watchdog.platforms.capabilities import PlatformCapabilities
 from openclaw_watchdog.platforms.linux_systemd import LinuxSystemdPlatform
+from openclaw_watchdog.platforms.macos_launchd import MacosLaunchdPlatform
 
 _PROBED_COMMANDS = ('systemctl', 'ss', 'ps', 'launchctl', 'lsof')
 
@@ -59,12 +60,11 @@ def resolve_platform_adapter(
             listeners=adapter,
         )
     elif host_family == 'darwin' and {'launchctl', 'lsof', 'ps'}.issubset(commands):
-        capabilities = PlatformCapabilities(
-            host_family='darwin',
-            supervisor='launchd',
-            listener_tool='lsof',
-            supports_managed_restart=True,
-            supports_listener_pid_tree=True,
+        adapter = MacosLaunchdPlatform()
+        return ResolvedPlatform(
+            capabilities=adapter.capabilities,
+            supervisor=adapter,
+            listeners=adapter,
         )
     else:
         capabilities = PlatformCapabilities(

@@ -62,6 +62,21 @@ class PlatformResolverTests(unittest.TestCase):
         self.assertFalse(platform.capabilities.supports_managed_restart)
         self.assertFalse(platform.capabilities.supports_listener_pid_tree)
 
+    def test_darwin_launchd_resolves_macos_adapter(self) -> None:
+        from openclaw_watchdog.platforms import resolver
+
+        platform = resolver.resolve_platform_adapter(
+            host_family='darwin',
+            available_commands={'launchctl', 'lsof', 'ps'},
+            systemd_user_supported=False,
+        )
+
+        self.assertEqual(platform.capabilities.host_family, 'darwin')
+        self.assertEqual(platform.capabilities.supervisor, 'launchd')
+        self.assertEqual(platform.capabilities.listener_tool, 'lsof')
+        self.assertTrue(platform.capabilities.supports_managed_restart)
+        self.assertTrue(platform.capabilities.supports_listener_pid_tree)
+
     def test_engine_resolves_platform_dependency_during_init(self) -> None:
         from openclaw_watchdog.engine import WatchdogEngine
 
