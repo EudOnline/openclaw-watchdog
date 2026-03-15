@@ -21,6 +21,7 @@ The current layout keeps the OpenClaw-specific fallback surface coherent while m
 
 - `openclaw_watchdog/config.py` parses env/config and defines filesystem layout
 - `openclaw_watchdog/runtime.py` owns subprocess execution primitives
+- `openclaw_watchdog/platforms/` owns host supervision and listener adapters, including Linux `systemd` and experimental macOS `launchd`
 - `openclaw_watchdog/state_store.py` owns persistence helpers for JSON/text snapshots
 - `openclaw_watchdog/health.py` builds probe payloads and status snapshots
 - `openclaw_watchdog/engine_support_runtime.py` owns state-dir prep, file locking, logging, notifications, failure counters, and small engine host helpers
@@ -74,7 +75,9 @@ For the operator/contributor walkthrough of this path, see [rescue-lifecycle.md]
 - `openclaw_watchdog/rescue_policy.py` owns OpenClaw rescue boundaries such as editable files, editable key prefixes, mutation scope summaries, and dispatch-time plan validation
 - `openclaw_watchdog/probe_run_state.py` owns probe failure counting and probe-to-run-state projection
 - `openclaw_watchdog/flows/rescue_run.py` now calls `probe_run_state.py`, `rescue_context_builder.py`, `rescue_runtime.py`, and `rescue_learning_service.py` directly, with test-only override hooks living in the flow instead of more `engine.py` forwarding methods
-- `openclaw_watchdog/service_runtime.py` owns `systemctl` / `ss` / `ps` based service and listener tree probing
+- `openclaw_watchdog/service_runtime.py` owns platform-adapter based service and listener tree probing
+- `openclaw_watchdog/platforms/linux_systemd.py` owns Linux `systemd --user` probing and restart behavior
+- `openclaw_watchdog/platforms/macos_launchd.py` owns experimental macOS `launchd` probing and restart behavior
 - `openclaw_watchdog/state_transition.py` owns state-change side effects, run-state write shaping, incident refresh/clear rules, and notification gating
 - `openclaw_watchdog/event_runtime.py` owns event payload persistence, text/json snapshot writes, and event-history append handoff
 - low-level repair / health / incident primitives stay in their focused modules; rollback bookkeeping and imperative repair actions no longer share one monolithic file

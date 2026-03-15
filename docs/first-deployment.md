@@ -22,7 +22,7 @@ Make sure the host has Python 3.11+ available. The `scripts/openclaw-watchdog` w
 git clone https://github.com/EudOnline/openclaw-watchdog ~/openclaw-watchdog
 cd ~/openclaw-watchdog
 cp config/openclaw-watchdog.env.example config/openclaw-watchdog.env
-chmod +x scripts/openclaw-watchdog scripts/install-openclaw-watchdog-units.sh
+chmod +x scripts/openclaw-watchdog scripts/install-openclaw-watchdog-units.sh scripts/install-openclaw-watchdog-launchd.sh
 ```
 
 ### 2. Keep the first rollout conservative
@@ -124,6 +124,12 @@ Review the output and confirm that:
 scripts/install-openclaw-watchdog-units.sh
 systemctl --user enable --now openclaw-watchdog.timer
 ```
+
+Experimental macOS note:
+
+- the repo now also ships a `launchd` installer at `scripts/install-openclaw-watchdog-launchd.sh`
+- that path is intended for experimental macOS adapter validation only
+- keep first real production rollouts on Linux + `systemd --user` until macOS has its own live acceptance evidence
 
 ### 8. Run live acceptance on the real host
 

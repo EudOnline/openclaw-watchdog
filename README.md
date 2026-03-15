@@ -19,6 +19,7 @@ It combines:
 - conservative recovery and rollback-oriented workflows
 - operator-facing incident, report, and metrics outputs
 - source-first deployment with sample `systemd --user` units
+- experimental `launchd` assets for macOS adapter testing
 - rehearsal scenarios for validation before relying on changes on a live host
 
 ## Quick links
@@ -45,6 +46,7 @@ It combines:
 - **Detect-only bootstrap and rescue inventory** for the prioritized executor chain
 - **Rehearsal scenarios** for testing expected failure and recovery paths
 - **Systemd user units** for unattended timer-based execution on Linux
+- **Experimental macOS `launchd` path** for adapter validation before live acceptance
 
 ## Status
 
@@ -54,12 +56,15 @@ The repository now uses one canonical name throughout the public surface and Pyt
 
 The repository metadata and current release-prep docs now target the planned next release, `v0.2.0`. The latest published GitHub release remains `v0.1.0` until the next tag is cut.
 
+Linux + `systemd --user` remains the only live-validated deployment path today. macOS + `launchd` is now present as an experimental path for platform-adapter validation, but it is not yet claimed as a production-ready rollout target.
+
 ## Repository layout
 
 ```text
 openclaw_watchdog/   Python implementation
 scripts/       CLI wrappers and install helpers
 systemd/       sample user service + timer units
+launchd/       experimental macOS launch agent sample
 docs/          current guides, validation docs, and historical notes
 config/        sanitized example env files
 rehearsal/     fixtures, shims, scenarios, and test flows
@@ -80,7 +85,8 @@ The codebase is organized around OpenClaw fallback seams so recovery logic stays
 - `openclaw_watchdog/last_good_runtime.py` for last-good generations, drift context, and protected-path guard snapshots
 - `openclaw_watchdog/rollback_runtime.py` for rollback summaries, rollback archive pruning, and last-good restore execution
 - `openclaw_watchdog/repair_action_runtime.py` for pre-repair backup, service restart, stray-listener cleanup, and doctor-repair actions
-- `openclaw_watchdog/service_runtime.py` for `systemctl` / `ss` / `ps` based service probing
+- `openclaw_watchdog/service_runtime.py` for platform-adapter based service probing
+- `openclaw_watchdog/platforms/` for Linux `systemd` and experimental macOS `launchd` host adapters
 - `openclaw_watchdog/bootstrap_steps.py` for ordered bootstrap step execution
 - `openclaw_watchdog/bootstrap_inventory.py` and `openclaw_watchdog/bootstrap_inspectors.py` for read-only bootstrap checks
 - `openclaw_watchdog/engine.py` as the runtime facade and dependency hub
@@ -96,6 +102,7 @@ For the supported environment matrix and release expectations, see `docs/support
 - `scripts/openclaw-watchdog` checks for a compatible interpreter before importing the package and prefers `python3.11`, `python3.12`, `python3.13`, or a compatible `python3`
 - OpenClaw installed on the target machine
 - Linux with `systemd --user` if you want the provided timer units
+- macOS with `launchd` only if you are explicitly validating the experimental host adapter path
 - Standard host tools used by the watchdog or rehearsal flows, depending on features enabled:
   - `systemctl`
   - `ss`
@@ -110,7 +117,7 @@ For the supported environment matrix and release expectations, see `docs/support
 git clone https://github.com/EudOnline/openclaw-watchdog ~/openclaw-watchdog
 cd ~/openclaw-watchdog
 cp config/openclaw-watchdog.env.example config/openclaw-watchdog.env
-chmod +x scripts/openclaw-watchdog scripts/install-openclaw-watchdog-units.sh
+chmod +x scripts/openclaw-watchdog scripts/install-openclaw-watchdog-units.sh scripts/install-openclaw-watchdog-launchd.sh
 ```
 
 Quick sanity check:
@@ -205,6 +212,17 @@ Check status:
 systemctl --user status openclaw-watchdog.timer
 systemctl --user status openclaw-watchdog.service
 ```
+
+## Experimental macOS launchd path
+
+The repository now includes an experimental macOS `launchd` path for platform-adapter validation:
+
+```bash
+scripts/install-openclaw-watchdog-launchd.sh
+launchctl print gui/$UID/com.eudonline.openclaw-watchdog
+```
+
+Treat this as experimental until live acceptance has been captured on a real macOS host. Linux + `systemd --user` remains the only documented production path today.
 
 ## Rehearsal and validation
 

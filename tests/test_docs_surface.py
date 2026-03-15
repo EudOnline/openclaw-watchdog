@@ -144,6 +144,23 @@ class DocsSurfaceTest(unittest.TestCase):
         self.assertNotIn('generic install path', changelog_text)
         self.assertNotIn('hosted incident-management product', roadmap_text)
 
+    def test_docs_include_experimental_macos_launchd_path(self) -> None:
+        readme_text = Path('README.md').read_text(encoding='utf-8')
+        deployment_text = Path('docs/first-deployment.md').read_text(encoding='utf-8')
+        supported_text = Path('docs/supported-environments.md').read_text(encoding='utf-8')
+        architecture_text = Path('docs/internal-architecture.md').read_text(encoding='utf-8')
+
+        self.assertIn('macOS', readme_text)
+        self.assertIn('launchd', readme_text)
+        self.assertIn('experimental', readme_text)
+        self.assertIn('macOS', deployment_text)
+        self.assertIn('launchd', deployment_text)
+        self.assertIn('macOS', supported_text)
+        self.assertIn('experimental', supported_text)
+        self.assertIn('launchd', architecture_text)
+        self.assertTrue(Path('launchd/com.eudonline.openclaw-watchdog.plist').exists())
+        self.assertTrue(Path('scripts/install-openclaw-watchdog-launchd.sh').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,6 +26,8 @@ The current supported production baseline is:
 
 This is the only environment family the sample systemd units, first-deployment guide, and unattended timer flow are designed around today. The fallback system does not install missing rescue executors, model clients, or OpenClaw automatically; support assumes required tools are already present and configured.
 
+An **experimental** macOS + `launchd` adapter path now exists in the repository for architecture validation and local host testing. It is not yet part of the live-validated production baseline, and it should not be treated as a production-ready rollout path until it has explicit acceptance evidence and release-gated validation.
+
 ## Repo-local rehearsal support
 
 The rehearsal harness is intended to be host-isolated and repo-local, but the release gate currently treats the following baseline as supported:
@@ -76,6 +78,8 @@ These environments are not currently part of the promised public support surface
 - generic multi-product watchdog use outside OpenClaw
 - hosts that require automatic installation of rescue tools or model clients
 
+Experimental macOS `launchd` support sits between supported and unsupported: the adapter and install assets exist, but the path is still best-effort until live acceptance and release discipline are added for it.
+
 Unsupported does not necessarily mean impossible. It means changes are not release-gated against those environments, and behavior there may change without a compatibility promise.
 
 ## Release discipline
@@ -95,6 +99,7 @@ For release preparation, use [release-readiness.md](release-readiness.md) as the
 ## Practical guidance
 
 - New operators should follow `docs/first-deployment.md` and assume the Linux + `systemd --user` path unless the docs explicitly say otherwise.
+- Contributors validating host abstractions can use the experimental macOS `launchd` assets, but they should describe that path as experimental until the support tier changes.
 - Contributors should treat repo-local rehearsal as the preferred way to validate behavior before relying on a live host.
 - Maintainers preparing a release should assemble evidence in the order documented by `docs/release-readiness.md`.
 - If your local machine cannot run Python `3.11+`, you can still edit docs or some tests, but release-gated CLI and rehearsal checks must run in CI or on a compatible host.
