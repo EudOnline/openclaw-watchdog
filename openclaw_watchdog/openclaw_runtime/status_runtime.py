@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import cast
 from urllib.parse import urlparse
 
 from openclaw_watchdog.openclaw_runtime.contracts import GatewayContract
@@ -44,6 +45,12 @@ def run_json(engine, command: list[str], *, timeout: int = 20) -> dict[str, obje
     return extract_json(result.output)
 
 
+def object_dict(value: object) -> dict[str, object]:
+    if isinstance(value, dict):
+        return cast(dict[str, object], value)
+    return {}
+
+
 def read_status(engine) -> dict[str, object] | None:
     timeout_seconds = int(engine.config.watchdog_service_level_timeout_seconds)
     return run_json(
@@ -64,8 +71,8 @@ def read_health(engine) -> dict[str, object] | None:
 
 def normalize_status_contract(status_payload: dict[str, object] | None, *, configured_port: int) -> StatusContract:
     payload = status_payload if isinstance(status_payload, dict) else {}
-    gateway = payload.get('gateway') if isinstance(payload.get('gateway'), dict) else {}
-    conversation = payload.get('conversation') if isinstance(payload.get('conversation'), dict) else {}
+    gateway = object_dict(payload.get('gateway'))
+    conversation = object_dict(payload.get('conversation'))
     url = str(gateway.get('url', '') or '')
     parsed = urlparse(url) if url else None
     reachable = coerce_bool(gateway.get('reachable'))

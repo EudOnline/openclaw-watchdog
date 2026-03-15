@@ -53,18 +53,18 @@ def resolve_platform_adapter(
     commands = set(available_commands)
 
     if host_family == 'linux' and systemd_user_supported and {'systemctl', 'ss', 'ps'}.issubset(commands):
-        adapter = LinuxSystemdPlatform()
+        linux_adapter = LinuxSystemdPlatform()
         return ResolvedPlatform(
-            capabilities=adapter.capabilities,
-            supervisor=adapter,
-            listeners=adapter,
+            capabilities=linux_adapter.capabilities,
+            supervisor=linux_adapter,
+            listeners=linux_adapter,
         )
     elif host_family == 'darwin' and {'launchctl', 'lsof', 'ps'}.issubset(commands):
-        adapter = MacosLaunchdPlatform()
+        macos_adapter = MacosLaunchdPlatform()
         return ResolvedPlatform(
-            capabilities=adapter.capabilities,
-            supervisor=adapter,
-            listeners=adapter,
+            capabilities=macos_adapter.capabilities,
+            supervisor=macos_adapter,
+            listeners=macos_adapter,
         )
     else:
         capabilities = PlatformCapabilities(
