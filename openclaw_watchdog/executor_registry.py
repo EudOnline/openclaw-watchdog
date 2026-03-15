@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import shutil
-from typing import Callable
+from typing import Callable, cast
 
 CANONICAL_EXECUTOR_ORDER: tuple[str, ...] = (
     'codex',
@@ -74,7 +74,8 @@ def command_candidates(config, name: str) -> tuple[str, ...]:
     configured = configured_bin(config, name)
     if configured:
         candidates.append(configured)
-    for candidate in tuple(spec.get('command_candidates', ())):
+    configured_candidates = cast(tuple[object, ...], spec.get('command_candidates', ()))
+    for candidate in configured_candidates:
         candidate_text = str(candidate or '').strip()
         if candidate_text and candidate_text not in candidates:
             candidates.append(candidate_text)
