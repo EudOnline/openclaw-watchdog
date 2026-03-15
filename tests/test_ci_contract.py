@@ -25,6 +25,21 @@ class CiContractTest(unittest.TestCase):
         self.assertIn('openclaw_watchdog/executor_registry.py', workflow_text)
         self.assertIn('openclaw_watchdog/executor_registry.py', pyproject_text)
 
+    def test_ci_static_gates_cover_platform_and_upstream_runtime_packages(self) -> None:
+        workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
+        pyproject_text = Path('pyproject.toml').read_text(encoding='utf-8')
+
+        self.assertIn('openclaw_watchdog/platforms', workflow_text)
+        self.assertIn('openclaw_watchdog/openclaw_runtime', workflow_text)
+        self.assertIn('openclaw_watchdog/platforms', pyproject_text)
+        self.assertIn('openclaw_watchdog/openclaw_runtime', pyproject_text)
+
+    def test_ci_byte_compile_covers_new_runtime_subpackages(self) -> None:
+        workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
+
+        self.assertIn('openclaw_watchdog/platforms/*.py', workflow_text)
+        self.assertIn('openclaw_watchdog/openclaw_runtime/*.py', workflow_text)
+
     def test_pyproject_declares_quality_tool_configuration(self) -> None:
         pyproject_text = Path('pyproject.toml').read_text(encoding='utf-8')
 

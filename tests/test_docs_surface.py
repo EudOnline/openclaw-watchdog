@@ -161,6 +161,18 @@ class DocsSurfaceTest(unittest.TestCase):
         self.assertTrue(Path('launchd/com.eudonline.openclaw-watchdog.plist').exists())
         self.assertTrue(Path('scripts/install-openclaw-watchdog-launchd.sh').exists())
 
+    def test_docs_index_links_current_technical_debt_backlog(self) -> None:
+        docs_index_text = Path('docs/README.md').read_text(encoding='utf-8')
+        backlog_path = Path('docs/technical-debt-priority-backlog.md')
+
+        self.assertTrue(backlog_path.exists())
+        self.assertIn('technical-debt-priority-backlog.md', docs_index_text)
+
+        backlog_text = backlog_path.read_text(encoding='utf-8')
+        self.assertIn('P0', backlog_text)
+        self.assertIn('P1', backlog_text)
+        self.assertIn('P2', backlog_text)
+
 
 if __name__ == '__main__':
     unittest.main()

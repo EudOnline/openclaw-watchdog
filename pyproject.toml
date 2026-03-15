@@ -49,7 +49,12 @@ line-length = 100
 python_version = "3.11"
 warn_unused_configs = true
 check_untyped_defs = true
-files = ["openclaw_watchdog/config.py", "openclaw_watchdog/executor_registry.py"]
+files = [
+  "openclaw_watchdog/config.py",
+  "openclaw_watchdog/executor_registry.py",
+  "openclaw_watchdog/platforms",
+  "openclaw_watchdog/openclaw_runtime",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

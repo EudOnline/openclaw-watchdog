@@ -34,10 +34,10 @@ jobs:
         run: openclaw-watchdog --help
 
       - name: Ruff
-        run: python -m ruff check openclaw_watchdog/config.py openclaw_watchdog/executor_registry.py openclaw_watchdog/presenters tests/test_ci_contract.py tests/test_docs_surface.py tests/test_packaging_smoke.py
+        run: python -m ruff check openclaw_watchdog/config.py openclaw_watchdog/executor_registry.py openclaw_watchdog/platforms openclaw_watchdog/openclaw_runtime openclaw_watchdog/presenters tests/test_ci_contract.py tests/test_docs_surface.py tests/test_packaging_smoke.py
 
       - name: Mypy
-        run: python -m mypy openclaw_watchdog/config.py openclaw_watchdog/executor_registry.py
+        run: python -m mypy openclaw_watchdog/config.py openclaw_watchdog/executor_registry.py openclaw_watchdog/platforms openclaw_watchdog/openclaw_runtime
 
       - name: CLI help smoke test
         run: python -m openclaw_watchdog --help
@@ -46,7 +46,7 @@ jobs:
         run: python -m unittest tests/test_cli_smoke.py -v
 
       - name: Byte-compile source files
-        run: python -m py_compile openclaw_watchdog/*.py openclaw_watchdog/presenters/*.py openclaw_watchdog/flows/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py
+        run: python -m py_compile openclaw_watchdog/*.py openclaw_watchdog/platforms/*.py openclaw_watchdog/openclaw_runtime/*.py openclaw_watchdog/presenters/*.py openclaw_watchdog/flows/*.py rehearsal/lib/*.py rehearsal/tools/*.py tests/*.py
 
       - name: Full unittest suite
         run: python -m unittest discover -s tests -v
