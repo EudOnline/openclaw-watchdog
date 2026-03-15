@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openclaw-watchdog"
-version = "0.1.0"
+version = "0.2.0"
 description = "External watchdog, incident workflow, and rehearsal tooling for OpenClaw"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,6 +22,7 @@ classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: System :: Monitoring",
   "Topic :: System :: Systems Administration"
 ]
@@ -39,6 +40,17 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["openclaw_watchdog*", "rehearsal*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+check_untyped_defs = true
+files = ["openclaw_watchdog/config.py"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

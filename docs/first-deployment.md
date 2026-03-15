@@ -10,6 +10,8 @@ Operator quick path for the first rollout:
 
 `detect -> check -> status --summary -> report --message -> scripts/openclaw-watchdog-live-acceptance.sh`
 
+If you are validating the next public release candidate, pair this guide with [release-readiness.md](release-readiness.md). The current planned next release is `v0.2.0`, and the live acceptance artifacts from this guide are part of that gate.
+
 ## Minimum safe rollout
 
 ### 1. Clone and prepare the repo
@@ -130,6 +132,8 @@ systemctl --user enable --now openclaw-watchdog.timer
 ```
 
 Use this only after the earlier read-only checks look sane. The live acceptance pass is still read-only from the operator perspective and is meant to confirm that `status`, `report`, `metrics`, and incident surfaces agree about the current fallback state.
+
+For release signoff, keep the generated `docs/p7a-live/` artifacts from the candidate host and reference them from the current release notes draft instead of relying on memory.
 
 ### 9. Confirm the timer-backed deployment
 

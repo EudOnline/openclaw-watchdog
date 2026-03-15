@@ -76,6 +76,63 @@ class DocsSurfaceTest(unittest.TestCase):
         self.assertIn('detect -> check -> status --summary -> report --message', deployment_text)
         self.assertIn('scripts/openclaw-watchdog-live-acceptance.sh', deployment_text)
 
+    def test_release_readiness_docs_are_linked_from_current_surfaces(self) -> None:
+        readme_text = Path('README.md').read_text(encoding='utf-8')
+        docs_index_text = Path('docs/README.md').read_text(encoding='utf-8')
+
+        self.assertIn('docs/release-readiness.md', readme_text)
+        self.assertIn('docs/release-notes-v0.2.0-draft.md', readme_text)
+        self.assertIn('release-readiness.md', docs_index_text)
+        self.assertIn('release-notes-v0.2.0-draft.md', docs_index_text)
+
+    def test_release_readiness_docs_cover_live_rollout_and_next_release(self) -> None:
+        readiness_text = Path('docs/release-readiness.md').read_text(encoding='utf-8')
+        release_notes_text = Path('docs/release-notes-v0.2.0-draft.md').read_text(encoding='utf-8')
+
+        self.assertIn('live acceptance', readiness_text.lower())
+        self.assertIn('v0.2.0', readiness_text)
+        self.assertIn('python 3.11+', readiness_text.lower())
+        self.assertIn('v0.2.0', release_notes_text)
+        self.assertIn('critical rehearsal', release_notes_text.lower())
+
+    def test_release_surfaces_identify_the_next_release_candidate(self) -> None:
+        readme_text = Path('README.md').read_text(encoding='utf-8')
+        changelog_text = Path('CHANGELOG.md').read_text(encoding='utf-8')
+        pyproject_text = Path('pyproject.toml').read_text(encoding='utf-8')
+
+        self.assertIn('v0.2.0', readme_text)
+        self.assertIn('planned next release', changelog_text.lower())
+        self.assertIn('version = "0.2.0"', pyproject_text)
+
+    def test_python_classifiers_match_the_documented_ci_versions(self) -> None:
+        pyproject_text = Path('pyproject.toml').read_text(encoding='utf-8')
+        readme_text = Path('README.md').read_text(encoding='utf-8')
+        workflow_text = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
+
+        self.assertIn('Programming Language :: Python :: 3.13', pyproject_text)
+        self.assertIn('python3.13', readme_text.lower())
+        self.assertIn("'3.13'", workflow_text)
+
+    def test_release_runbook_is_linked_from_current_release_surfaces(self) -> None:
+        readme_text = Path('README.md').read_text(encoding='utf-8')
+        docs_index_text = Path('docs/README.md').read_text(encoding='utf-8')
+        readiness_text = Path('docs/release-readiness.md').read_text(encoding='utf-8')
+        release_notes_text = Path('docs/release-notes-v0.2.0-draft.md').read_text(encoding='utf-8')
+
+        self.assertIn('docs/release-v0.2.0-runbook.md', readme_text)
+        self.assertIn('release-v0.2.0-runbook.md', docs_index_text)
+        self.assertIn('release-v0.2.0-runbook.md', readiness_text)
+        self.assertIn('release-v0.2.0-runbook.md', release_notes_text)
+
+    def test_release_runbook_names_tag_and_publish_steps(self) -> None:
+        runbook_text = Path('docs/release-v0.2.0-runbook.md').read_text(encoding='utf-8')
+
+        self.assertIn('git tag -a v0.2.0', runbook_text)
+        self.assertIn('git push origin main', runbook_text)
+        self.assertIn('git push origin v0.2.0', runbook_text)
+        self.assertIn('OpenClaw Watchdog v0.2.0', runbook_text)
+        self.assertIn('docs/p7a-live/', runbook_text)
+
     def test_changelog_roadmap_and_live_samples_match_fallback_system_positioning(self) -> None:
         changelog_text = Path('CHANGELOG.md').read_text(encoding='utf-8')
         roadmap_text = Path('docs/roadmap.md').read_text(encoding='utf-8')

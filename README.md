@@ -1,6 +1,6 @@
 # OpenClaw Watchdog
 
-[![Release](https://img.shields.io/github/v/release/EudOnline/openclaw-watchdog?display_name=tag)](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
+[![Release](https://img.shields.io/github/v/release/EudOnline/openclaw-watchdog?display_name=tag)](https://github.com/EudOnline/openclaw-watchdog/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](pyproject.toml)
 [![CI](https://github.com/EudOnline/openclaw-watchdog/actions/workflows/ci.yml/badge.svg)](https://github.com/EudOnline/openclaw-watchdog/actions/workflows/ci.yml)
@@ -24,8 +24,10 @@ It combines:
 ## Quick links
 
 - [Rescue lifecycle guide](docs/rescue-lifecycle.md)
-
-- [Release notes](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
+- [Latest published release (`v0.1.0`)](https://github.com/EudOnline/openclaw-watchdog/releases/tag/v0.1.0)
+- [Planned next release (`v0.2.0`) draft notes](docs/release-notes-v0.2.0-draft.md)
+- [Release readiness guide](docs/release-readiness.md)
+- [Final `v0.2.0` release runbook](docs/release-v0.2.0-runbook.md)
 - [Documentation index](docs/README.md)
 - [Supported environments](docs/supported-environments.md)
 - [Operational reporting outputs](docs/reporting-contract.md)
@@ -49,6 +51,8 @@ It combines:
 This repository is the standalone public home of the **OpenClaw fallback system**.
 
 The repository now uses one canonical name throughout the public surface and Python implementation: `openclaw_watchdog`.
+
+The repository metadata and current release-prep docs now target the planned next release, `v0.2.0`. The latest published GitHub release remains `v0.1.0` until the next tag is cut.
 
 ## Repository layout
 
@@ -88,6 +92,7 @@ For the fuller package map and validation story, see `docs/internal-architecture
 For the supported environment matrix and release expectations, see `docs/supported-environments.md`.
 
 - Python 3.11+
+- release-gated CI validation currently runs on Python 3.11 and 3.13
 - `scripts/openclaw-watchdog` checks for a compatible interpreter before importing the package and prefers `python3.11`, `python3.12`, `python3.13`, or a compatible `python3`
 - OpenClaw installed on the target machine
 - Linux with `systemd --user` if you want the provided timer units
@@ -213,6 +218,7 @@ This repo includes a repo-local rehearsal harness for validating flows without u
 Start with:
 
 - `docs/README.md`
+- `docs/release-readiness.md`
 - `rehearsal/README.md`
 - `docs/live-acceptance-checklist.md`
 - `docs/live-samples.md`

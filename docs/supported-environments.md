@@ -44,7 +44,7 @@ GitHub Actions on Ubuntu is the canonical release-gated rehearsal environment. O
 
 The current maintained validation path is:
 
-- Python `3.11+` in CI for CLI and rehearsal coverage
+- Python `3.11` and `3.13` in CI for CLI, contract, and rehearsal coverage
 - focused `unittest` coverage for contracts and helper modules
 - repo-local rehearsal scenarios for product-defining flows
 - byte-compilation checks for the shipped Python modules and tests
@@ -90,8 +90,11 @@ When changing code, docs, or examples that touch compatibility:
 
 Internal refactors are encouraged when they reduce maintenance risk, but they should preserve the documented CLI entrypoints, stable report/metrics outputs, fixed rescue-chain order, and rehearsal scenario intent unless an explicit migration note says otherwise.
 
+For release preparation, use [release-readiness.md](release-readiness.md) as the operator-maintainer checklist. The current planned next release is `v0.2.0`, and that gate should remain grounded in Python `3.11+`, repo-local validation, critical rehearsal coverage, and live acceptance on a real Linux + `systemd --user` host.
+
 ## Practical guidance
 
 - New operators should follow `docs/first-deployment.md` and assume the Linux + `systemd --user` path unless the docs explicitly say otherwise.
 - Contributors should treat repo-local rehearsal as the preferred way to validate behavior before relying on a live host.
+- Maintainers preparing a release should assemble evidence in the order documented by `docs/release-readiness.md`.
 - If your local machine cannot run Python `3.11+`, you can still edit docs or some tests, but release-gated CLI and rehearsal checks must run in CI or on a compatible host.

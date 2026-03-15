@@ -4,7 +4,10 @@ All notable changes to this public repository will be documented here.
 
 ## Unreleased
 
+Planned next release: `v0.2.0` after the repo-local release gate and real-host live acceptance both pass.
+
 ### Changed
+- add a release-readiness guide plus draft `v0.2.0` release notes so rollout validation and release packaging follow one documented path
 - align the rehearsal harness with the fixed rescue-order contract by removing legacy priority-override injection from repo-local scenarios
 - promote core survivability scenarios such as conversation readiness, rollback-before-doctor, survival recovery, and drift guard into the critical rehearsal gate
 - make deterministic recovery stop carrying stale `config_invalid` state past a successful rollback and restart the service after survival-mode activation before re-probing

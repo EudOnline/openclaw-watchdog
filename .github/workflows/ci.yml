@@ -24,6 +24,15 @@ jobs:
       - name: Show Python version
         run: python --version
 
+      - name: Install quality tools
+        run: python -m pip install ruff mypy
+
+      - name: Ruff
+        run: python -m ruff check openclaw_watchdog/config.py openclaw_watchdog/presenters tests/test_ci_contract.py tests/test_docs_surface.py
+
+      - name: Mypy
+        run: python -m mypy openclaw_watchdog/config.py
+
       - name: CLI help smoke test
         run: python -m openclaw_watchdog --help
 
