@@ -172,6 +172,12 @@ class DocsSurfaceTest(unittest.TestCase):
         self.assertIn('macOS launchd rollout guide', readme_text)
         self.assertIn('supported macOS path', supported_text)
 
+    def test_repo_ships_macos_env_example(self) -> None:
+        env_text = Path('config/openclaw-watchdog.macos.env.example').read_text(encoding='utf-8')
+
+        self.assertIn('OPENCLAW_GATEWAY_SERVICE="com.openclaw.gateway"', env_text)
+        self.assertIn('WATCHDOG_STATE_DIR=', env_text)
+
     def test_docs_index_links_current_technical_debt_backlog(self) -> None:
         docs_index_text = Path('docs/README.md').read_text(encoding='utf-8')
         backlog_path = Path('docs/technical-debt-priority-backlog.md')

@@ -28,10 +28,17 @@ This guide does not change the current production baseline. Linux + `systemd --u
 ## Minimum macOS rollout path
 
 1. start from the repo-local install flow in [first-deployment.md](first-deployment.md);
-2. confirm that `OPENCLAW_GATEWAY_SERVICE` is a macOS `launchd` label such as `com.openclaw.gateway`;
-3. install the watchdog LaunchAgent with `scripts/install-openclaw-watchdog-launchd.sh`;
-4. inspect both the watchdog and gateway labels with `launchctl print`;
-5. keep any acceptance evidence under `docs/p7a-live/` once the host gate is ready.
+2. copy `config/openclaw-watchdog.macos.env.example` to `config/openclaw-watchdog.env`;
+3. confirm that `OPENCLAW_GATEWAY_SERVICE` is a macOS `launchd` label such as `com.openclaw.gateway`;
+4. keep the first rollout conservative with the shipped `WATCHDOG_ENABLE_*` defaults;
+5. install the watchdog LaunchAgent with `scripts/install-openclaw-watchdog-launchd.sh`;
+6. inspect both the watchdog and gateway labels with `launchctl print`;
+7. keep any acceptance evidence under `docs/p7a-live/` once the host gate is ready.
+
+```bash
+cp config/openclaw-watchdog.macos.env.example config/openclaw-watchdog.env
+scripts/install-openclaw-watchdog-launchd.sh
+```
 
 ## Useful commands
 

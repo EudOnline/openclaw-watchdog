@@ -131,6 +131,8 @@ scripts/openclaw-watchdog check --env config/openclaw-watchdog.env
 
 If the wrapper reports that no compatible interpreter was found, install Python 3.11+ first and rerun the same command. The wrapper accepts any compatible `python3.11+` interpreter name it can discover, including `python3.11`, `python3.12`, `python3.13`, or a compatible `python3`. For the first live rollout, follow `docs/first-deployment.md` before enabling the timer.
 
+For the narrow macOS `launchd` path, start from `config/openclaw-watchdog.macos.env.example` so `OPENCLAW_GATEWAY_SERVICE` uses a `launchd` label such as `com.openclaw.gateway` instead of a Linux `.service` unit name.
+
 ### Option 2: Python module entrypoint
 
 If you are working from a source checkout, you can also invoke the package directly:
@@ -144,6 +146,7 @@ python3.11 -m openclaw_watchdog --help
 Start from:
 
 - `config/openclaw-watchdog.env.example`
+- `config/openclaw-watchdog.macos.env.example` for the experimental macOS `LaunchAgent` path
 
 Important knobs include:
 
