@@ -10,6 +10,7 @@ These are the documents new users and operators should start with when treating 
 - [upstream-tracking.md](upstream-tracking.md)
 - [supported-environments.md](supported-environments.md)
 - [first-deployment.md](first-deployment.md)
+- [macos-launchd-rollout.md](macos-launchd-rollout.md)
 - [release-readiness.md](release-readiness.md)
 - [rescue-lifecycle.md](rescue-lifecycle.md)
 - [live-acceptance-checklist.md](live-acceptance-checklist.md)

@@ -33,6 +33,7 @@ It combines:
 - [Supported environments](docs/supported-environments.md)
 - [Operational reporting outputs](docs/reporting-contract.md)
 - [First deployment guide](docs/first-deployment.md)
+- [macOS launchd rollout guide](docs/macos-launchd-rollout.md)
 - [Roadmap](docs/roadmap.md)
 - [FAQ](docs/faq.md)
 - [Rehearsal guide](rehearsal/README.md)
@@ -222,7 +223,7 @@ scripts/install-openclaw-watchdog-launchd.sh
 launchctl print gui/$UID/com.eudonline.openclaw-watchdog
 ```
 
-Treat this as experimental until live acceptance has been captured on a real macOS host. Linux + `systemd --user` remains the only documented production path today.
+Treat this as experimental until live acceptance has been captured on a real macOS host. The narrow supported macOS path in this repo is a user-session `LaunchAgent` in `gui/$UID`; see the [macOS launchd rollout guide](docs/macos-launchd-rollout.md). Linux + `systemd --user` remains the only documented production path today.
 
 ## Rehearsal and validation
 

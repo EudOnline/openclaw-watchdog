@@ -28,6 +28,8 @@ This is the only environment family the sample systemd units, first-deployment g
 
 An **experimental** macOS + `launchd` adapter path now exists in the repository for architecture validation and local host testing. It is not yet part of the live-validated production baseline, and it should not be treated as a production-ready rollout path until it has explicit acceptance evidence and release-gated validation.
 
+Within that experimental tier, the supported macOS path is narrow and explicit: a per-user `LaunchAgent` running in `gui/$UID`. Use [macos-launchd-rollout.md](macos-launchd-rollout.md) when validating that shape, and do not broaden the claim to `LaunchDaemon` or system-wide service management in this batch.
+
 ## Repo-local rehearsal support
 
 The rehearsal harness is intended to be host-isolated and repo-local, but the release gate currently treats the following baseline as supported:
@@ -100,6 +102,7 @@ For release preparation, use [release-readiness.md](release-readiness.md) as the
 
 - New operators should follow `docs/first-deployment.md` and assume the Linux + `systemd --user` path unless the docs explicitly say otherwise.
 - Contributors validating host abstractions can use the experimental macOS `launchd` assets, but they should describe that path as experimental until the support tier changes.
+- Contributors validating the supported macOS path should keep the scope to a per-user `LaunchAgent` in `gui/$UID`.
 - Contributors should treat repo-local rehearsal as the preferred way to validate behavior before relying on a live host.
 - Maintainers preparing a release should assemble evidence in the order documented by `docs/release-readiness.md`.
 - If your local machine cannot run Python `3.11+`, you can still edit docs or some tests, but release-gated CLI and rehearsal checks must run in CI or on a compatible host.

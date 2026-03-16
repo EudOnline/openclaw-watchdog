@@ -161,6 +161,17 @@ class DocsSurfaceTest(unittest.TestCase):
         self.assertTrue(Path('launchd/com.eudonline.openclaw-watchdog.plist').exists())
         self.assertTrue(Path('scripts/install-openclaw-watchdog-launchd.sh').exists())
 
+    def test_docs_define_narrow_macos_launchagent_contract(self) -> None:
+        readme_text = Path('README.md').read_text(encoding='utf-8')
+        supported_text = Path('docs/supported-environments.md').read_text(encoding='utf-8')
+        rollout_text = Path('docs/macos-launchd-rollout.md').read_text(encoding='utf-8')
+
+        self.assertIn('LaunchAgent', rollout_text)
+        self.assertIn('gui/$UID', rollout_text)
+        self.assertIn('LaunchDaemon is out of scope', rollout_text)
+        self.assertIn('macOS launchd rollout guide', readme_text)
+        self.assertIn('supported macOS path', supported_text)
+
     def test_docs_index_links_current_technical_debt_backlog(self) -> None:
         docs_index_text = Path('docs/README.md').read_text(encoding='utf-8')
         backlog_path = Path('docs/technical-debt-priority-backlog.md')

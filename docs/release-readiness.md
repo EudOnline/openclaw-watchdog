@@ -16,6 +16,8 @@ Use this guide when you need to:
 
 This guide assumes the current support baseline from [supported-environments.md](supported-environments.md): Python 3.11+, Linux, `systemd --user`, and a host that already has OpenClaw plus any desired rescue executors installed.
 
+If you are validating the experimental macOS adapter path, keep the scope to the narrow `LaunchAgent` contract documented in [macos-launchd-rollout.md](macos-launchd-rollout.md): user-session `gui/$UID`, explicit `launchd` labels, and release evidence before any wider support claim.
+
 ## Release gate order
 
 Keep the gate in this order. Do not skip ahead to tagging or publishing.
