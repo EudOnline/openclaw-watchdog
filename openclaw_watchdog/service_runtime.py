@@ -3,9 +3,15 @@ from __future__ import annotations
 import re
 
 
+def _platform_capability(engine, name: str) -> str:
+    capabilities = getattr(getattr(engine, 'platform', None), 'capabilities', None)
+    value = getattr(capabilities, name, '')
+    return str(value) if value is not None else ''
+
+
 def service_active(engine) -> bool:
     supervisor = getattr(getattr(engine, 'platform', None), 'supervisor', None)
-    if supervisor is not None:
+    if supervisor is not None and _platform_capability(engine, 'supervisor') != 'manual':
         return supervisor.service_active(engine)
     result = engine.run_command(['systemctl', '--user', 'is-active', '--quiet', engine.config.openclaw_gateway_service], timeout=15)
     return result.returncode == 0
@@ -13,7 +19,7 @@ def service_active(engine) -> bool:
 
 def service_main_pid(engine) -> str:
     supervisor = getattr(getattr(engine, 'platform', None), 'supervisor', None)
-    if supervisor is not None:
+    if supervisor is not None and _platform_capability(engine, 'supervisor') != 'manual':
         return supervisor.service_main_pid(engine)
     result = engine.run_command(
         ['systemctl', '--user', 'show', '-p', 'MainPID', '--value', engine.config.openclaw_gateway_service],
@@ -25,7 +31,7 @@ def service_main_pid(engine) -> str:
 
 def listener_pids(engine) -> list[str]:
     listeners = getattr(getattr(engine, 'platform', None), 'listeners', None)
-    if listeners is not None:
+    if listeners is not None and _platform_capability(engine, 'listener_tool') != 'manual':
         return listeners.listener_pids(engine)
     result = engine.run_command(['ss', '-tlnp'], timeout=15)
     if result.returncode != 0 and not result.stdout and not result.stderr:
@@ -41,14 +47,14 @@ def listener_count(engine) -> int:
 
 def listener_contains_pid(engine, needle: str) -> bool:
     listeners = getattr(getattr(engine, 'platform', None), 'listeners', None)
-    if listeners is not None:
+    if listeners is not None and _platform_capability(engine, 'listener_tool') != 'manual':
         return listeners.listener_contains_pid(engine, needle)
     return needle.isdigit() and needle != '0' and needle in listener_pids(engine)
 
 
 def pid_descends_from(engine, pid: str, ancestor_pid: str) -> bool:
     listeners = getattr(getattr(engine, 'platform', None), 'listeners', None)
-    if listeners is not None and hasattr(listeners, 'pid_descends_from'):
+    if listeners is not None and _platform_capability(engine, 'listener_tool') != 'manual' and hasattr(listeners, 'pid_descends_from'):
         return listeners.pid_descends_from(engine, pid, ancestor_pid)
     if not pid.isdigit() or not ancestor_pid.isdigit() or pid == '0' or ancestor_pid == '0':
         return False
@@ -69,7 +75,7 @@ def pid_descends_from(engine, pid: str, ancestor_pid: str) -> bool:
 
 def listener_matches_service_tree(engine, main_pid: str) -> tuple[bool, str, str]:
     listeners = getattr(getattr(engine, 'platform', None), 'listeners', None)
-    if listeners is not None:
+    if listeners is not None and _platform_capability(engine, 'listener_tool') != 'manual':
         return listeners.listener_matches_service_tree(engine, main_pid)
     if not main_pid.isdigit() or main_pid == '0':
         return False, 'none', ''

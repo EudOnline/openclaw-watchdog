@@ -7,6 +7,12 @@ import time
 from openclaw_watchdog import service_runtime
 
 
+def _platform_supervisor_mode(engine) -> str:
+    capabilities = getattr(getattr(engine, 'platform', None), 'capabilities', None)
+    value = getattr(capabilities, 'supervisor', '')
+    return str(value) if value is not None else ''
+
+
 def run_pre_repair_backup(engine) -> None:
     if not engine.config.watchdog_enable_pre_repair_backup:
         engine.ctx.pre_repair_backup_result = 'disabled'
@@ -64,7 +70,7 @@ def kill_stray_listeners(engine, main_pid: str) -> None:
 
 def restart_service(engine) -> bool:
     supervisor = getattr(getattr(engine, 'platform', None), 'supervisor', None)
-    if supervisor is not None:
+    if supervisor is not None and _platform_supervisor_mode(engine) != 'manual':
         return supervisor.restart_service(engine)
     engine.log('INFO', f'restarting {engine.config.openclaw_gateway_service}')
     engine.run_command(['systemctl', '--user', 'reset-failed', engine.config.openclaw_gateway_service], timeout=15)

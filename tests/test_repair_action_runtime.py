@@ -89,6 +89,49 @@ class RepairActionRuntimeTests(unittest.TestCase):
         self.assertTrue(restarted)
         supervisor.restart_service.assert_called_once_with(engine)
 
+    def test_restart_service_manual_platform_capability_falls_back_to_systemctl(self) -> None:
+        from openclaw_watchdog import repair_action_runtime
+        from openclaw_watchdog.platforms.base import NoopSupervisorAdapter
+        from openclaw_watchdog.platforms.capabilities import PlatformCapabilities
+
+        calls: list[tuple[list[str], int]] = []
+
+        def run_command(args: list[str], *, timeout: int, merge_stderr: bool = False):
+            calls.append((list(args), timeout))
+            return SimpleNamespace(returncode=0, output='')
+
+        engine = SimpleNamespace(
+            config=SimpleNamespace(
+                openclaw_gateway_service='openclaw-gateway.service',
+                watchdog_restart_wait_seconds=2,
+            ),
+            platform=SimpleNamespace(
+                capabilities=PlatformCapabilities(
+                    host_family='darwin',
+                    supervisor='manual',
+                    listener_tool='manual',
+                    supports_managed_restart=False,
+                    supports_listener_pid_tree=False,
+                ),
+                supervisor=NoopSupervisorAdapter(),
+            ),
+            run_command=run_command,
+            log=lambda level, message: None,
+        )
+
+        with patch('openclaw_watchdog.repair_action_runtime.time.sleep') as sleep_mock:
+            restarted = repair_action_runtime.restart_service(engine)
+
+        self.assertTrue(restarted)
+        self.assertEqual(
+            calls,
+            [
+                (['systemctl', '--user', 'reset-failed', 'openclaw-gateway.service'], 15),
+                (['systemctl', '--user', 'restart', 'openclaw-gateway.service'], 30),
+            ],
+        )
+        sleep_mock.assert_called_once_with(2)
+
     def test_kill_stray_listeners_does_not_require_engine_listener_wrapper(self) -> None:
         from openclaw_watchdog import repair_action_runtime
 

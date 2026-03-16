@@ -113,6 +113,41 @@ class ServiceRuntimeTests(unittest.TestCase):
         platform.listeners.listener_contains_pid.assert_called_once_with(engine, '222')
         platform.listeners.listener_matches_service_tree.assert_called_once_with(engine, '222')
 
+    def test_manual_platform_capability_falls_back_to_direct_service_commands(self) -> None:
+        from openclaw_watchdog import service_runtime
+        from openclaw_watchdog.platforms.base import NoopListenerAdapter
+        from openclaw_watchdog.platforms.base import NoopSupervisorAdapter
+        from openclaw_watchdog.platforms.capabilities import PlatformCapabilities
+
+        engine = ServiceRuntimeEngineDouble()
+        engine.platform = SimpleNamespace(
+            capabilities=PlatformCapabilities(
+                host_family='darwin',
+                supervisor='manual',
+                listener_tool='manual',
+                supports_managed_restart=False,
+                supports_listener_pid_tree=False,
+            ),
+            supervisor=NoopSupervisorAdapter(),
+            listeners=NoopListenerAdapter(),
+        )
+        engine._responses[
+            ('systemctl', '--user', 'is-active', '--quiet', 'openclaw-gateway.service')
+        ] = _result(['systemctl'], returncode=0)
+        engine._responses[
+            ('systemctl', '--user', 'show', '-p', 'MainPID', '--value', 'openclaw-gateway.service')
+        ] = _result(['systemctl'], stdout='123\n')
+        engine._responses[('ss', '-tlnp')] = _result(
+            ['ss', '-tlnp'],
+            stdout='LISTEN 0 128 *:5700 *:* users:(("node",pid=123,fd=21))',
+        )
+
+        self.assertTrue(service_runtime.service_active(engine))
+        self.assertEqual(service_runtime.service_main_pid(engine), '123')
+        self.assertEqual(service_runtime.listener_pids(engine), ['123'])
+        self.assertTrue(service_runtime.listener_contains_pid(engine, '123'))
+        self.assertEqual(service_runtime.listener_matches_service_tree(engine, '123'), (True, 'direct', '123'))
+
     def test_pid_descends_from_walks_parent_chain(self) -> None:
         from openclaw_watchdog import service_runtime
 
