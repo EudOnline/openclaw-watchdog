@@ -22,6 +22,8 @@ class CliPresentersTest(unittest.TestCase):
                 'survival_mode_active': False,
                 'service_active': True,
                 'service_probe_summary': 'ok',
+                'message_loop_probe_enabled': True,
+                'message_loop_probe_summary': 'message loop cached ready',
                 'recent_event_stats': {'counts': {'healthy': 2, 'degraded': 0, 'recovered': 1, 'failed': 0}},
                 'recent_incidents': [],
                 'last_event': {'human_summary': 'all good'},
@@ -33,6 +35,7 @@ class CliPresentersTest(unittest.TestCase):
         self.assertIn('litellm', text)
         self.assertIn('order=codex>claude-code>litellm', text)
         self.assertIn('reject=codex:unavailable,claude-code:no-plan', text)
+        self.assertIn('msg_loop=message loop cached ready', text)
         self.assertIn('last=all good', text)
 
     def test_status_and_report_render_same_attempt_order_and_learning_summary(self) -> None:

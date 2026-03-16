@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
 import time
 
 from openclaw_watchdog import doctor_runtime
+from openclaw_watchdog import message_probe_runtime
 from openclaw_watchdog import operator_snapshot
 from openclaw_watchdog import service_runtime
+from openclaw_watchdog.openclaw_runtime import status_runtime as openclaw_status_runtime
 
 
 def service_level_probe(engine) -> dict[str, object]:
@@ -26,36 +27,29 @@ def service_level_probe(engine) -> dict[str, object]:
     raw_output = result.output.strip()
     healthy = result.returncode == 0
     summary = f"rc={result.returncode}"
-    payload = None
-    candidate_texts: list[str] = []
-    if raw_output:
-        candidate_texts.append(raw_output)
-        if "\n{" in raw_output:
-            candidate_texts.append(raw_output[raw_output.rfind("\n{") + 1 :])
-        if "{" in raw_output:
-            candidate_texts.append(raw_output[raw_output.find("{") :])
-    for candidate in candidate_texts:
-        try:
-            parsed = json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(parsed, dict):
-            payload = parsed
-            break
+    payload = openclaw_status_runtime.extract_json(raw_output)
     authoritative = False
     if isinstance(payload, dict):
         gateway = payload.get("gateway")
         if isinstance(gateway, dict) and "reachable" in gateway:
+            gateway_contract = openclaw_status_runtime.normalize_status_contract(
+                payload,
+                configured_port=engine.config.openclaw_gateway_port,
+            ).gateway
             authoritative = True
-            healthy = result.returncode == 0 and bool(gateway.get("reachable"))
-            summary = f"gateway.reachable={str(bool(gateway.get('reachable'))).lower()}"
+            healthy = result.returncode == 0 and gateway_contract.reachable
+            summary = f"gateway.reachable={str(gateway_contract.reachable).lower()}"
         elif "service_active" in payload:
-            authoritative = True
-            healthy = result.returncode == 0 and bool(payload.get("service_active"))
-            summary = f"service_active={str(bool(payload.get('service_active'))).lower()}"
+            service_active = openclaw_status_runtime.coerce_bool(payload.get("service_active"))
+            authoritative = service_active is not None
+            healthy = result.returncode == 0 and service_active is True
+            if service_active is None:
+                summary = "service_active=unknown"
+            else:
+                summary = f"service_active={str(service_active).lower()}"
         else:
-            healthy = result.returncode == 0
-            summary = "status json parsed"
+            healthy = False
+            summary = "status json missing health fields"
     elif result.returncode == 0 and raw_output:
         healthy = False
         summary = "status output not parseable"
@@ -98,39 +92,61 @@ def conversation_level_probe(engine, status_payload: dict[str, object] | None, *
     gateway = payload.get("gateway") if isinstance(payload.get("gateway"), dict) else {}
     conversation = payload.get("conversation") if isinstance(payload.get("conversation"), dict) else {}
     channel_summary = payload.get("channelSummary") if isinstance(payload.get("channelSummary"), list) else []
-    gateway_reachable = bool(gateway.get("reachable", service_layer_healthy))
-    gateway_misconfigured = bool(gateway.get("misconfigured", False))
-    channel_configured = any("configured" in str(item).lower() for item in channel_summary)
+    gateway_reachable = openclaw_status_runtime.coerce_bool(gateway.get("reachable"))
+    gateway_misconfigured = openclaw_status_runtime.coerce_bool(gateway.get("misconfigured"))
+    channel_configured = False
+    for item in channel_summary:
+        text = str(item).strip().lower()
+        if not text:
+            continue
+        if any(token in text for token in ("not-configured", "not configured", "missing", "disabled")):
+            continue
+        if any(token in text for token in ("configured", "connected", "running", "active", "ok")):
+            channel_configured = True
+            break
     optional_failures_allowed = engine.config.watchdog_minimal_usable_allow_optional_failures
 
     ready: bool | None = None
     minimal_usable: bool | None = None
     for key in ("ready", "conversation_ready"):
         if key in conversation:
-            ready = bool(conversation.get(key))
+            ready = openclaw_status_runtime.coerce_bool(conversation.get(key))
             break
     for key in ("minimalUsable", "minimal_usable", "minimal_usable_ready"):
         if key in conversation:
-            minimal_usable = bool(conversation.get(key))
+            minimal_usable = openclaw_status_runtime.coerce_bool(conversation.get(key))
             break
+    conversation_status = str(conversation.get("status", "") or "").strip().lower()
+    if conversation_status in {"healthy", "ready"}:
+        if ready is None:
+            ready = True
+        if minimal_usable is None:
+            minimal_usable = True
+    elif conversation_status in {"degraded", "minimal"}:
+        if ready is None:
+            ready = False
+        if minimal_usable is None:
+            minimal_usable = True
+    elif conversation_status in {"down", "failed", "offline", "unhealthy"}:
+        if ready is None:
+            ready = False
+        if minimal_usable is None:
+            minimal_usable = False
 
-    if minimal_usable is None:
-        minimal_usable = bool(gateway_reachable and (channel_configured or optional_failures_allowed or ready is True))
-    if ready is None:
-        if channel_summary:
-            ready = bool(gateway_reachable and channel_configured and not gateway_misconfigured)
-        else:
-            ready = bool(minimal_usable and gateway_reachable)
-    if ready:
+    if ready is True:
         minimal_usable = True
+    if ready is None:
+        ready = False
+    if minimal_usable is None:
+        minimal_usable = False
 
     status = "ready" if ready else "minimal" if minimal_usable else "down"
     reason_parts = [
-        f"gateway={'up' if gateway_reachable else 'down'}",
+        f"gateway={'up' if gateway_reachable is True else 'down' if gateway_reachable is False else 'unknown'}",
         f"channels={'configured' if channel_configured else 'missing'}",
     ]
     summary_text = str(conversation.get("summary", "") or "").strip()
-    if gateway_misconfigured:
+    if gateway_misconfigured is True:
         reason_parts.append("gateway_misconfigured")
     if optional_failures_allowed and not ready and minimal_usable:
         reason_parts.append("optional_failures_allowed")
@@ -247,6 +263,39 @@ def live_probe(engine, *, include_doctor: bool, apply_grace: bool = True) -> dic
                 f"{payload['service_probe_retry_initial_summary']}; retried {engine.config.watchdog_service_level_retry_grace_seconds}s later: "
                 f"{payload['service_probe_retry_final_summary'] or payload['service_probe_retry_initial_summary']}"
             )
+
+    message_loop_enabled = bool(getattr(engine.config, 'watchdog_enable_message_loop_probe', False))
+    if message_loop_enabled and bool(payload["process_layer_healthy"]) and bool(payload.get("service_layer_healthy", False)):
+        message_loop_probe = message_probe_runtime.message_loop_probe(engine)
+        payload.update(message_loop_probe)
+        if bool(message_loop_probe.get("message_loop_probe_ready", False)):
+            payload["conversation_ready"] = True
+            payload["minimal_usable_ready"] = True
+            payload["conversation_status"] = "ready"
+        else:
+            payload["conversation_ready"] = False
+            payload["minimal_usable_ready"] = False
+            payload["conversation_status"] = "down"
+        payload["conversation_probe_summary"] = str(
+            message_loop_probe.get("message_loop_probe_summary", payload.get("conversation_probe_summary", ""))
+            or payload.get("conversation_probe_summary", "")
+        )
+    else:
+        payload.setdefault("message_loop_probe_enabled", message_loop_enabled)
+        payload.setdefault("message_loop_probe_attempted", False)
+        payload.setdefault("message_loop_probe_ready", False)
+        payload.setdefault("message_loop_probe_sent", False)
+        payload.setdefault("message_loop_probe_echo_received", False)
+        payload.setdefault("message_loop_probe_cached", False)
+        payload.setdefault("message_loop_probe_nonce", "")
+        payload.setdefault("message_loop_probe_checked_at", engine.now_iso())
+        payload.setdefault("message_loop_probe_events_file", str(getattr(engine.config, 'watchdog_message_loop_probe_events_file', '') or ''))
+        if message_loop_enabled and not bool(payload["process_layer_healthy"]):
+            payload.setdefault("message_loop_probe_summary", "skipped: process layer not healthy")
+        elif message_loop_enabled and not bool(payload.get("service_layer_healthy", False)):
+            payload.setdefault("message_loop_probe_summary", "skipped: service layer not healthy")
+        else:
+            payload.setdefault("message_loop_probe_summary", "disabled")
     if engine.config.watchdog_enable_survivability_flow:
         payload["healthy"] = bool(payload["process_layer_healthy"]) and bool(payload["minimal_usable_ready"])
         if payload["process_layer_healthy"] and payload["conversation_ready"]:

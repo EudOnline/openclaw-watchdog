@@ -129,6 +129,14 @@ class Config:
     watchdog_survival_disable_optional_extensions: bool
     watchdog_survival_stable_ready_runs: int
     watchdog_message_timeout_seconds: int
+    watchdog_enable_message_loop_probe: bool
+    watchdog_message_loop_probe_account: str
+    watchdog_message_loop_probe_channel: str
+    watchdog_message_loop_probe_target: str
+    watchdog_message_loop_probe_reply_from: str
+    watchdog_message_loop_probe_events_file: Path
+    watchdog_message_loop_probe_timeout_seconds: int
+    watchdog_message_loop_probe_cooldown_seconds: int
     watchdog_doctor_timeout_seconds: int
     watchdog_enable_doctor_repair: bool
     watchdog_enable_pre_repair_backup: bool
@@ -248,6 +256,22 @@ class Config:
             watchdog_survival_disable_optional_extensions=_env_bool(raw, "WATCHDOG_SURVIVAL_DISABLE_OPTIONAL_EXTENSIONS", False),
             watchdog_survival_stable_ready_runs=max(1, _env_int(raw, "WATCHDOG_SURVIVAL_STABLE_READY_RUNS", 2)),
             watchdog_message_timeout_seconds=_env_int(raw, "WATCHDOG_MESSAGE_TIMEOUT_SECONDS", 20),
+            watchdog_enable_message_loop_probe=_env_bool(raw, "WATCHDOG_ENABLE_MESSAGE_LOOP_PROBE", False),
+            watchdog_message_loop_probe_account=_env(
+                raw,
+                "WATCHDOG_MESSAGE_LOOP_PROBE_ACCOUNT",
+                "default",
+            ).strip(),
+            watchdog_message_loop_probe_channel=_env(raw, "WATCHDOG_MESSAGE_LOOP_PROBE_CHANNEL", "").strip(),
+            watchdog_message_loop_probe_target=_env(raw, "WATCHDOG_MESSAGE_LOOP_PROBE_TARGET", "").strip(),
+            watchdog_message_loop_probe_reply_from=_env(raw, "WATCHDOG_MESSAGE_LOOP_PROBE_REPLY_FROM", "").strip(),
+            watchdog_message_loop_probe_events_file=_env_path(
+                raw,
+                "WATCHDOG_MESSAGE_LOOP_PROBE_EVENTS_FILE",
+                "~/.openclaw-backup/watchdog/message-loop-probe-events.jsonl",
+            ),
+            watchdog_message_loop_probe_timeout_seconds=max(1, _env_int(raw, "WATCHDOG_MESSAGE_LOOP_PROBE_TIMEOUT_SECONDS", 20)),
+            watchdog_message_loop_probe_cooldown_seconds=max(0, _env_int(raw, "WATCHDOG_MESSAGE_LOOP_PROBE_COOLDOWN_SECONDS", 60)),
             watchdog_doctor_timeout_seconds=_env_int(raw, "WATCHDOG_DOCTOR_TIMEOUT_SECONDS", 45),
             watchdog_enable_doctor_repair=_env_bool(raw, "WATCHDOG_ENABLE_DOCTOR_REPAIR", True),
             watchdog_enable_pre_repair_backup=_env_bool(raw, "WATCHDOG_ENABLE_PRE_REPAIR_BACKUP", False),

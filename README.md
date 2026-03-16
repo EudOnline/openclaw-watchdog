@@ -154,6 +154,7 @@ Important knobs include:
 - watchdog state / incident directories
 - restart and probe grace periods
 - service-level failure threshold
+- opt-in message-loop probe settings for a real transport echo check
 - notification target/channel
 - backup / rollback behavior
 - fixed rescue order (`Codex -> Claude Code -> Gemini CLI -> OpenCode -> LiteLLM -> rule-agent`)
@@ -168,6 +169,17 @@ The controlled mutation surface is intentionally narrow:
 - by default that allowlist contains only `~/.openclaw/openclaw.json` and `~/.openclaw-backup/watchdog/openclaw.survival.json`
 - editable keys use exact-or-descendant dotted-path matching, so allowing `channels` also allows `channels.qqbot.enabled`
 - rescue plans that exceed those file/key bounds are rejected during dispatch before execution, and execution re-checks the same policy before writing
+
+### Optional real message-loop probe
+
+If you want a stronger, low-false-positive conversation signal, enable the message-loop probe:
+
+- set `WATCHDOG_ENABLE_MESSAGE_LOOP_PROBE=true`
+- point `WATCHDOG_MESSAGE_LOOP_PROBE_CHANNEL` and `WATCHDOG_MESSAGE_LOOP_PROBE_TARGET` at a dedicated echo bot or test chat
+- set `WATCHDOG_MESSAGE_LOOP_PROBE_EVENTS_FILE` to a JSONL path shared by the watchdog and the OpenClaw hook
+- install the sample hook under `openclaw_hooks/message-loop-probe-v1/`
+
+When enabled, the watchdog sends a nonce-tagged probe message and only marks the conversation path ready when it observes a matching echoed nonce in hook events. This is intentionally stricter than the default heuristic probe and is designed to reduce false positives.
 
 ## Common commands
 

@@ -91,6 +91,13 @@ class FakeEngine:
             'conversation_status': 'ready',
             'service_probe_summary': 'ok',
             'conversation_probe_summary': 'ready',
+            'message_loop_probe_enabled': True,
+            'message_loop_probe_attempted': False,
+            'message_loop_probe_ready': True,
+            'message_loop_probe_sent': True,
+            'message_loop_probe_echo_received': True,
+            'message_loop_probe_cached': True,
+            'message_loop_probe_summary': 'message loop cached ready',
             'maintenance': {'enabled': False},
             'survival_mode_active': False,
             'survival_mode_exit_ready': True,
@@ -227,6 +234,20 @@ class ReportingTest(unittest.TestCase):
         self.assertEqual(report['status'], 'healthy')
         self.assertEqual(metrics['status'], 'healthy')
         self.assertEqual(status_mock.call_count, 2)
+
+    def test_report_and_metrics_include_message_loop_probe_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            engine = FakeEngine(temp_dir)
+
+            report = self._report_payload(engine)
+            metrics = self._metrics_payload(engine)
+
+        self.assertTrue(report['message_loop_probe_enabled'])
+        self.assertTrue(report['message_loop_probe_ready'])
+        self.assertEqual(report['message_loop_probe_summary'], 'message loop cached ready')
+        self.assertTrue(metrics['message_loop_probe_enabled'])
+        self.assertTrue(metrics['message_loop_probe_ready'])
+        self.assertIn('openclaw_watchdog_message_loop_probe_ready 1', prometheus_metrics_text(metrics))
 
     def test_reporting_facade_delegates_to_runtime_modules(self) -> None:
         from openclaw_watchdog import reporting

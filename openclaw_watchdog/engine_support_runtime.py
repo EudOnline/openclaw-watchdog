@@ -16,6 +16,8 @@ def prepare_state_dirs(engine) -> None:
     engine.config.watchdog_incident_index_file.parent.mkdir(parents=True, exist_ok=True)
     engine.config.watchdog_last_report_file.parent.mkdir(parents=True, exist_ok=True)
     engine.config.watchdog_last_metrics_file.parent.mkdir(parents=True, exist_ok=True)
+    if hasattr(engine.config, 'watchdog_message_loop_probe_events_file'):
+        engine.config.watchdog_message_loop_probe_events_file.parent.mkdir(parents=True, exist_ok=True)
     engine.config.watchdog_survival_config_file.parent.mkdir(parents=True, exist_ok=True)
     engine.config.watchdog_survival_state_file.parent.mkdir(parents=True, exist_ok=True)
     engine.config.watchdog_guard_manifest_file.parent.mkdir(parents=True, exist_ok=True)

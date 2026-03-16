@@ -95,6 +95,14 @@ Canonical rescue chain is fixed in code: `codex -> claude-code -> gemini-cli -> 
 - `WATCHDOG_RESCUE_EDITABLE_PATHS`
 - `WATCHDOG_RESCUE_EDITABLE_KEYS`
 
+**Optional if you want the low-false-positive V1 message-loop probe**
+
+- `WATCHDOG_ENABLE_MESSAGE_LOOP_PROBE=true`
+- `WATCHDOG_MESSAGE_LOOP_PROBE_CHANNEL`
+- `WATCHDOG_MESSAGE_LOOP_PROBE_TARGET`
+- `WATCHDOG_MESSAGE_LOOP_PROBE_REPLY_FROM`
+- `WATCHDOG_MESSAGE_LOOP_PROBE_EVENTS_FILE`
+
 **Leave conservative on the first rollout**
 
 - `WATCHDOG_ENABLE_PRE_REPAIR_BACKUP=false`
@@ -117,6 +125,13 @@ Review the output and confirm that:
 - the rescue order and available executors match the tools already installed on the host;
 - the editable path/key boundary only covers the OpenClaw files and namespaces you are willing to let rescue mutate;
 - the summary/report output is understandable enough for an operator to act on.
+
+If you enable the V1 message-loop probe, also confirm that:
+
+- the sample hook under `openclaw_hooks/message-loop-probe-v1/` is installed in OpenClaw;
+- `WATCHDOG_MESSAGE_LOOP_PROBE_EVENTS_FILE` points to the same JSONL path for both OpenClaw and the watchdog;
+- the configured probe target is a dedicated echo bot or test chat, not a human operator conversation;
+- `status --summary` shows a meaningful `msg_loop=` value instead of `off`.
 
 ### 7. Enable systemd user units only after review
 

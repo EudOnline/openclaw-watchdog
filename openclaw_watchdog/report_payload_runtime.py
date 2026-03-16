@@ -84,7 +84,12 @@ def message_report_text(report: dict[str, object]) -> str:
             f" | mutate={_list_value(report, 'rescue_mutation_scope', joiner=',')}"
             f" | learning={report.get('rescue_learning_summary', '') or 'not-run / none'}"
         ),
-        f"service_active={str(bool(report.get('service_active', False))).lower()} | probe={report.get('service_probe_summary', 'n/a')} | conv_probe={report.get('conversation_probe_summary', 'n/a')}",
+        (
+            f"service_active={str(bool(report.get('service_active', False))).lower()}"
+            f" | probe={report.get('service_probe_summary', 'n/a')}"
+            f" | conv_probe={report.get('conversation_probe_summary', 'n/a')}"
+            f" | msg_loop={(report.get('message_loop_probe_summary', '') or 'off') if report.get('message_loop_probe_enabled', False) else 'off'}"
+        ),
         f"queue：open={queue_summary.get('open_total', 0)} attention={queue_summary.get('attention_total', 0)} handled={queue_summary.get('handled_total', 0)}",
         (
             "24h recent："
@@ -205,6 +210,13 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "conversation_status": probe.conversation_status,
         "service_probe_summary": probe.service_probe_summary,
         "conversation_probe_summary": probe.conversation_probe_summary,
+        "message_loop_probe_enabled": bool(payload.get("message_loop_probe_enabled", False)),
+        "message_loop_probe_attempted": bool(payload.get("message_loop_probe_attempted", False)),
+        "message_loop_probe_ready": bool(payload.get("message_loop_probe_ready", False)),
+        "message_loop_probe_sent": bool(payload.get("message_loop_probe_sent", False)),
+        "message_loop_probe_echo_received": bool(payload.get("message_loop_probe_echo_received", False)),
+        "message_loop_probe_cached": bool(payload.get("message_loop_probe_cached", False)),
+        "message_loop_probe_summary": str(payload.get("message_loop_probe_summary", "") or ""),
         "last_event": payload.get("last_event", {}),
         "recent_event_stats": payload.get("recent_event_stats", {}),
         "incident_queue_summary": payload.get("incident_queue_summary", {}),

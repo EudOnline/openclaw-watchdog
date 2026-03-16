@@ -28,6 +28,9 @@ def render_status_summary(payload: dict[str, object]) -> str:
         )
     elif str(snapshot.get('survival_mode_last_exit_kind', '') or ''):
         survival_summary = f"last-exit={snapshot.get('survival_mode_last_exit_kind', '') or 'unknown'}"
+    message_loop_summary = ''
+    if bool(payload.get('message_loop_probe_enabled', False)):
+        message_loop_summary = str(payload.get('message_loop_probe_summary', '') or 'enabled')
     return ' | '.join(
         [
             f"status={payload.get('last_status', payload.get('status', 'unknown'))}",
@@ -42,6 +45,7 @@ def render_status_summary(payload: dict[str, object]) -> str:
             f"survival={survival_summary}",
             f"service={str(bool(payload.get('service_active', False))).lower()}",
             f"probe={payload.get('service_probe_summary', 'n/a')}",
+            f"msg_loop={message_loop_summary or 'off'}",
             f"recent=healthy:{counts.get('healthy', 0)},degraded:{counts.get('degraded', 0)},recovered:{counts.get('recovered', 0)},failed:{counts.get('failed', 0)}",
             f"incident_tail={incident_tail}",
             f"last={last_event.get('human_summary', last_event.get('summary', 'none'))}",
