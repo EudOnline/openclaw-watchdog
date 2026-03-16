@@ -38,6 +38,7 @@ This guide does not change the current production baseline. Linux + `systemd --u
 ```bash
 cp config/openclaw-watchdog.macos.env.example config/openclaw-watchdog.env
 scripts/install-openclaw-watchdog-launchd.sh
+./scripts/openclaw-watchdog-live-acceptance.sh --env config/openclaw-watchdog.env --out-dir docs/p7a-live
 ```
 
 ## Useful commands

@@ -81,10 +81,12 @@ scripts/openclaw-watchdog detect
 scripts/openclaw-watchdog check --env config/openclaw-watchdog.env
 scripts/openclaw-watchdog status --env config/openclaw-watchdog.env --summary
 scripts/openclaw-watchdog report --env config/openclaw-watchdog.env --message
-./scripts/openclaw-watchdog-live-acceptance.sh
+./scripts/openclaw-watchdog-live-acceptance.sh --env config/openclaw-watchdog.env
 ```
 
 Release evidence is not complete until live acceptance passes. Keep the generated `docs/p7a-live/` artifacts from the candidate host so the release summary can point at concrete evidence.
+
+For the macOS `launchd` path, the evidence bundle should also include successful `watchdog-launchd.txt` and `gateway-launchd.txt` captures for the documented `gui/$UID` labels.
 
 ## 4. Release packaging
 

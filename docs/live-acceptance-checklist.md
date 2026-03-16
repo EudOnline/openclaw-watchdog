@@ -20,12 +20,18 @@ Before running the full acceptance script on a new host, the operator quick path
 The acceptance goal is to validate the OpenClaw fallback system that is already installed and configured, not to bootstrap missing software onto the host.
 
 ```bash
-./scripts/openclaw-watchdog-live-acceptance.sh
+./scripts/openclaw-watchdog-live-acceptance.sh --env config/openclaw-watchdog.env
 ```
 
 Default output directory:
 
 - `docs/p7a-live/`
+
+Optional override:
+
+```bash
+./scripts/openclaw-watchdog-live-acceptance.sh --env config/openclaw-watchdog.env --out-dir docs/p7a-live
+```
 
 ## Files produced
 
@@ -38,6 +44,8 @@ Default output directory:
 - `incidents-list.txt`
 - `incidents-current.json`
 - `openclaw-status.txt`
+- `watchdog-launchd.txt` on macOS `launchd` hosts
+- `gateway-launchd.txt` on macOS `launchd` hosts
 - `acceptance-summary.json`
 - `acceptance-summary.txt`
 
@@ -66,6 +74,7 @@ The script automatically validates these consistency checks:
 19. `metrics.json` exposes the fallback-first, rescue-chain, drift-guard, and last-good fields
 20. `metrics.json` still exposes the current-incident operator fields (`current_incident_owner`, `current_incident_owner_assigned`, `current_incident_acknowledged`, `current_incident_notes_count`)
 21. `report.json` and `metrics.json` agree on the winning rescue executor, plan status, and rescue tier
+22. on macOS `launchd` hosts, `watchdog-launchd.txt` and `gateway-launchd.txt` are captured successfully
 
 If any check fails, the script exits non-zero.
 
@@ -82,6 +91,7 @@ After the script passes, quickly review:
 - `metrics.prom` is scrape-ready text and includes the fallback gauges
 - `incidents-list.txt` still matches the current healthy/incident window
 - `openclaw-status.txt` may include plugin/banner lines before the status card; this is acceptable as long as the watchdog commands above remain clean
+- on macOS `launchd` hosts, `watchdog-launchd.txt` and `gateway-launchd.txt` should show successful `launchctl print` captures for both labels
 
 ## Pass criteria
 
