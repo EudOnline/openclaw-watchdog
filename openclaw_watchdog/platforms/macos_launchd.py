@@ -27,6 +27,8 @@ class MacosLaunchdPlatform:
             ['launchctl', 'print', self.launchd_target(engine)],
             timeout=15,
         )
+        if result.returncode != 0:
+            return {}
         info: dict[str, str] = {}
         state_match = re.search(r'^\s*state\s*=\s*(\S+)', result.output, re.MULTILINE)
         pid_match = re.search(r'^\s*pid\s*=\s*(\d+)', result.output, re.MULTILINE)

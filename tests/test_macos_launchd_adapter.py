@@ -51,6 +51,22 @@ class MacosLaunchdAdapterTests(unittest.TestCase):
             },
         )
 
+    def test_describe_service_returns_empty_info_when_launchctl_print_fails(self) -> None:
+        from openclaw_watchdog.platforms.macos_launchd import MacosLaunchdPlatform
+
+        engine = MacosLaunchdEngineDouble()
+        engine._responses[
+            ('launchctl', 'print', 'gui/501/com.openclaw.gateway')
+        ] = _result(
+            ['launchctl'],
+            returncode=113,
+            stdout='''\nstate = running\npid = 321\n''',
+            stderr='Could not find service',
+        )
+        adapter = MacosLaunchdPlatform(uid=501)
+
+        self.assertEqual(adapter.describe_service(engine), {})
+
     def test_listener_pids_reads_lsof_output(self) -> None:
         from openclaw_watchdog.platforms.macos_launchd import MacosLaunchdPlatform
 
