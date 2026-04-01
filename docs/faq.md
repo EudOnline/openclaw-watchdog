@@ -36,6 +36,31 @@ If a tier is not installed or not configured, watchdog skips it and continues to
 
 The included sample deployment path is oriented around Linux with `systemd --user`. The core Python code and rehearsal harness are useful beyond that, but the documented operational path currently centers on Linux hosts.
 
+## How cautious is the watchdog during planned OpenClaw upgrades?
+
+By default it is intentionally patient. The example config and built-in defaults now favor showing `degraded` while delaying entry into failure-driven repair. On Linux, the bundled timer runs every 5 minutes, and the default `WATCHDOG_SERVICE_LEVEL_FAILURE_THRESHOLD=6` means a planned rollout can stay degraded for about 30 minutes before the watchdog escalates into the more aggressive failure path.
+
+If your rollout windows are shorter and you want faster unattended intervention, you can lower the service retry grace and failure threshold. If planned upgrades can legitimately take 20-30 minutes, keep the defaults or make them even more tolerant.
+
+## What keeps model failover from switching forever?
+
+Two guards bound the automatic model rewrite path:
+
+- `WATCHDOG_MODEL_HTTP_ERROR_COOLDOWN_SECONDS` prevents another switch immediately after a recent apply;
+- `WATCHDOG_MODEL_FAILOVER_MAX_APPLIES_PER_DAY` caps the number of automatic rewrites in a rolling 24-hour window and reports `rate-limited` when the cap is reached.
+
+Operators can watch this path through `status --summary`, `report --message`, `report --json`, `metrics --json`, and `metrics --prometheus`.
+
+## How do I turn model failover off quickly?
+
+Set:
+
+```bash
+WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER="false"
+```
+
+Then restart or reload the watchdog service. Future runs will stop rewriting the OpenClaw primary model, while the rest of the deterministic recovery chain stays available.
+
 ## Where should I start?
 
 A good reading order is:

@@ -46,6 +46,7 @@ EXTENDED_SCENARIOS=(
   watchdog-metrics-open-incident
   watchdog-metrics-resolved
   watchdog-metrics-operator-context
+  watchdog-model-http-error-failover
   watchdog-report-operator-attention
   watchdog-report-operator-attention-cleared
   watchdog-incident-attention-filter
@@ -244,6 +245,9 @@ case "$SCENARIO" in
     ;;
   watchdog-metrics-operator-context)
     run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-metrics-operator-context.assertions.json bash rehearsal/scripts/run-metrics-flow.sh operator-open "$ENV_FILE"
+    ;;
+  watchdog-model-http-error-failover)
+    run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-model-http-error-failover.assertions.json env WATCHDOG_ENABLE_CONVERSATION_PROBE=true WATCHDOG_ENABLE_SURVIVABILITY_FLOW=true WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER=true bash rehearsal/scripts/run-survivability-flow.sh "$SCENARIO" "$ENV_FILE"
     ;;
   watchdog-report-operator-attention)
     run_json "$SCENARIO" 0 rehearsal/scenarios/watchdog-report-operator-attention.assertions.json bash rehearsal/scripts/run-report-attention-flow.sh open-unowned "$ENV_FILE"

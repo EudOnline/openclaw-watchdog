@@ -49,6 +49,7 @@ EXTENDED_SCENARIOS = [
     'watchdog-metrics-open-incident',
     'watchdog-metrics-resolved',
     'watchdog-metrics-operator-context',
+    'watchdog-model-http-error-failover',
     'watchdog-report-operator-attention',
     'watchdog-report-operator-attention-cleared',
     'watchdog-incident-attention-filter',

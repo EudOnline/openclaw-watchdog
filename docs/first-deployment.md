@@ -34,6 +34,7 @@ Keep these values off for the first live deployment:
 - `WATCHDOG_ENABLE_PRE_REPAIR_BACKUP=false`
 - `WATCHDOG_ENABLE_SURVIVABILITY_FLOW=false`
 - `WATCHDOG_ENABLE_SURVIVAL_MODE=false`
+- `WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER=false`
 
 ### 3. Run host detection first
 
@@ -108,6 +109,27 @@ Canonical rescue chain is fixed in code: `codex -> claude-code -> gemini-cli -> 
 - `WATCHDOG_ENABLE_PRE_REPAIR_BACKUP=false`
 - `WATCHDOG_ENABLE_SURVIVABILITY_FLOW=false`
 - `WATCHDOG_ENABLE_SURVIVAL_MODE=false`
+- `WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER=false`
+
+**Keep upgrade windows tolerant unless you need aggressive repair**
+
+- the default example values now use `WATCHDOG_ACTIVE_NO_LISTENER_GRACE_SECONDS=30`
+- the default example values now use `WATCHDOG_SERVICE_LEVEL_RETRY_GRACE_SECONDS=60`
+- the default example values now use `WATCHDOG_SERVICE_LEVEL_FAILURE_THRESHOLD=6`
+- with the bundled Linux timer cadence of 5 minutes, that threshold means the watchdog can show degraded status during a restart or rollout for roughly 30 minutes before it escalates into failure-driven repair
+- prefer this more patient profile if planned OpenClaw upgrades can legitimately take 20-30 minutes
+- only lower these values after you have live evidence that your rollout path is consistently faster and you want more aggressive unattended intervention
+
+### 5a. Stage the model-failover rollout separately
+
+When you are ready to validate automatic primary-model rotation, widen it in this order instead of flipping it on everywhere:
+
+1. Keep `WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER=false` and review the reporting surfaces on one healthy host.
+2. Enable `WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER=true` on one low-risk host that has a primary plus fallback model list in the OpenClaw config.
+3. Confirm `status --summary`, `report --message`, `report --json`, `metrics --json`, and `metrics --prometheus` all expose the same `model_http_error_*` and `model_failover_last_*` story.
+4. Run `./scripts/openclaw-watchdog-live-acceptance.sh` and keep the artifacts before enabling the feature on more hosts.
+
+Keep the default `WATCHDOG_MODEL_FAILOVER_MAX_APPLIES_PER_DAY=3` unless you have a reason to allow more automatic rewrites on the same host.
 
 ### 6. Run read-only checks before enabling the timer
 
@@ -133,6 +155,12 @@ If you enable the V1 message-loop probe, also confirm that:
 - the configured probe target is a dedicated echo bot or test chat, not a human operator conversation;
 - `status --summary` shows a meaningful `msg_loop=` value instead of `off`.
 
+If you enable model failover on this first validation host, also confirm that:
+
+- OpenClaw already has a valid `agents.defaults.model.primary` plus at least one fallback;
+- `status --summary` stays readable before any failover event and adds `model_failover=`, `non200=`, and `to=` only when the signal becomes actionable;
+- `report --message` and `report --json` expose the same `model_http_error_*` and `model_failover_last_*` fields as `metrics --json`.
+
 ### 7. Enable systemd user units only after review
 
 ```bash
@@ -157,6 +185,14 @@ Experimental macOS note:
 Use this only after the earlier read-only checks look sane. The live acceptance pass is still read-only from the operator perspective and is meant to confirm that `status`, `report`, `metrics`, and incident surfaces agree about the current fallback state.
 
 For release signoff, keep the generated `docs/p7a-live/` artifacts from the candidate host and reference them from the current release notes draft instead of relying on memory.
+
+If you need to stop the model-failover rollout after validation, set:
+
+```bash
+WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER="false"
+```
+
+Then restart or reload the watchdog so later runs stop rotating the OpenClaw primary model.
 
 ### 9. Confirm the timer-backed deployment
 

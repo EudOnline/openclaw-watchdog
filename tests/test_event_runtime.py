@@ -81,6 +81,40 @@ class EventRuntimeTests(unittest.TestCase):
         self.assertEqual(json_payload['rollback_reason'], 'config invalid')
         self.assertEqual(history_lines, [json_payload])
 
+    def test_write_event_persists_model_failover_fields_in_json_and_history(self) -> None:
+        from openclaw_watchdog import event_runtime
+
+        with TemporaryDirectory() as temp_dir:
+            engine = EventRuntimeEngineDouble(temp_dir)
+            engine._run_state.update(
+                {
+                    'last_recovery_strategy': 'model-failover',
+                    'last_recovery_path': 'restart -> model-failover',
+                    'model_http_error_count': 3,
+                    'model_http_error_latest_status': 503,
+                    'model_failover_last_status': 'applied',
+                    'model_failover_last_from_model': 'openai/gpt-4.1',
+                    'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+                    'model_failover_last_summary': 'switched primary model openai/gpt-4.1 -> anthropic/claude-sonnet-4',
+                }
+            )
+
+            event_runtime.write_event(engine, 'recovered', 'model failover restored minimal usability')
+
+            json_payload = json.loads(engine.sibling_json_path(engine.config.watchdog_event_file).read_text(encoding='utf-8'))
+            history_lines = [
+                json.loads(line)
+                for line in engine.config.watchdog_event_history_file.read_text(encoding='utf-8').splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(json_payload['model_http_error_count'], 3)
+        self.assertEqual(json_payload['model_http_error_latest_status'], 503)
+        self.assertEqual(json_payload['model_failover_last_status'], 'applied')
+        self.assertEqual(json_payload['model_failover_last_from_model'], 'openai/gpt-4.1')
+        self.assertEqual(json_payload['model_failover_last_to_model'], 'anthropic/claude-sonnet-4')
+        self.assertEqual(history_lines, [json_payload])
+
 
 if __name__ == '__main__':
     unittest.main()

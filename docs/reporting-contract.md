@@ -14,6 +14,11 @@ This guidance applies to:
 
 Human-readable text such as `report --message` and `status --summary` should stay readable for operators, but they are not treated as strict API surfaces.
 
+For the model-failover rollout, operators should still expect these human-readable cues to stay stable enough to scan quickly:
+
+- `status --summary` should surface `model_failover=<status>`, `non200=<count>`, and `to=<target>` when the signal is actionable;
+- `report --message` should include `model_failover=status=...` and `recent_non_200=...`.
+
 ## Change discipline
 
 When changing report or metrics output:
@@ -33,6 +38,14 @@ These top-level `report --json` fields are treated as the current operational mi
 - `conversation_status`
 - `conversation_ready`
 - `minimal_usable_ready`
+- `model_http_error_count`
+- `model_http_error_latest_status`
+- `model_http_error_latest_at`
+- `model_failover_last_status`
+- `model_failover_last_applied_at`
+- `model_failover_last_from_model`
+- `model_failover_last_to_model`
+- `model_failover_last_summary`
 - `last_recovery_strategy`
 - `last_recovery_path`
 - `last_recovery_action_count`
@@ -66,6 +79,14 @@ These top-level `metrics --json` fields are treated as the current operational m
 - `service_active`
 - `conversation_ready`
 - `minimal_usable_ready`
+- `model_http_error_count`
+- `model_http_error_latest_status`
+- `model_http_error_latest_at`
+- `model_failover_last_status`
+- `model_failover_last_applied_at`
+- `model_failover_last_from_model`
+- `model_failover_last_to_model`
+- `model_failover_last_summary`
 - `survival_mode_active`
 - `survival_mode_exit_ready`
 - `last_recovery_action_count`
@@ -93,10 +114,22 @@ The Prometheus exposition should preserve metric names that are likely to be scr
 - `openclaw_watchdog_service_active`
 - `openclaw_watchdog_conversation_ready`
 - `openclaw_watchdog_minimal_usable_ready`
+- `openclaw_watchdog_model_http_error_count`
+- `openclaw_watchdog_model_http_error_latest_status`
+- `openclaw_watchdog_model_failover_last_applied_timestamp`
 - `openclaw_watchdog_survival_mode_active`
 - `openclaw_watchdog_last_recovery_action_count`
 - `openclaw_watchdog_config_drift_detected`
 - `openclaw_watchdog_current_incident_open`
+
+## Model failover confirmation checklist
+
+When model failover is enabled on a host, operators should verify the same story across all reporting surfaces:
+
+- `report --json`: `model_http_error_count`, `model_http_error_latest_status`, `model_http_error_latest_at`, `model_failover_last_status`, `model_failover_last_applied_at`, `model_failover_last_from_model`, `model_failover_last_to_model`, `model_failover_last_summary`
+- `metrics --json`: the same `model_http_error_*` and `model_failover_last_*` fields
+- `metrics --prometheus`: `openclaw_watchdog_model_http_error_count`, `openclaw_watchdog_model_http_error_latest_status`, `openclaw_watchdog_model_failover_last_applied_timestamp`
+- `status --summary`: the compact failover segment only when the signal is meaningful for an operator
 
 ## Intentionally unprotected details
 

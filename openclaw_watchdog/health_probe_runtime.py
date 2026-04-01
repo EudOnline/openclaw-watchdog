@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 
 from openclaw_watchdog import doctor_runtime
+from openclaw_watchdog import engine_support_runtime
 from openclaw_watchdog import message_probe_runtime
 from openclaw_watchdog import operator_snapshot
 from openclaw_watchdog import service_runtime
@@ -288,7 +289,14 @@ def live_probe(engine, *, include_doctor: bool, apply_grace: bool = True) -> dic
         payload.setdefault("message_loop_probe_echo_received", False)
         payload.setdefault("message_loop_probe_cached", False)
         payload.setdefault("message_loop_probe_nonce", "")
-        payload.setdefault("message_loop_probe_checked_at", engine.now_iso())
+        payload.setdefault(
+            "message_loop_probe_checked_at",
+            str(
+                payload.get("conversation_probe_checked_at")
+                or payload.get("service_probe_checked_at")
+                or engine_support_runtime.now_iso(engine)
+            ),
+        )
         payload.setdefault("message_loop_probe_events_file", str(getattr(engine.config, 'watchdog_message_loop_probe_events_file', '') or ''))
         if message_loop_enabled and not bool(payload["process_layer_healthy"]):
             payload.setdefault("message_loop_probe_summary", "skipped: process layer not healthy")

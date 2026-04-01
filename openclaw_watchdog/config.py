@@ -121,6 +121,13 @@ class Config:
     watchdog_service_level_timeout_seconds: int
     watchdog_service_level_retry_grace_seconds: int
     watchdog_service_level_failure_threshold: int
+    watchdog_enable_model_http_error_failover: bool
+    watchdog_model_http_error_threshold: int
+    watchdog_model_http_error_window_minutes: int
+    watchdog_model_http_error_cooldown_seconds: int
+    watchdog_model_failover_max_applies_per_day: int
+    watchdog_model_http_error_logs_limit: int
+    watchdog_model_http_error_log_max_bytes: int
     watchdog_enable_survivability_flow: bool
     watchdog_enable_survival_mode: bool
     watchdog_survival_config_file: Path
@@ -240,14 +247,21 @@ class Config:
             watchdog_notify_on_recovery=_env_bool(raw, "WATCHDOG_NOTIFY_ON_RECOVERY", True),
             watchdog_notify_on_failure=_env_bool(raw, "WATCHDOG_NOTIFY_ON_FAILURE", True),
             watchdog_restart_wait_seconds=_env_int(raw, "WATCHDOG_RESTART_WAIT_SECONDS", 12),
-            watchdog_active_no_listener_grace_seconds=max(0, _env_int(raw, "WATCHDOG_ACTIVE_NO_LISTENER_GRACE_SECONDS", 3)),
+            watchdog_active_no_listener_grace_seconds=max(0, _env_int(raw, "WATCHDOG_ACTIVE_NO_LISTENER_GRACE_SECONDS", 30)),
             watchdog_enable_service_level_probe=_env_bool(raw, "WATCHDOG_ENABLE_SERVICE_LEVEL_PROBE", True),
             watchdog_enable_conversation_probe=_env_bool(raw, "WATCHDOG_ENABLE_CONVERSATION_PROBE", True),
             watchdog_primary_conversation_targets=_env_csv(raw, "WATCHDOG_PRIMARY_CONVERSATION_TARGETS", "gateway,channels"),
             watchdog_minimal_usable_allow_optional_failures=_env_bool(raw, "WATCHDOG_MINIMAL_USABLE_ALLOW_OPTIONAL_FAILURES", True),
             watchdog_service_level_timeout_seconds=max(1, _env_int(raw, "WATCHDOG_SERVICE_LEVEL_TIMEOUT_SECONDS", 12)),
-            watchdog_service_level_retry_grace_seconds=max(0, _env_int(raw, "WATCHDOG_SERVICE_LEVEL_RETRY_GRACE_SECONDS", 8)),
-            watchdog_service_level_failure_threshold=max(1, _env_int(raw, "WATCHDOG_SERVICE_LEVEL_FAILURE_THRESHOLD", 2)),
+            watchdog_service_level_retry_grace_seconds=max(0, _env_int(raw, "WATCHDOG_SERVICE_LEVEL_RETRY_GRACE_SECONDS", 60)),
+            watchdog_service_level_failure_threshold=max(1, _env_int(raw, "WATCHDOG_SERVICE_LEVEL_FAILURE_THRESHOLD", 6)),
+            watchdog_enable_model_http_error_failover=_env_bool(raw, "WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER", False),
+            watchdog_model_http_error_threshold=max(1, _env_int(raw, "WATCHDOG_MODEL_HTTP_ERROR_THRESHOLD", 3)),
+            watchdog_model_http_error_window_minutes=max(1, _env_int(raw, "WATCHDOG_MODEL_HTTP_ERROR_WINDOW_MINUTES", 15)),
+            watchdog_model_http_error_cooldown_seconds=max(0, _env_int(raw, "WATCHDOG_MODEL_HTTP_ERROR_COOLDOWN_SECONDS", 1800)),
+            watchdog_model_failover_max_applies_per_day=max(0, _env_int(raw, "WATCHDOG_MODEL_FAILOVER_MAX_APPLIES_PER_DAY", 3)),
+            watchdog_model_http_error_logs_limit=max(20, _env_int(raw, "WATCHDOG_MODEL_HTTP_ERROR_LOGS_LIMIT", 200)),
+            watchdog_model_http_error_log_max_bytes=max(4096, _env_int(raw, "WATCHDOG_MODEL_HTTP_ERROR_LOG_MAX_BYTES", 262144)),
             watchdog_enable_survivability_flow=_env_bool(raw, "WATCHDOG_ENABLE_SURVIVABILITY_FLOW", False),
             watchdog_enable_survival_mode=_env_bool(raw, "WATCHDOG_ENABLE_SURVIVAL_MODE", False),
             watchdog_survival_config_file=_env_path(raw, "WATCHDOG_SURVIVAL_CONFIG_FILE", "~/.openclaw-backup/watchdog/openclaw.survival.json"),

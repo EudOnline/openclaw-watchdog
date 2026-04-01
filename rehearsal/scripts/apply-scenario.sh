@@ -69,6 +69,59 @@ write_last_good_manifest() {
   cat > "$WATCHDOG_LAST_GOOD_MANIFEST_FILE"
 }
 
+seed_model_http_error_failover_fixture() {
+  python3 - <<'PY' "$OPENCLAW_CONFIG"
+from __future__ import annotations
+
+import json
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+config = json.loads(config_path.read_text(encoding="utf-8"))
+model = (
+    config.setdefault("agents", {})
+    .setdefault("defaults", {})
+    .setdefault("model", {})
+)
+model["primary"] = "openai/gpt-4.1"
+model["fallbacks"] = ["anthropic/claude-sonnet-4", "openai/gpt-4o"]
+config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+log_path = Path("rehearsal/runtime/logs/openclaw-runtime.log")
+log_path.parent.mkdir(parents=True, exist_ok=True)
+now = datetime.now().astimezone()
+events = [
+    {
+        "timestamp": (now - timedelta(minutes=3)).isoformat(timespec="seconds"),
+        "status": 503,
+        "model": "openai/gpt-4.1",
+        "provider": "openai",
+        "message": "upstream model returned HTTP 503 during chat/completions",
+    },
+    {
+        "timestamp": (now - timedelta(minutes=2)).isoformat(timespec="seconds"),
+        "status": 502,
+        "model": "openai/gpt-4.1",
+        "provider": "openai",
+        "message": "provider gateway reported status=502 for model request",
+    },
+    {
+        "timestamp": (now - timedelta(minutes=1)).isoformat(timespec="seconds"),
+        "status": 429,
+        "model": "openai/gpt-4.1",
+        "provider": "openai",
+        "message": "model upstream rate limited request with HTTP 429",
+    },
+]
+log_path.write_text(
+    "\n".join(json.dumps(item, ensure_ascii=False, sort_keys=True) for item in events) + "\n",
+    encoding="utf-8",
+)
+PY
+}
+
 fingerprint_file() {
   python3 - <<'PY' "$1"
 from __future__ import annotations
@@ -699,6 +752,33 @@ EOF
   "restart_mode": "healthy",
   "service_active": false,
   "service_level_reachable": true
+}
+EOF
+    ;;
+  watchdog-model-http-error-failover)
+    bash rehearsal/scripts/install-openclaw-shim.sh >/dev/null
+    write_valid_config
+    seed_model_http_error_failover_fixture
+    write_state <<'EOF'
+{
+  "channel_summary": ["QQ Bot: configured", "Feishu: configured"],
+  "conversation_ready": false,
+  "conversation_summary": "model failover should rotate to the next provider and restore the minimal path",
+  "doctor_fail_message": "",
+  "doctor_ok_message": "Doctor OK",
+  "listener_pids": [],
+  "main_pid": "0",
+  "minimal_usable_ready": false,
+  "next_pid": 4978,
+  "plugin_install_fails": false,
+  "plugins": ["@sliverp/qqbot@latest"],
+  "repair_fixes_invalid_config": false,
+  "repair_message": "SHOULD_NOT_RUN_DOCTOR_REPAIR",
+  "restart_mode": "inactive",
+  "restart_mode_sequence": ["inactive", "healthy"],
+  "restart_profile_sequence": ["down", "minimal"],
+  "service_active": false,
+  "service_level_reachable": false
 }
 EOF
     ;;

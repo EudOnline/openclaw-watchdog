@@ -33,8 +33,15 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(config.watchdog_backup_script, Path('./tools/openclaw-backup.js').expanduser())
         self.assertEqual(config.watchdog_backup_env_file, Path('./config/openclaw-backup.env').expanduser())
         self.assertEqual(config.watchdog_restart_wait_seconds, 12)
+        self.assertEqual(config.watchdog_active_no_listener_grace_seconds, 30)
         self.assertEqual(config.watchdog_service_level_timeout_seconds, 12)
-        self.assertEqual(config.watchdog_service_level_retry_grace_seconds, 8)
+        self.assertEqual(config.watchdog_service_level_retry_grace_seconds, 60)
+        self.assertEqual(config.watchdog_service_level_failure_threshold, 6)
+        self.assertFalse(config.watchdog_enable_model_http_error_failover)
+        self.assertEqual(config.watchdog_model_http_error_threshold, 3)
+        self.assertEqual(config.watchdog_model_http_error_window_minutes, 15)
+        self.assertEqual(config.watchdog_model_http_error_cooldown_seconds, 1800)
+        self.assertEqual(config.watchdog_model_failover_max_applies_per_day, 3)
         self.assertEqual(config.watchdog_codex_workdir, expected_home)
         self.assertEqual(config.watchdog_claude_code_workdir, expected_home)
         self.assertEqual(config.watchdog_gemini_cli_workdir, expected_home)
@@ -148,6 +155,31 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(config.watchdog_opencode_bin, 'opencode-custom')
         self.assertEqual(config.watchdog_opencode_workdir, Path(temp_home) / 'opencode-work')
         self.assertEqual(config.watchdog_opencode_timeout_seconds, 43)
+
+    def test_parses_model_http_error_failover_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_home:
+            config = self._load_with_home(
+                temp_home,
+                '\n'.join(
+                    [
+                        'WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER=true',
+                        'WATCHDOG_MODEL_HTTP_ERROR_THRESHOLD=4',
+                        'WATCHDOG_MODEL_HTTP_ERROR_WINDOW_MINUTES=20',
+                        'WATCHDOG_MODEL_HTTP_ERROR_COOLDOWN_SECONDS=2700',
+                        'WATCHDOG_MODEL_HTTP_ERROR_LOGS_LIMIT=300',
+                        'WATCHDOG_MODEL_HTTP_ERROR_LOG_MAX_BYTES=131072',
+                        'WATCHDOG_MODEL_FAILOVER_MAX_APPLIES_PER_DAY=5',
+                    ]
+                ),
+            )
+
+        self.assertTrue(config.watchdog_enable_model_http_error_failover)
+        self.assertEqual(config.watchdog_model_http_error_threshold, 4)
+        self.assertEqual(config.watchdog_model_http_error_window_minutes, 20)
+        self.assertEqual(config.watchdog_model_http_error_cooldown_seconds, 2700)
+        self.assertEqual(config.watchdog_model_http_error_logs_limit, 300)
+        self.assertEqual(config.watchdog_model_http_error_log_max_bytes, 131072)
+        self.assertEqual(config.watchdog_model_failover_max_applies_per_day, 5)
 
 
 

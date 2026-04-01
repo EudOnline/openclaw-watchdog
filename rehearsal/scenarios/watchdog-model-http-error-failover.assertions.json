@@ -1,0 +1,32 @@
+{
+  "equals": {
+    "outcome.exit_code": 0,
+    "outcome.state": "recovered",
+    "status.last_recovery_strategy": "model-failover",
+    "status.run_state.last_recovery_strategy": "model-failover",
+    "status.model_failover_last_status": "applied",
+    "status.model_http_error_count": 3,
+    "metrics.model_http_error_count": 3,
+    "metrics.model_failover_last_from_model": "openai/gpt-4.1",
+    "metrics.model_failover_last_to_model": "anthropic/claude-sonnet-4",
+    "metrics.model_failover_last_status": "applied"
+  },
+  "contains": {
+    "report.message_text": "model_failover=status=applied"
+  },
+  "file_contains": {
+    "rehearsal/runtime/home/.openclaw/openclaw.json": [
+      "\"primary\": \"anthropic/claude-sonnet-4\"",
+      "\"fallbacks\": [",
+      "\"openai/gpt-4.1\""
+    ],
+    "rehearsal/runtime/watchdog/watchdog.log": [
+      "switching primary model openai/gpt-4.1 -> anthropic/claude-sonnet-4"
+    ]
+  },
+  "file_not_contains": {
+    "rehearsal/runtime/watchdog/watchdog.log": [
+      "running openclaw doctor --repair"
+    ]
+  }
+}

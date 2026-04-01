@@ -19,12 +19,18 @@ The `bootstrap` command is now a read-only readiness inspector. It reports execu
 When `run-once` enters remediation, it follows one deterministic sequence before any model-assisted rescue is allowed:
 
 1. `restart`
-2. `rollback` to the last known good snapshot
-3. `survival` mode
-4. `doctor`
-5. rescue dispatch
+2. guarded `model-failover` of the configured OpenClaw primary model after repeated recent model HTTP non-200 failures
+3. `rollback` to the last known good snapshot
+4. `survival` mode
+5. `doctor`
+6. rescue dispatch
 
 This ordering is intentional: cheap, bounded, reversible steps happen first; broader or more opinionated repair moves happen later. The watchdog no longer tries to preserve old compatibility branches.
+
+The `model-failover` step is additionally bounded by two operator-facing rails:
+
+- cooldown still prevents immediate repeated switches after a recent apply;
+- `WATCHDOG_MODEL_FAILOVER_MAX_APPLIES_PER_DAY` stops further automatic rewrites after the configured 24-hour cap and reports `rate-limited` instead of silently churning the model list.
 
 ## 3. Rescue dispatch order
 
@@ -70,7 +76,24 @@ During and after recovery, the operator should inspect these surfaces together:
 
 The `status`, `report`, and `metrics` outputs now share one operator snapshot for the rescue-chain fields, so attempt order, rejected executors, learning summary, and mutation scope stay aligned.
 
-## 7. Internal ownership after the refactor
+For the model-failover path specifically, confirm these fields together:
+
+- `status --summary`: `model_failover=<status>`, `non200=<count>`, and `to=<target>` when the signal is actionable;
+- `report --message`: `model_failover=status=...` plus `recent_non_200=...`;
+- `report --json` and `metrics --json`: `model_http_error_*` and `model_failover_last_*`;
+- `metrics --prometheus`: `openclaw_watchdog_model_http_error_count`, `openclaw_watchdog_model_http_error_latest_status`, and `openclaw_watchdog_model_failover_last_applied_timestamp`.
+
+## 7. Fast rollback for model failover
+
+If operators need to stop automatic model rotation during an incident or rollout:
+
+```bash
+WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER="false"
+```
+
+After the watchdog service restarts or reloads with that env value, future runs stop rewriting the OpenClaw model primary and fall back to the rest of the deterministic repair chain.
+
+## 8. Internal ownership after the refactor
 
 The fallback system keeps `WatchdogEngine` as the composition root, but the detailed rescue/incident state handling is now delegated:
 

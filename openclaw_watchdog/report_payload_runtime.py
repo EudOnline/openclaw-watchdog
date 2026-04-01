@@ -61,6 +61,19 @@ def _rescue_fields(run_state: RunStateSnapshot) -> dict[str, object]:
     }
 
 
+def _model_failover_fields(run_state: RunStateSnapshot) -> dict[str, object]:
+    return {
+        'model_http_error_count': run_state.model_http_error_count,
+        'model_http_error_latest_at': run_state.model_http_error_latest_at,
+        'model_http_error_latest_status': run_state.model_http_error_latest_status,
+        'model_failover_last_applied_at': run_state.model_failover_last_applied_at,
+        'model_failover_last_from_model': run_state.model_failover_last_from_model,
+        'model_failover_last_to_model': run_state.model_failover_last_to_model,
+        'model_failover_last_status': run_state.model_failover_last_status,
+        'model_failover_last_summary': run_state.model_failover_last_summary,
+    }
+
+
 def message_report_text(report: dict[str, object]) -> str:
     recent_stats = report.get("recent_event_stats", {})
     counts = recent_stats.get("counts", {}) if isinstance(recent_stats, dict) else {}
@@ -83,6 +96,13 @@ def message_report_text(report: dict[str, object]) -> str:
             f" | rejected={_list_value(report, 'rescue_rejected_executors', joiner=',')}"
             f" | mutate={_list_value(report, 'rescue_mutation_scope', joiner=',')}"
             f" | learning={report.get('rescue_learning_summary', '') or 'not-run / none'}"
+        ),
+        (
+            f"model_failover=status={report.get('model_failover_last_status', 'not-run') or 'not-run'}"
+            f" | recent_non_200={int(report.get('model_http_error_count', 0) or 0)}"
+            f" | latest_status={int(report.get('model_http_error_latest_status', 0) or 0)}"
+            f" | from={report.get('model_failover_last_from_model', '') or 'none'}"
+            f" | to={report.get('model_failover_last_to_model', '') or 'none'}"
         ),
         (
             f"service_active={str(bool(report.get('service_active', False))).lower()}"
@@ -246,6 +266,7 @@ def report_payload(engine, *, incident_limit: int = 5) -> dict[str, object]:
         "survival_mode_last_exit_reason": str(payload.get("survival_mode_last_exit_reason", "") or ""),
         "survival_mode_last_exit_kind": str(payload.get("survival_mode_last_exit_kind", "") or ""),
         "survival_mode_last_exit_summary": str(payload.get("survival_mode_last_exit_summary", "") or ""),
+        **_model_failover_fields(run_state),
         "last_recovery_strategy": run_state.last_recovery_strategy,
         "last_recovery_path": run_state.last_recovery_path,
         "last_recovery_action_count": run_state.last_recovery_action_count,

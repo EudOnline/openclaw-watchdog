@@ -34,6 +34,16 @@ def incident_operator_summary(engine, *, summary: str, active: str, main_pid: st
         f'last_recovery_strategy={engine.ctx.last_recovery_strategy}',
         f'last_recovery_path={_recovery_path_text(engine)}',
     ]
+    model_failover_status = str(run_state.get('model_failover_last_status', 'not-run') or 'not-run')
+    model_http_error_count = int(run_state.get('model_http_error_count', 0) or 0)
+    model_failover_from = str(run_state.get('model_failover_last_from_model', '') or '')
+    model_failover_to = str(run_state.get('model_failover_last_to_model', '') or '')
+    actionable_failover_states = {'applied', 'failed', 'cooldown', 'not-configured'}
+    if model_failover_status in actionable_failover_states or model_http_error_count > 0 or model_failover_to:
+        lines.append(f'model_failover_last_status={model_failover_status}')
+        lines.append(f'model_http_error_count={model_http_error_count}')
+        if model_failover_from or model_failover_to:
+            lines.append(f"model_failover_switch={model_failover_from or 'unknown'} -> {model_failover_to or 'unknown'}")
     return '\n'.join(lines) + '\n'
 
 

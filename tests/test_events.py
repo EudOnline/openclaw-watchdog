@@ -53,6 +53,45 @@ class EventsTest(unittest.TestCase):
         self.assertNotIn('codex', payload)
         self.assertNotIn('opencode_fallback', payload)
 
+    def test_build_event_payload_preserves_model_failover_attribution(self) -> None:
+        payload = build_event_payload(
+            run_ts='2026-03-10 12:05:00 UTC',
+            status='recovered',
+            summary='model failover restored minimal usability',
+            run_state={
+                'health_level': 'degraded',
+                'current_mode': 'degraded',
+                'conversation_ready': False,
+                'minimal_usable_ready': True,
+                'conversation_status': 'minimal',
+                'conversation_probe_summary': 'minimal ready',
+                'last_recovery_strategy': 'model-failover',
+                'last_recovery_path': 'restart -> model-failover',
+                'last_recovery_action_count': 2,
+                'last_recovery_restored_conversation': True,
+                'model_http_error_count': 3,
+                'model_http_error_latest_status': 503,
+                'model_failover_last_status': 'applied',
+                'model_failover_last_from_model': 'openai/gpt-4.1',
+                'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+                'model_failover_last_summary': 'switched primary model openai/gpt-4.1 -> anthropic/claude-sonnet-4',
+            },
+            rollback_occurred=False,
+            rollback_summary_file='state/last-rollback-summary.txt',
+            rollback_summary_archive_file='',
+            rollback_broken_config_file='',
+            pre_repair_backup_result='created',
+            consecutive_failures=1,
+            incident_id='incident-77',
+            incident_dir='state/incidents/incident-77',
+        )
+
+        self.assertEqual(payload['model_http_error_count'], 3)
+        self.assertEqual(payload['model_http_error_latest_status'], 503)
+        self.assertEqual(payload['model_failover_last_status'], 'applied')
+        self.assertEqual(payload['model_failover_last_from_model'], 'openai/gpt-4.1')
+        self.assertEqual(payload['model_failover_last_to_model'], 'anthropic/claude-sonnet-4')
+
 
 if __name__ == '__main__':
     unittest.main()

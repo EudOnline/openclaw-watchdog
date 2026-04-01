@@ -54,6 +54,7 @@ These scenarios are still valuable, but they are slower, broader, or more operat
 - `watchdog-metrics-open-incident`
 - `watchdog-metrics-resolved`
 - `watchdog-metrics-operator-context`
+- `watchdog-model-http-error-failover`
 - `watchdog-report-operator-attention`
 - `watchdog-report-operator-attention-cleared`
 - `watchdog-incident-attention-filter`

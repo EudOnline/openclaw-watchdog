@@ -7,6 +7,9 @@ All notable changes to this public repository will be documented here.
 Planned next release: `v0.2.0` after the repo-local release gate and real-host live acceptance both pass.
 
 ### Changed
+- surface recent model HTTP non-200 and last model-failover state in `report --json`, `report --message`, `metrics --json`, and Prometheus output so operators can confirm watchdog-driven model rotation
+- surface actionable model-failover state in `status --summary` so operators can scan `model_failover=...`, recent non-200 count, and the current switch target without opening the full JSON payloads
+- add a bounded daily rate limit for automatic model rotation with `WATCHDOG_MODEL_FAILOVER_MAX_APPLIES_PER_DAY`, preserving the existing cooldown while preventing repeated rewrite churn on one host
 - add a release-readiness guide plus draft `v0.2.0` release notes so rollout validation and release packaging follow one documented path
 - align the rehearsal harness with the fixed rescue-order contract by removing legacy priority-override injection from repo-local scenarios
 - promote core survivability scenarios such as conversation readiness, rollback-before-doctor, survival recovery, and drift guard into the critical rehearsal gate
@@ -31,6 +34,8 @@ Planned next release: `v0.2.0` after the repo-local release gate and real-host l
 
 ### Added
 - `docs/supported-environments.md` to define the current support matrix and release discipline
+- a deterministic rehearsal scenario for `watchdog-model-http-error-failover` so bounded local validation covers config rewrite, recovery attribution, and operator output consistency
+- rollout, rollback, and live-acceptance guidance for model HTTP non-200 failover across `README.md`, deployment docs, and reporting-contract docs
 - focused regression tests for extracted event and incident-context helpers
 - a minimal GitHub Actions workflow plus focused local regression tests for runtime wrapper, config defaults, reporting, CLI smoke, runtime helpers, and state-store helpers
 - docs and config guidance for the fixed OpenClaw fallback rescue chain and detect-only operating model

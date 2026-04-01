@@ -44,6 +44,7 @@ It combines:
 - **Layered health model**: process, service probe, and conversation readiness
 - **Incident workflow** with queueing, ownership, acknowledgement, notes, and timelines
 - **Safety rails** for rollback, drift detection, and repair sequencing
+- **Guarded model rotation** when repeated recent upstream model HTTP non-200 responses leave the current primary stuck without advancing OpenClaw failover
 - **Detect-only bootstrap and rescue inventory** for the prioritized executor chain
 - **Rehearsal scenarios** for testing expected failure and recovery paths
 - **Systemd user units** for unattended timer-based execution on Linux
@@ -154,6 +155,12 @@ Important knobs include:
 - watchdog state / incident directories
 - restart and probe grace periods
 - service-level failure threshold
+- optional model-error-triggered primary-model rotation settings:
+  `WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER`,
+  `WATCHDOG_MODEL_HTTP_ERROR_THRESHOLD`,
+  `WATCHDOG_MODEL_HTTP_ERROR_WINDOW_MINUTES`,
+  `WATCHDOG_MODEL_HTTP_ERROR_COOLDOWN_SECONDS`,
+  and `WATCHDOG_MODEL_FAILOVER_MAX_APPLIES_PER_DAY`
 - opt-in message-loop probe settings for a real transport echo check
 - notification target/channel
 - backup / rollback behavior
@@ -163,12 +170,31 @@ Important knobs include:
 
 The example config is intentionally sanitized. Its paths and conservative rollout toggles are now aligned with the built-in defaults so a missing env file does not silently fall back to `/root/...`-style paths or enable aggressive automation. Bootstrap and `detect` inventory available rescue executors, but they do not install missing tools for you. OpenClaw and any external rescue CLI must already be installed on the host you operate.
 
+The built-in probe defaults are intentionally tolerant of short planned restarts and upgrades. Out of the box, the watchdog keeps degraded states visible but waits longer before escalating into failure-driven repair, which helps avoid noisy recoveries during routine OpenClaw rollouts.
+
 The controlled mutation surface is intentionally narrow:
 
 - rescue config writes are limited to an explicit file allowlist
 - by default that allowlist contains only `~/.openclaw/openclaw.json` and `~/.openclaw-backup/watchdog/openclaw.survival.json`
 - editable keys use exact-or-descendant dotted-path matching, so allowing `channels` also allows `channels.qqbot.enabled`
 - rescue plans that exceed those file/key bounds are rejected during dispatch before execution, and execution re-checks the same policy before writing
+
+### Staged model-failover rollout
+
+Roll the model HTTP non-200 failover path out in stages instead of enabling it fleet-wide on day one:
+
+1. Leave `WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER=false` and review `status --summary`, `report --message`, `report --json`, `metrics --json`, and `metrics --prometheus` on a normal host so operators know the baseline.
+2. Enable `WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER=true` on one low-risk host with a real OpenClaw primary plus fallback list.
+3. Validate the bounded rehearsal scenario plus `./scripts/openclaw-watchdog-live-acceptance.sh` on that host before widening coverage.
+4. Expand to additional hosts only after the failover fields and summaries stay readable in both steady-state and recovery runs.
+
+If you need to stop automatic model rewrites quickly, set:
+
+```bash
+WATCHDOG_ENABLE_MODEL_HTTP_ERROR_FAILOVER="false"
+```
+
+Then restart or reload the watchdog service so future runs stop rotating the OpenClaw primary model.
 
 ### Optional real message-loop probe
 

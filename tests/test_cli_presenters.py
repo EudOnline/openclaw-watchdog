@@ -38,6 +38,64 @@ class CliPresentersTest(unittest.TestCase):
         self.assertIn('msg_loop=message loop cached ready', text)
         self.assertIn('last=all good', text)
 
+    def test_render_status_summary_surfaces_model_failover_when_present(self) -> None:
+        text = render_status_summary(
+            {
+                'last_status': 'degraded',
+                'conversation_status': 'minimal',
+                'health_level': 'degraded',
+                'current_mode': 'degraded',
+                'last_recovery_strategy': 'model-failover',
+                'rescue_executor_selected': 'none',
+                'candidate_rule_status': 'none',
+                'rescue_attempt_order': [],
+                'rescue_rejected_executors': [],
+                'survival_mode_active': False,
+                'service_active': True,
+                'service_probe_summary': 'up',
+                'message_loop_probe_enabled': False,
+                'recent_event_stats': {'counts': {'healthy': 0, 'degraded': 1, 'recovered': 0, 'failed': 0}},
+                'recent_incidents': [],
+                'last_event': {'human_summary': 'model failover applied'},
+                'model_failover_last_status': 'applied',
+                'model_http_error_count': 3,
+                'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+            }
+        )
+
+        self.assertIn('model_failover=applied', text)
+        self.assertIn('non200=3', text)
+        self.assertIn('to=anthropic/claude-sonnet-4', text)
+
+    def test_render_status_summary_omits_non_actionable_model_failover_noise(self) -> None:
+        text = render_status_summary(
+            {
+                'last_status': 'healthy',
+                'conversation_status': 'ready',
+                'health_level': 'healthy',
+                'current_mode': 'normal',
+                'last_recovery_strategy': 'restart',
+                'rescue_executor_selected': 'none',
+                'candidate_rule_status': 'none',
+                'rescue_attempt_order': [],
+                'rescue_rejected_executors': [],
+                'survival_mode_active': False,
+                'service_active': True,
+                'service_probe_summary': 'ok',
+                'message_loop_probe_enabled': False,
+                'recent_event_stats': {'counts': {'healthy': 1, 'degraded': 0, 'recovered': 0, 'failed': 0}},
+                'recent_incidents': [],
+                'last_event': {'human_summary': 'steady'},
+                'model_failover_last_status': 'insufficient-evidence',
+                'model_http_error_count': 0,
+                'model_failover_last_to_model': '',
+            }
+        )
+
+        self.assertNotIn('model_failover=', text)
+        self.assertNotIn('non200=', text)
+        self.assertNotIn('to=', text)
+
     def test_status_and_report_render_same_attempt_order_and_learning_summary(self) -> None:
         payload = {
             'last_status': 'degraded',

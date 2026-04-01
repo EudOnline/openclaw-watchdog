@@ -97,6 +97,42 @@ class IncidentCutoverTests(unittest.TestCase):
         queue_mock.assert_called_once_with(engine, limit=5)
         assign_mock.assert_called_once_with(engine, 'incident-9', 'alice')
 
+    def test_incident_operator_summary_mentions_model_failover_switch_when_applied(self) -> None:
+        from openclaw_watchdog import incident_service
+
+        engine = SimpleNamespace(
+            ctx=SimpleNamespace(
+                incident_id='incident-12',
+                run_ts='2026-04-01 10:15:00 CST',
+                pre_repair_backup_result='created',
+                rollback_occurred=False,
+                rollback_summary_archive_file='',
+                rollback_candidate_used='',
+                rollback_reason='',
+                last_recovery_strategy='model-failover',
+            ),
+            read_run_state=lambda: {
+                'health_level': 'degraded',
+                'conversation_status': 'minimal',
+                'model_failover_last_status': 'applied',
+                'model_failover_last_from_model': 'openai/gpt-4.1',
+                'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+            },
+            recovery_path_text=lambda: 'restart -> model-failover',
+        )
+
+        summary_text = incident_service.incident_operator_summary(
+            engine,
+            summary='model failover restored minimal usability',
+            active='true',
+            main_pid='123',
+            listeners='123 456',
+        )
+
+        self.assertIn('last_recovery_strategy=model-failover', summary_text)
+        self.assertIn('model_failover_last_status=applied', summary_text)
+        self.assertIn('model_failover_switch=openai/gpt-4.1 -> anthropic/claude-sonnet-4', summary_text)
+
     def test_incidents_module_uses_incident_read_runtime_directly(self) -> None:
         from openclaw_watchdog import incidents
 

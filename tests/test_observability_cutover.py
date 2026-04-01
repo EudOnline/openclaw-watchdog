@@ -48,6 +48,23 @@ class ObservabilityCutoverTests(unittest.TestCase):
         self.assertIn('"healthy": true', stdout.getvalue())
         probe_mock.assert_called_once_with(fake_engine, include_doctor=True)
 
+    def test_rehearsal_model_http_error_failover_scenario_asserts_rotation_and_outputs(self) -> None:
+        scenario_name = 'watchdog-model-http-error-failover'
+        run_script = Path('rehearsal/scripts/run-scenario.sh').read_text(encoding='utf-8')
+        apply_script = Path('rehearsal/scripts/apply-scenario.sh').read_text(encoding='utf-8')
+        assertions = json.loads(Path(f'rehearsal/scenarios/{scenario_name}.assertions.json').read_text(encoding='utf-8'))
+
+        self.assertIn(f'  {scenario_name}', run_script)
+        self.assertIn(f'  {scenario_name})', run_script)
+        self.assertIn(f'  {scenario_name})', apply_script)
+        self.assertEqual(assertions['equals']['outcome.state'], 'recovered')
+        self.assertEqual(assertions['equals']['status.last_recovery_strategy'], 'model-failover')
+        self.assertEqual(assertions['equals']['status.model_failover_last_status'], 'applied')
+        self.assertEqual(assertions['equals']['metrics.model_http_error_count'], 3)
+        self.assertEqual(assertions['equals']['metrics.model_failover_last_to_model'], 'anthropic/claude-sonnet-4')
+        self.assertIn('model_failover=status=applied', assertions['contains']['report.message_text'])
+        self.assertIn('"primary": "anthropic/claude-sonnet-4"', assertions['file_contains']['rehearsal/runtime/home/.openclaw/openclaw.json'])
+
     def test_event_runtime_uses_event_history_module_directly(self) -> None:
         from openclaw_watchdog import event_runtime
 
@@ -220,6 +237,7 @@ class ObservabilityCutoverTests(unittest.TestCase):
         self.assertEqual(payload['doctor_rc'], 7)
         self.assertTrue(payload['config_invalid'])
         self.assertEqual(payload['doctor_output'], 'Config invalid: missing token')
+        self.assertEqual(payload['message_loop_probe_checked_at'], '2026-03-13T10:00:00+08:00')
         run_doctor_mock.assert_called_once_with(engine)
         config_invalid_mock.assert_called_once_with(engine, 'Config invalid: missing token')
 

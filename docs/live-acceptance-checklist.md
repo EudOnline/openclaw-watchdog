@@ -17,6 +17,8 @@ Live acceptance is the final operator-facing gate, not the first regression chec
 
 Before running the full acceptance script on a new host, the operator quick path should already look sane: `status --summary`, `report --message`, and `incidents current --json` should all be readable and internally consistent.
 
+If model failover is enabled on that host, the operator quick path should also make it obvious whether there has been no recent signal, an applied rotation, a cooldown hold, or a `rate-limited` stop.
+
 The acceptance goal is to validate the OpenClaw fallback system that is already installed and configured, not to bootstrap missing software onto the host.
 
 ```bash
@@ -70,11 +72,12 @@ The script automatically validates these consistency checks:
 15. `incidents current --json` is consistent with `status.current_incident_id`
 16. `report.json` exposes `operator_attention_items` in list form
 17. when there is no current incident, `report.operator_attention_needed == false`
-18. `report.json` exposes the fallback-first fields (`conversation_*`, `survival_mode_*`, `last_recovery_*`, `rescue_*`, `case_ingest_result`, `candidate_rule_status`, `rollback_candidate_used`, `config_drift_detected`, `drift_*`)
-19. `metrics.json` exposes the fallback-first, rescue-chain, drift-guard, and last-good fields
+18. `report.json` exposes the fallback-first fields (`conversation_*`, `survival_mode_*`, `last_recovery_*`, `rescue_*`, `case_ingest_result`, `candidate_rule_status`, `rollback_candidate_used`, `config_drift_detected`, `drift_*`, `model_http_error_*`, `model_failover_last_*`)
+19. `metrics.json` exposes the fallback-first, rescue-chain, drift-guard, last-good, and model-failover fields
 20. `metrics.json` still exposes the current-incident operator fields (`current_incident_owner`, `current_incident_owner_assigned`, `current_incident_acknowledged`, `current_incident_notes_count`)
 21. `report.json` and `metrics.json` agree on the winning rescue executor, plan status, and rescue tier
 22. on macOS `launchd` hosts, `watchdog-launchd.txt` and `gateway-launchd.txt` are captured successfully
+23. if model failover is enabled, `status-summary.txt`, `report-message.txt`, `report.json`, `metrics.json`, and `metrics.prom` agree on the latest `model_http_error_*` and `model_failover_last_*` state
 
 If any check fails, the script exits non-zero.
 
@@ -87,8 +90,9 @@ After the script passes, quickly review:
 
 - `status-summary.txt` is concise, readable, and starts with fallback/recovery signals
 - `report-message.txt` clearly answers whether conversation is restored, what recovery path was used, and whether rollback/degradation is still in effect
-- `metrics.json` has current timestamps/counters plus fallback signals such as `conversation_status`, `survival_mode_reason`, `drift_scope`, and `last_good_generation_*`
-- `metrics.prom` is scrape-ready text and includes the fallback gauges
+- `metrics.json` has current timestamps/counters plus fallback signals such as `conversation_status`, `survival_mode_reason`, `drift_scope`, `last_good_generation_*`, and `model_failover_last_*`
+- `metrics.prom` is scrape-ready text and includes the fallback gauges plus the model-failover gauges
+- if a model failover has happened recently, `status-summary.txt` should include the compact `model_failover=... non200=... to=...` segment and `report-message.txt` should include `model_failover=status=...`
 - `incidents-list.txt` still matches the current healthy/incident window
 - `openclaw-status.txt` may include plugin/banner lines before the status card; this is acceptable as long as the watchdog commands above remain clean
 - on macOS `launchd` hosts, `watchdog-launchd.txt` and `gateway-launchd.txt` should show successful `launchctl print` captures for both labels

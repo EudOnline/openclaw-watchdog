@@ -14,6 +14,14 @@ STABLE_REPORT_KEYS = {
     'conversation_status',
     'conversation_ready',
     'minimal_usable_ready',
+    'model_http_error_count',
+    'model_http_error_latest_status',
+    'model_http_error_latest_at',
+    'model_failover_last_status',
+    'model_failover_last_applied_at',
+    'model_failover_last_from_model',
+    'model_failover_last_to_model',
+    'model_failover_last_summary',
     'last_recovery_strategy',
     'last_recovery_path',
     'last_recovery_action_count',
@@ -45,6 +53,14 @@ STABLE_METRICS_KEYS = {
     'service_active',
     'conversation_ready',
     'minimal_usable_ready',
+    'model_http_error_count',
+    'model_http_error_latest_status',
+    'model_http_error_latest_at',
+    'model_failover_last_status',
+    'model_failover_last_applied_at',
+    'model_failover_last_from_model',
+    'model_failover_last_to_model',
+    'model_failover_last_summary',
     'survival_mode_active',
     'survival_mode_exit_ready',
     'last_recovery_action_count',
@@ -109,6 +125,14 @@ class FakeEngine:
             'consecutive_failures': 0,
             'current_incident_id': '',
             'current_incident_state': '',
+            'model_http_error_count': 3,
+            'model_http_error_latest_at': '2026-03-10T15:58:00+00:00',
+            'model_http_error_latest_status': 503,
+            'model_failover_last_applied_at': '2026-03-10T15:59:00+00:00',
+            'model_failover_last_from_model': 'openai/gpt-4.1',
+            'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+            'model_failover_last_status': 'applied',
+            'model_failover_last_summary': 'switched primary model openai/gpt-4.1 -> anthropic/claude-sonnet-4',
             'recent_event_stats': {'counts': {'healthy': 3, 'degraded': 0, 'recovered': 1, 'failed': 0}},
             'last_event': {'summary': 'healthy', 'human_summary': 'healthy'},
             'incident_queue_summary': {'open_total': 0, 'attention_total': 0, 'handled_total': 0},
@@ -172,6 +196,14 @@ class FakeEngine:
                 'drift_scope': [],
                 'drift_since_last_good': '',
                 'drift_summary': '',
+                'model_http_error_count': 3,
+                'model_http_error_latest_at': '2026-03-10T15:58:00+00:00',
+                'model_http_error_latest_status': 503,
+                'model_failover_last_applied_at': '2026-03-10T15:59:00+00:00',
+                'model_failover_last_from_model': 'openai/gpt-4.1',
+                'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+                'model_failover_last_status': 'applied',
+                'model_failover_last_summary': 'switched primary model openai/gpt-4.1 -> anthropic/claude-sonnet-4',
             },
         }
 
@@ -290,6 +322,14 @@ class ReportingTest(unittest.TestCase):
             'conversation_status': 'minimal',
             'conversation_ready': False,
             'minimal_usable_ready': True,
+            'model_http_error_count': 3,
+            'model_http_error_latest_status': 503,
+            'model_http_error_latest_at': '2026-03-10T15:58:00+00:00',
+            'model_failover_last_status': 'applied',
+            'model_failover_last_applied_at': '2026-03-10T15:59:00+00:00',
+            'model_failover_last_from_model': 'openai/gpt-4.1',
+            'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+            'model_failover_last_summary': 'switched primary model openai/gpt-4.1 -> anthropic/claude-sonnet-4',
             'last_recovery_strategy': 'litellm',
             'last_recovery_path': 'restart -> rollback -> survival -> doctor',
             'last_recovery_action_count': 4,
@@ -325,6 +365,14 @@ class ReportingTest(unittest.TestCase):
             'service_active': True,
             'conversation_ready': True,
             'minimal_usable_ready': True,
+            'model_http_error_count': 3,
+            'model_http_error_latest_status': 503,
+            'model_http_error_latest_at': '2026-03-10T15:58:00+00:00',
+            'model_failover_last_status': 'applied',
+            'model_failover_last_applied_at': '2026-03-10T15:59:00+00:00',
+            'model_failover_last_from_model': 'openai/gpt-4.1',
+            'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+            'model_failover_last_summary': 'switched primary model openai/gpt-4.1 -> anthropic/claude-sonnet-4',
             'survival_mode_active': False,
             'survival_mode_exit_ready': True,
             'last_recovery_action_count': 2,
@@ -405,6 +453,23 @@ class ReportingTest(unittest.TestCase):
         for key in shared_keys:
             self.assertEqual(report[key], metrics[key])
 
+    def test_report_and_metrics_surface_model_failover_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            engine = FakeEngine(temp_dir)
+            report = self._report_payload(engine)
+            metrics = self._metrics_payload(engine)
+
+        self.assertEqual(report['model_http_error_count'], 3)
+        self.assertEqual(report['model_http_error_latest_status'], 503)
+        self.assertEqual(report['model_failover_last_status'], 'applied')
+        self.assertEqual(report['model_failover_last_from_model'], 'openai/gpt-4.1')
+        self.assertEqual(report['model_failover_last_to_model'], 'anthropic/claude-sonnet-4')
+        self.assertEqual(metrics['model_http_error_count'], 3)
+        self.assertEqual(metrics['model_http_error_latest_status'], 503)
+        self.assertEqual(metrics['model_failover_last_status'], 'applied')
+        self.assertEqual(metrics['model_failover_last_from_model'], 'openai/gpt-4.1')
+        self.assertEqual(metrics['model_failover_last_to_model'], 'anthropic/claude-sonnet-4')
+
     def test_docs_index_references_rescue_lifecycle_guide(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         guide = repo_root / 'docs' / 'rescue-lifecycle.md'
@@ -438,6 +503,14 @@ class ReportingTest(unittest.TestCase):
             'conversation_status': 'minimal',
             'conversation_ready': False,
             'minimal_usable_ready': True,
+            'model_http_error_count': 3,
+            'model_http_error_latest_status': 503,
+            'model_http_error_latest_at': '2026-03-10T15:58:00+00:00',
+            'model_failover_last_status': 'applied',
+            'model_failover_last_applied_at': '2026-03-10T15:59:00+00:00',
+            'model_failover_last_from_model': 'openai/gpt-4.1',
+            'model_failover_last_to_model': 'anthropic/claude-sonnet-4',
+            'model_failover_last_summary': 'switched primary model openai/gpt-4.1 -> anthropic/claude-sonnet-4',
             'last_recovery_strategy': 'litellm',
             'last_recovery_path': 'restart -> rollback -> survival -> doctor',
             'survival_mode_active': False,
@@ -465,6 +538,10 @@ class ReportingTest(unittest.TestCase):
         self.assertIn('degraded', text)
         self.assertIn('litellm', text)
         self.assertIn('pending-review', text)
+        self.assertIn('model_failover=status=applied', text)
+        self.assertIn('recent_non_200=3', text)
+        self.assertIn('from=openai/gpt-4.1', text)
+        self.assertIn('to=anthropic/claude-sonnet-4', text)
         self.assertIn('chain=codex -> claude-code -> litellm', text)
         self.assertIn('rejected=codex:unavailable,claude-code:no-plan', text)
         self.assertIn('mutate=restart_service,update_openclaw_config', text)
@@ -479,6 +556,9 @@ class ReportingTest(unittest.TestCase):
             'service_active': True,
             'conversation_ready': True,
             'minimal_usable_ready': True,
+            'model_http_error_count': 3,
+            'model_http_error_latest_status': 503,
+            'model_failover_last_applied_timestamp': 1700000002,
             'survival_mode_active': False,
             'survival_mode_exit_ready': True,
             'last_recovery_action_count': 2,
@@ -504,6 +584,9 @@ class ReportingTest(unittest.TestCase):
         self.assertIn('openclaw_watchdog_info', text)
         self.assertIn('openclaw_watchdog_service_active 1', text)
         self.assertIn('openclaw_watchdog_conversation_ready 1', text)
+        self.assertIn('openclaw_watchdog_model_http_error_count 3', text)
+        self.assertIn('openclaw_watchdog_model_http_error_latest_status 503', text)
+        self.assertIn('openclaw_watchdog_model_failover_last_applied_timestamp 1700000002', text)
         self.assertIn('openclaw_watchdog_current_incident_acknowledged 0', text)
         self.assertNotIn('openclaw_watchdog_current_incident_events_count', text)
 

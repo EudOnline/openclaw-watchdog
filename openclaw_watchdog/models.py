@@ -81,6 +81,14 @@ class RunStateSnapshot:
     minimal_usable_ready: bool = False
     conversation_status: str = 'down'
     conversation_probe_summary: str = ''
+    model_http_error_count: int = 0
+    model_http_error_latest_at: str = ''
+    model_http_error_latest_status: int = 0
+    model_failover_last_applied_at: str = ''
+    model_failover_last_from_model: str = ''
+    model_failover_last_to_model: str = ''
+    model_failover_last_status: str = 'not-run'
+    model_failover_last_summary: str = ''
     last_recovery_strategy: str = 'none'
     last_recovery_path: str = 'none'
     last_recovery_action_count: int = 0
@@ -126,6 +134,14 @@ class RunStateSnapshot:
             minimal_usable_ready=_as_bool(raw.get('minimal_usable_ready', False)),
             conversation_status=_as_str(raw.get('conversation_status', 'down'), 'down') or 'down',
             conversation_probe_summary=_as_str(raw.get('conversation_probe_summary', ''), ''),
+            model_http_error_count=_as_int(raw.get('model_http_error_count', 0)),
+            model_http_error_latest_at=_as_str(raw.get('model_http_error_latest_at', ''), ''),
+            model_http_error_latest_status=_as_int(raw.get('model_http_error_latest_status', 0)),
+            model_failover_last_applied_at=_as_str(raw.get('model_failover_last_applied_at', ''), ''),
+            model_failover_last_from_model=_as_str(raw.get('model_failover_last_from_model', ''), ''),
+            model_failover_last_to_model=_as_str(raw.get('model_failover_last_to_model', ''), ''),
+            model_failover_last_status=_as_str(raw.get('model_failover_last_status', 'not-run'), 'not-run') or 'not-run',
+            model_failover_last_summary=_as_str(raw.get('model_failover_last_summary', ''), ''),
             last_recovery_strategy=_as_str(raw.get('last_recovery_strategy', 'none'), 'none') or 'none',
             last_recovery_path=_as_str(raw.get('last_recovery_path', 'none'), 'none') or 'none',
             last_recovery_action_count=_as_int(raw.get('last_recovery_action_count', 0)),
@@ -171,6 +187,14 @@ class RunStateSnapshot:
             'minimal_usable_ready': self.minimal_usable_ready,
             'conversation_status': self.conversation_status,
             'conversation_probe_summary': self.conversation_probe_summary,
+            'model_http_error_count': self.model_http_error_count,
+            'model_http_error_latest_at': self.model_http_error_latest_at,
+            'model_http_error_latest_status': self.model_http_error_latest_status,
+            'model_failover_last_applied_at': self.model_failover_last_applied_at,
+            'model_failover_last_from_model': self.model_failover_last_from_model,
+            'model_failover_last_to_model': self.model_failover_last_to_model,
+            'model_failover_last_status': self.model_failover_last_status,
+            'model_failover_last_summary': self.model_failover_last_summary,
             'last_recovery_strategy': self.last_recovery_strategy,
             'last_recovery_path': self.last_recovery_path,
             'last_recovery_action_count': self.last_recovery_action_count,

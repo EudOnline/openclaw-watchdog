@@ -28,11 +28,12 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
             health_level=health_level,
         )
 
-    def _build_engine(self, *, doctor_enabled: bool = True):
+    def _build_engine(self, *, doctor_enabled: bool = True, model_failover_enabled: bool = False):
         engine = SimpleNamespace(
             config=SimpleNamespace(
                 watchdog_enable_doctor_repair=doctor_enabled,
                 watchdog_enable_survival_mode=False,
+                watchdog_enable_model_http_error_failover=model_failover_enabled,
             ),
             record_recovery_step=Mock(),
             enter_survival_mode=Mock(return_value={'applied': False}),
@@ -163,6 +164,57 @@ class DeterministicRecoveryRuntimeTests(unittest.TestCase):
             [
                 call(engine, {}, config_invalid=True),
                 call(engine, {}, config_invalid=False),
+            ],
+        )
+
+    def test_model_failover_runs_between_restart_and_rollback_and_can_finish_recovery(self) -> None:
+        from openclaw_watchdog.engine import RunOutcome
+        from openclaw_watchdog.flows import recovery_probe_runtime
+
+        engine = self._build_engine(model_failover_enabled=True)
+        ctx = SimpleNamespace(config_drift_detected=False)
+        initial_state = self._initial_state()
+        restart_state = self._phase_state(health_level='failed')
+        model_failover_state = self._phase_state(health_level='degraded', minimal_usable_ready=True)
+        outcome = RunOutcome(exit_code=0, state='recovered', summary='model failover restored minimal usability')
+
+        with patch('openclaw_watchdog.health.live_probe', side_effect=[{}, {}]) as live_probe_mock:
+            with patch.object(
+                recovery_probe_runtime,
+                'phase_state_from_probe',
+                side_effect=[restart_state, model_failover_state],
+            ) as phase_state_mock:
+                with patch('openclaw_watchdog.repair_action_runtime.run_pre_repair_backup'):
+                    with patch('openclaw_watchdog.repair_action_runtime.restart_service', side_effect=[False, True]) as restart_mock:
+                        with patch('openclaw_watchdog.flows.deterministic_recovery_runtime.model_failover_runtime.apply_model_http_error_failover', return_value={'applied': True, 'status': 'applied', 'summary': 'switched primary model'}) as failover_mock:
+                            with patch('openclaw_watchdog.rollback_runtime.restore_last_good') as rollback_mock:
+                                with patch(
+                                    'openclaw_watchdog.flows.recovery_finalize_runtime.maybe_finalize_recovery',
+                                    side_effect=[None, outcome],
+                                ) as finalize_mock:
+                                    from openclaw_watchdog.flows import deterministic_recovery_runtime
+
+                                    result, final_state = deterministic_recovery_runtime.run_deterministic_recovery(engine, ctx, initial_state)
+
+        self.assertEqual(result, outcome)
+        self.assertEqual(final_state, model_failover_state)
+        self.assertEqual(live_probe_mock.call_count, 2)
+        self.assertEqual(phase_state_mock.call_count, 2)
+        self.assertEqual(restart_mock.call_count, 2)
+        failover_mock.assert_called_once_with(engine)
+        rollback_mock.assert_not_called()
+        self.assertEqual(
+            finalize_mock.call_args_list,
+            [
+                call(engine, strategy='restart', recovery_kind='deterministic', state=restart_state),
+                call(engine, strategy='model-failover', recovery_kind='deterministic', state=model_failover_state),
+            ],
+        )
+        self.assertEqual(
+            engine.record_recovery_step.call_args_list,
+            [
+                call('restart', 'failed', ''),
+                call('model-failover', 'applied', 'switched primary model'),
             ],
         )
 

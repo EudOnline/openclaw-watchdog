@@ -44,6 +44,19 @@ def _rescue_fields(run_state: RunStateSnapshot) -> dict[str, object]:
     }
 
 
+def _model_failover_fields(run_state: RunStateSnapshot) -> dict[str, object]:
+    return {
+        'model_http_error_count': run_state.model_http_error_count,
+        'model_http_error_latest_at': run_state.model_http_error_latest_at,
+        'model_http_error_latest_status': run_state.model_http_error_latest_status,
+        'model_failover_last_applied_at': run_state.model_failover_last_applied_at,
+        'model_failover_last_from_model': run_state.model_failover_last_from_model,
+        'model_failover_last_to_model': run_state.model_failover_last_to_model,
+        'model_failover_last_status': run_state.model_failover_last_status,
+        'model_failover_last_summary': run_state.model_failover_last_summary,
+    }
+
+
 def unix_timestamp(value: object) -> int:
     if isinstance(value, (int, float)):
         return max(0, int(value))
@@ -93,6 +106,15 @@ def prometheus_metrics_text(metrics: dict[str, object]) -> str:
         "# HELP openclaw_watchdog_minimal_usable_ready Whether the minimal usable conversation path is ready.",
         "# TYPE openclaw_watchdog_minimal_usable_ready gauge",
         f"openclaw_watchdog_minimal_usable_ready {1 if metrics.get('minimal_usable_ready', False) else 0}",
+        "# HELP openclaw_watchdog_model_http_error_count Count of recent model-related HTTP non-200 responses seen inside the watchdog window.",
+        "# TYPE openclaw_watchdog_model_http_error_count gauge",
+        f"openclaw_watchdog_model_http_error_count {int(metrics.get('model_http_error_count', 0) or 0)}",
+        "# HELP openclaw_watchdog_model_http_error_latest_status Latest recent model-related HTTP non-200 status code seen by the watchdog.",
+        "# TYPE openclaw_watchdog_model_http_error_latest_status gauge",
+        f"openclaw_watchdog_model_http_error_latest_status {int(metrics.get('model_http_error_latest_status', 0) or 0)}",
+        "# HELP openclaw_watchdog_model_failover_last_applied_timestamp Unix timestamp when watchdog last rewrote the primary model.",
+        "# TYPE openclaw_watchdog_model_failover_last_applied_timestamp gauge",
+        f"openclaw_watchdog_model_failover_last_applied_timestamp {int(metrics.get('model_failover_last_applied_timestamp', 0) or 0)}",
         "# HELP openclaw_watchdog_message_loop_probe_enabled Whether the transport-level message loop probe is enabled.",
         "# TYPE openclaw_watchdog_message_loop_probe_enabled gauge",
         f"openclaw_watchdog_message_loop_probe_enabled {1 if metrics.get('message_loop_probe_enabled', False) else 0}",
@@ -257,6 +279,7 @@ def metrics_payload(engine) -> dict[str, object]:
         "survival_mode_last_exit_summary": str(payload.get("survival_mode_last_exit_summary", "") or ""),
         "consecutive_failures": int(payload.get("consecutive_failures", 0) or 0),
         "service_probe_failures": int(payload.get("service_probe_failures", 0) or 0),
+        **_model_failover_fields(run_state),
         "last_recovery_strategy": run_state.last_recovery_strategy,
         "last_recovery_path": run_state.last_recovery_path,
         "last_recovery_action_count": run_state.last_recovery_action_count,
@@ -300,5 +323,6 @@ def metrics_payload(engine) -> dict[str, object]:
     metrics["last_failed_timestamp"] = unix_timestamp(metrics.get("last_failed_at"))
     metrics["last_recovered_timestamp"] = unix_timestamp(metrics.get("last_recovered_at"))
     metrics["last_good_validated_timestamp"] = unix_timestamp(metrics.get("last_good_validated_at"))
+    metrics["model_failover_last_applied_timestamp"] = unix_timestamp(metrics.get("model_failover_last_applied_at"))
     write_metrics_snapshot(engine, metrics)
     return metrics

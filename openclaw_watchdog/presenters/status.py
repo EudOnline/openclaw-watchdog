@@ -31,17 +31,28 @@ def render_status_summary(payload: dict[str, object]) -> str:
     message_loop_summary = ''
     if bool(payload.get('message_loop_probe_enabled', False)):
         message_loop_summary = str(payload.get('message_loop_probe_summary', '') or 'enabled')
-    return ' | '.join(
+    parts = [
+        f"status={payload.get('last_status', payload.get('status', 'unknown'))}",
+        f"conversation={snapshot.get('conversation_status', 'down')}",
+        f"health={payload.get('health_level', 'unknown')}",
+        f"mode={payload.get('current_mode', 'unknown')}",
+        f"recovery={snapshot.get('last_recovery_strategy', 'none')}",
+        f"rescue={snapshot.get('rescue_executor_selected', '') or 'none'}/{snapshot.get('candidate_rule_status', '') or 'none'}",
+        f"order={operator_snapshot.list_text(snapshot.get('rescue_attempt_order', []), joiner='>')}",
+        f"reject={operator_snapshot.list_text(snapshot.get('rescue_rejected_executors', []), joiner=',')}",
+        f"learn={snapshot.get('rescue_learning_summary', '') or 'none'}",
+    ]
+    model_failover_status = str(snapshot.get('model_failover_last_status', 'not-run') or 'not-run')
+    model_http_error_count = int(snapshot.get('model_http_error_count', 0) or 0)
+    model_failover_target = str(snapshot.get('model_failover_last_to_model', '') or '')
+    actionable_failover_states = {'applied', 'failed', 'cooldown', 'not-configured'}
+    if model_failover_status in actionable_failover_states or model_http_error_count > 0 or model_failover_target:
+        parts.append(f"model_failover={model_failover_status}")
+        parts.append(f"non200={model_http_error_count}")
+        if model_failover_target:
+            parts.append(f"to={model_failover_target}")
+    parts.extend(
         [
-            f"status={payload.get('last_status', payload.get('status', 'unknown'))}",
-            f"conversation={snapshot.get('conversation_status', 'down')}",
-            f"health={payload.get('health_level', 'unknown')}",
-            f"mode={payload.get('current_mode', 'unknown')}",
-            f"recovery={snapshot.get('last_recovery_strategy', 'none')}",
-            f"rescue={snapshot.get('rescue_executor_selected', '') or 'none'}/{snapshot.get('candidate_rule_status', '') or 'none'}",
-            f"order={operator_snapshot.list_text(snapshot.get('rescue_attempt_order', []), joiner='>')}",
-            f"reject={operator_snapshot.list_text(snapshot.get('rescue_rejected_executors', []), joiner=',')}",
-            f"learn={snapshot.get('rescue_learning_summary', '') or 'none'}",
             f"survival={survival_summary}",
             f"service={str(bool(payload.get('service_active', False))).lower()}",
             f"probe={payload.get('service_probe_summary', 'n/a')}",
@@ -51,3 +62,4 @@ def render_status_summary(payload: dict[str, object]) -> str:
             f"last={last_event.get('human_summary', last_event.get('summary', 'none'))}",
         ]
     )
+    return ' | '.join(parts)
